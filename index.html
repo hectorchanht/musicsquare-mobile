@@ -1874,35 +1874,47 @@
 
     // ===================== 各平台搜索 =====================
 
-    // 网易云搜索（用 vkeys，page + num）
+    // 网易云搜索：qijieya meting search
     async function searchNetease(kw, page, num){
-      const url=`https://api.vkeys.cn/v2/music/netease?word=${encodeURIComponent(kw)}&page=${encodeURIComponent(page)}&num=${encodeURIComponent(num)}`;
+      const requestLimit=Math.max(1,page||1)*Math.max(1,num||10);
+      const url=`https://api.qijieya.cn/meting/?type=search&id=${encodeURIComponent(kw)}&limit=${encodeURIComponent(requestLimit)}&server=netease`;
       let added=0;
+
+      function pickQueryParam(rawUrl, key){
+        if(!rawUrl)return '';
+        try{
+          return new URL(rawUrl, window.location.href).searchParams.get(key) || '';
+        }catch(e){
+          const m=String(rawUrl).match(new RegExp('[?&]'+key+'=([^&]+)'));
+          return m ? decodeURIComponent(m[1]) : '';
+        }
+      }
+
       try{
         const res=await fetch(url);
         const json=await res.json();
-        if(json.code!==200||!Array.isArray(json.data))return 0;
+        if(!Array.isArray(json))return 0;
 
-        json.data.forEach((it, idx)=>{
-          const songId = it.id;
+        json.forEach((it, idx)=>{
+          const songId = pickQueryParam(it.url, 'id') || `${kw}-${idx+1}`;
           const uid=`netease-${songId}`;
           if(state.trackMap.has(uid))return;
 
           const track={
             uid,
             source:'netease',
-            displayIndex:(Math.max(1,page)-1)*Math.max(1,num) + (idx+1),
+            displayIndex:idx+1,
             keyword:kw,
 
             songid:songId,
-            title:it.song||'',
-            artist:it.singer||'',
-            album:it.album||'',
+            title:it.name||'',
+            artist:it.artist||'',
+            album:'',
 
-            cover:it.cover||null,
-            audioUrl:null,
+            cover:it.pic||null,
+            audioUrl:it.url||null,
             lrc:null,
-            lrcUrl:null,
+            lrcUrl:it.lrc||null,
 
             detailsLoaded:false,
             quality:null,
@@ -1913,7 +1925,7 @@
           added++;
         });
 
-      }catch(e){console.error('netease(vkeys)',e);}
+      }catch(e){console.error('netease(qijieya meting)',e);}
       return added;
     }
 
@@ -2144,38 +2156,44 @@
 
     // ===================== 各平台详情 =====================
 
-    // 网易云详情：meting 拿音源 + vkeys 拿歌词
+    // 网易云详情：搜索结果已返回播放、封面、歌词接口，这里只补全缓存歌曲和歌词内容
     async function fetchNeteaseDetails(track){
-      const metingApi=`https://api.qijieya.cn/meting/?type=song&id=${encodeURIComponent(track.songid)}`;
-      const res=await fetch(metingApi);
-      const j=await res.json();
-      if(!Array.isArray(j) || !j.length) throw new Error('netease meting detail empty');
-
-      const d=j[0]||{};
-      Object.assign(track,{
-        title:d.name||track.title,
-        artist:d.artist||track.artist,
-        audioUrl:d.url||track.audioUrl,
-        cover:d.pic||track.cover
-      });
-
-      // 根据音频链接后缀判断音质
-      if (track.audioUrl) {
-        const q = inferQualityFromUrl(track.audioUrl);
-        track.quality = q.tag;
-        track.qualityLabel = q.label;
+      if(track.songid){
+        if(!track.audioUrl){
+          track.audioUrl=`https://api.qijieya.cn/meting/?server=netease&type=url&id=${encodeURIComponent(track.songid)}`;
+        }
+        if(!track.lrcUrl){
+          track.lrcUrl=`https://api.qijieya.cn/meting/?server=netease&type=lrc&id=${encodeURIComponent(track.songid)}`;
+        }
       }
 
-      const lyricApi=`https://api.vkeys.cn/v2/music/netease/lyric?id=${encodeURIComponent(track.songid)}`;
-      try{
-        const lr=await fetch(lyricApi);
-        const lj=await lr.json();
-        if(lj && lj.code===200 && lj.data){
-          track.lrc = lj.data.lrc || track.lrc || null;
-          track.lrcUrl = track.lrcUrl || lyricApi;
+      if(track.audioUrl){
+        const q=inferQualityFromUrl(track.audioUrl);
+        track.quality=q.tag;
+        track.qualityLabel=q.label;
+      }
+
+      if(!track.lrc && track.lrcUrl){
+        try{
+          const lr=await fetch(track.lrcUrl);
+          const contentType=(lr.headers.get('content-type')||'').toLowerCase();
+          if(contentType.includes('json')){
+            const lj=await lr.json();
+            track.lrc =
+              (typeof lj === 'string' ? lj : null) ||
+              lj?.lrc ||
+              lj?.lyric ||
+              lj?.data?.lrc ||
+              lj?.data?.lyric ||
+              (typeof lj?.data === 'string' ? lj.data : null) ||
+              track.lrc ||
+              null;
+          }else{
+            track.lrc=await lr.text();
+          }
+        }catch(e){
+          console.warn('netease(qijieya meting) lyric fetch failed', e);
         }
-      }catch(e){
-        console.warn('netease(vkeys) lyric fetch failed', e);
       }
 
       track.detailsLoaded=true;

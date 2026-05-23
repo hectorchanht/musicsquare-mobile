@@ -2306,7 +2306,7 @@
       const playLinks=d['播放链接']||{};
 
       function pickJooxPlayUrl(links){
-        const order=['母带无损','Hi-Res无损','无损FLAC','Atmos全景声','OGG 320','MP3 320','AAC 192','OGG 192','MP3 128','AAC 96','AAC 48'];
+        const order=['Atmos全景声','无损FLAC','Hi-Res无损','母带无损','OGG 320','MP3 320','AAC 192','OGG 192','MP3 128','AAC 96','AAC 48'];
         for(const name of order){
           const u=links[name];
           if(!u)continue;

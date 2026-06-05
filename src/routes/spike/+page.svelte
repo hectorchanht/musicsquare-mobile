@@ -9,8 +9,9 @@
 	// — it's a test rig.
 	//
 	// SECURITY (T-01-03): every source-supplied field (title/artist) is rendered via
-	// Svelte text interpolation, which auto-escapes. We NEVER use {@html} here.
+	// Svelte text interpolation, which auto-escapes. We NEVER use the raw-HTML directive here.
 	import { SOURCES } from '$lib/sources/registry';
+	import { searchAll, ensureTrackDetails } from '$lib/services/catalog';
 	import type { SourceId, Track } from '$lib/sources/types';
 
 	type RowState = {
@@ -96,18 +97,34 @@
 		}
 	}
 
+	// Enable EXACTLY one source so per-source isolation (DATA-03) is visible: every
+	// other source is explicitly disabled (absent would fall back to enabledByDefault=true).
+	function soloPrefs(id: SourceId): Partial<Record<SourceId, boolean>> {
+		const prefs: Partial<Record<SourceId, boolean>> = {};
+		for (const a of Object.values(SOURCES)) prefs[a.id] = a.id === id;
+		return prefs;
+	}
+
 	async function runSource(id: SourceId) {
-		const adapter = SOURCES[id];
 		const ac = new AbortController();
 		setRow(id, { status: 'searching', message: 'searching…', audioPlay: 'untested' });
 		try {
-			const tracks = await adapter.search(KEYWORD, 1, ac.signal);
-			if (!tracks.length) {
+			// Route through the aggregation layer (catalog.searchAll) rather than the raw
+			// adapter — this is the same path the real app uses; per-source isolation means
+			// a thrown adapter shows as status:'error', not an uncaught rejection.
+			const { perSource, interleaved } = await searchAll(KEYWORD, 1, soloPrefs(id), ac.signal);
+			const outcome = perSource.find((p) => p.source === id);
+			if (outcome?.status === 'error') {
+				setRow(id, { status: 'fail', message: `search error: ${outcome.error ?? 'unknown'}` });
+				return;
+			}
+			const top = interleaved.find((t) => t.source === id) ?? null;
+			if (!top) {
 				setRow(id, { status: 'fail', message: 'no results' });
 				return;
 			}
-			setRow(id, { status: 'resolving', message: 'resolving top result…', track: tracks[0] });
-			const resolved = await adapter.resolve(tracks[0], ac.signal);
+			setRow(id, { status: 'resolving', message: 'resolving top result…', track: top });
+			const resolved = await ensureTrackDetails(top, ac.signal);
 			setRow(id, { track: resolved });
 			if (!resolved.audioUrl) {
 				setRow(id, { status: 'fail', message: 'no audioUrl after resolve' });
@@ -126,13 +143,8 @@
 					: 'browser-direct playback failed (may need Worker stream-passthrough)'
 			});
 		} catch (err) {
-			// not-implemented stubs land here for QQ/Kuwo/JOOX in this plan.
 			const msg = err instanceof Error ? err.message : String(err);
-			if (msg.includes('not-implemented')) {
-				setRow(id, { status: 'pending-adapter', message: 'pending adapter (01-02 / 01-03)' });
-			} else {
-				setRow(id, { status: 'fail', message: msg });
-			}
+			setRow(id, { status: 'fail', message: msg });
 		}
 	}
 
@@ -196,7 +208,7 @@
 				<tr class={row.status}>
 					<td>{row.label}</td>
 					<td>{row.status}</td>
-					<!-- source-supplied text — auto-escaped by Svelte (no {@html}) -->
+					<!-- source-supplied text — auto-escaped by Svelte (no raw-HTML directive) -->
 					<td>{row.track ? `${row.track.title} — ${row.track.artist}` : '—'}</td>
 					<td>{row.audioPlay}</td>
 					<td>

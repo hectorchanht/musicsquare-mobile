@@ -83,44 +83,46 @@ Explicitly excluded. Documented to prevent scope creep.
 
 ## Traceability
 
-Populated during roadmap creation (roadmapper maps each requirement to exactly one phase).
+Each v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase detail.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DATA-01 | — | Pending |
-| DATA-02 | — | Pending |
-| DATA-03 | — | Pending |
-| DATA-04 | — | Pending |
-| PLAY-01 | — | Pending |
-| PLAY-02 | — | Pending |
-| PLAY-03 | — | Pending |
-| PLAY-04 | — | Pending |
-| PLAY-05 | — | Pending |
-| PLAY-06 | — | Pending |
-| UI-01 | — | Pending |
-| UI-02 | — | Pending |
-| UI-03 | — | Pending |
-| UI-04 | — | Pending |
-| UI-05 | — | Pending |
-| UI-06 | — | Pending |
-| UI-07 | — | Pending |
-| UI-08 | — | Pending |
-| UI-09 | — | Pending |
-| LIB-01 | — | Pending |
-| LIB-02 | — | Pending |
-| LIB-03 | — | Pending |
-| LIB-04 | — | Pending |
-| SRC-01 | — | Pending |
-| SRC-02 | — | Pending |
-| SRC-03 | — | Pending |
-| PWA-01 | — | Pending |
-| PWA-02 | — | Pending |
+| DATA-01 | Phase 1 | Pending |
+| DATA-02 | Phase 1 | Pending |
+| DATA-03 | Phase 1 | Pending |
+| DATA-04 | Phase 1 | Pending |
+| PLAY-01 | Phase 2 | Pending |
+| PLAY-02 | Phase 2 | Pending |
+| PLAY-03 | Phase 2 | Pending |
+| PLAY-04 | Phase 2 | Pending |
+| PLAY-05 | Phase 6 | Pending |
+| PLAY-06 | Phase 7 | Pending |
+| UI-01 | Phase 4 | Pending |
+| UI-02 | Phase 4 | Pending |
+| UI-03 | Phase 4 | Pending |
+| UI-04 | Phase 4 | Pending |
+| UI-05 | Phase 4 | Pending |
+| UI-06 | Phase 4 | Pending |
+| UI-07 | Phase 4 | Pending |
+| UI-08 | Phase 4 | Pending |
+| UI-09 | Phase 7 | Pending |
+| LIB-01 | Phase 3 | Pending |
+| LIB-02 | Phase 3 | Pending |
+| LIB-03 | Phase 3 | Pending |
+| LIB-04 | Phase 3 | Pending |
+| SRC-01 | Phase 1 | Pending |
+| SRC-02 | Phase 7 | Pending |
+| SRC-03 | Phase 7 | Pending |
+| PWA-01 | Phase 5 | Pending |
+| PWA-02 | Phase 5 | Pending |
 
 **Coverage:**
 - v1 requirements: 28 total
-- Mapped to phases: 0 (roadmapper populates)
-- Unmapped: 28 ⚠️
+- Mapped to phases: 28 ✓
+- Unmapped: 0 ✓
+
+**Per-phase counts:** Phase 1: 5 (DATA-01..04, SRC-01) · Phase 2: 4 (PLAY-01..04) · Phase 3: 4 (LIB-01..04) · Phase 4: 8 (UI-01..08) · Phase 5: 2 (PWA-01..02) · Phase 6: 1 (PLAY-05) · Phase 7: 4 (SRC-02, SRC-03, PLAY-06, UI-09)
 
 ---
 *Requirements defined: 2026-06-05*
-*Last updated: 2026-06-05 after initial definition*
+*Last updated: 2026-06-05 after roadmap creation (traceability populated)*

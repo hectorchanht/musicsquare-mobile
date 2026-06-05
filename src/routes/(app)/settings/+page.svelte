@@ -43,6 +43,7 @@
 	];
 
 	function setLang(v: LyricsLang) { settings.lyricsLang = v; settings.save(); }
+	function setNameLang(v: LyricsLang) { settings.nameLang = v; settings.save(); }
 	function setMode(v: TranslateMode) { settings.translateMode = v; settings.save(); }
 	function setQuality(v: DefaultQuality) { settings.defaultQuality = v; settings.save(); }
 	function setSource(v: DefaultSource) { settings.defaultSource = v; settings.save(); }
@@ -74,6 +75,16 @@
 			<button class="chip" class:on={settings.lyricsLang === l.v} onclick={() => setLang(l.v)}>{l.label}</button>
 		{/each}
 	</div>
+</section>
+
+<section>
+	<h2><Languages size={15} /> Translate song &amp; artist names</h2>
+	<div class="chips">
+		{#each langs as l (l.v)}
+			<button class="chip" class:on={settings.nameLang === l.v} onclick={() => setNameLang(l.v)}>{l.label}</button>
+		{/each}
+	</div>
+	<p class="muted">Renders titles + artists in this language (e.g. 简体 → 繁體). Lyrics setting is separate.</p>
 </section>
 
 <section>

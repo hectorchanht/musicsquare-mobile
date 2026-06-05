@@ -6,8 +6,14 @@
 	import { dedupeBest } from '$lib/services/dedupe';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { player } from '$lib/stores/player.svelte';
+	import { names } from '$lib/stores/names.svelte';
+	import { longpress } from '$lib/actions/longpress';
+	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import { goto } from '$app/navigation';
 	import type { Track } from '$lib/sources/types';
+
+	let menuTrack = $state<Track | null>(null);
+	let menuOpen = $state(false);
 
 	const name = $derived(decodeURIComponent(page.params.name ?? ''));
 	let tracks = $state<Track[]>([]);
@@ -44,7 +50,7 @@
 <header class="hero">
 	<button class="back" aria-label="Back" onclick={() => goto('/')}><ChevronLeft size={22} /></button>
 	<div class="cover" style:background-image={hero ? `url(${hero})` : 'linear-gradient(145deg,#3a2d63,#1a1326)'}></div>
-	<h1>{name}</h1>
+	<h1>{names.dn(name)}</h1>
 	<p class="note">Album · {tracks.length} tracks (derived from search)</p>
 </header>
 
@@ -54,10 +60,10 @@
 	<ul class="list">
 		{#each tracks as t, i (t.uid)}
 			<li>
-				<button class="row" onclick={() => { player.setQueue(tracks); player.play(t); }}>
+				<button class="row" use:longpress onlongpress={() => { menuTrack = t; menuOpen = true; }} onclick={() => { player.setQueue(tracks); player.play(t); }}>
 					<span class="rank">{i + 1}</span>
 					<span class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></span>
-					<span class="meta"><span class="r-title">{t.title}</span><span class="r-sub">{t.artist}</span></span>
+					<span class="meta"><span class="r-title">{names.dn(t.title)}</span><span class="r-sub">{names.dn(t.artist)}</span></span>
 					<Play size={16} />
 				</button>
 			</li>
@@ -66,6 +72,8 @@
 {:else}
 	<p class="muted">No tracks found for “{name}”.</p>
 {/if}
+
+<TrackMenu track={menuTrack} open={menuOpen} onclose={() => (menuOpen = false)} />
 
 <style>
 	.hero { padding: 14px 0 18px; text-align: center; position: relative; }

@@ -8,6 +8,12 @@
 	import { dedupeBest } from '$lib/services/dedupe';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { player } from '$lib/stores/player.svelte';
+	import { names } from '$lib/stores/names.svelte';
+	import { longpress } from '$lib/actions/longpress';
+	import TrackMenu from '$lib/components/TrackMenu.svelte';
+
+	let menuTrack = $state<Track | null>(null);
+	let menuOpen = $state(false);
 	import type { Track } from '$lib/sources/types';
 
 	const name = $derived(decodeURIComponent(page.params.name ?? ''));
@@ -55,7 +61,7 @@
 <header class="hero">
 	<a class="back" href="/">‹ Back</a>
 	<div class="herocover" style:background-image={hero ? `url(${hero})` : 'linear-gradient(145deg,#3a2d63,#1a1326)'}></div>
-	<h1>{name}</h1>
+	<h1>{names.dn(name)}</h1>
 	<p class="note">Derived from cross-source search · {songs.length} tracks</p>
 </header>
 
@@ -69,7 +75,7 @@
 				{#each albums as al (al.name)}
 					<button class="album" onclick={() => { player.setQueue(al.tracks); player.play(al.tracks[0]); }}>
 						<span class="al-cover" style:background-image={al.cover ? `url(${al.cover})` : fallbackCover(al.tracks[0])}></span>
-						<span class="al-name">{al.name}</span>
+						<span class="al-name">{names.dn(al.name)}</span>
 						<span class="al-count">{al.tracks.length} track{al.tracks.length > 1 ? 's' : ''}</span>
 					</button>
 				{/each}
@@ -83,10 +89,10 @@
 			<ul class="list">
 				{#each songs.slice(0, 30) as t, i (t.uid)}
 					<li>
-						<button class="row" onclick={() => { player.setQueue(songs); player.play(t); }}>
+						<button class="row" use:longpress onlongpress={() => { menuTrack = t; menuOpen = true; }} onclick={() => { player.setQueue(songs); player.play(t); }}>
 							<span class="rank">{i + 1}</span>
 							<span class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></span>
-							<span class="meta"><span class="r-title">{t.title}</span><span class="r-sub">{t.album || t.artist}</span></span>
+							<span class="meta"><span class="r-title">{names.dn(t.title)}</span><span class="r-sub">{names.dn(t.album || t.artist)}</span></span>
 						</button>
 					</li>
 				{/each}
@@ -94,6 +100,8 @@
 		{:else}<p class="muted">No songs found for {name}.</p>{/if}
 	</section>
 {/if}
+
+<TrackMenu track={menuTrack} open={menuOpen} onclose={() => (menuOpen = false)} />
 
 <style>
 	.hero { padding: 14px 0 18px; text-align: center; }

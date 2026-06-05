@@ -3,7 +3,13 @@
 	import { dedupeBest } from '$lib/services/dedupe';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { player } from '$lib/stores/player.svelte';
+	import { names } from '$lib/stores/names.svelte';
+	import { longpress } from '$lib/actions/longpress';
+	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import type { Track } from '$lib/sources/types';
+
+	let menuTrack = $state<Track | null>(null);
+	let menuOpen = $state(false);
 
 	let q = $state('');
 	let results = $state<Track[]>([]);
@@ -62,17 +68,19 @@
 	<ul class="list">
 		{#each results as t (t.uid)}
 			<li>
-				<button class="row" onclick={() => { player.setQueue(results); player.play(t); }}>
+				<button class="row" use:longpress onlongpress={() => { menuTrack = t; menuOpen = true; }} onclick={() => { player.setQueue(results); player.play(t); }}>
 					<span class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></span>
 					<span class="meta">
-						<span class="r-title">{t.title}</span>
-						<span class="r-artist">{t.artist}</span>
+						<span class="r-title">{names.dn(t.title)}</span>
+						<span class="r-artist">{names.dn(t.artist)}</span>
 					</span>
 				</button>
 			</li>
 		{/each}
 	</ul>
 {/if}
+
+<TrackMenu track={menuTrack} open={menuOpen} onclose={() => (menuOpen = false)} />
 
 <style>
 	.head h1 { font-size: 1.4rem; margin: 16px 0 12px; }

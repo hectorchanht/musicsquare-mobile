@@ -3,10 +3,16 @@
 	import { Heart, ListMusic, Download, Trash2, Play } from '@lucide/svelte';
 	import { library } from '$lib/stores/library.svelte';
 	import { player } from '$lib/stores/player.svelte';
+	import { names } from '$lib/stores/names.svelte';
+	import { longpress } from '$lib/actions/longpress';
+	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import type { Track } from '$lib/sources/types';
 
 	type Tab = 'liked' | 'playlists' | 'downloads';
 	let tab = $state<Tab>('liked');
+	let menuTrack = $state<Track | null>(null);
+	let menuOpen = $state(false);
+	function openMenu(t: Track) { menuTrack = t; menuOpen = true; }
 	onMount(() => library.load());
 
 	function fallbackCover(t: Track): string {
@@ -34,9 +40,9 @@
 		<ul class="list">
 			{#each library.liked as t (t.uid)}
 				<li>
-					<button class="row" onclick={() => playList(library.liked, t)}>
+					<button class="row" use:longpress onlongpress={() => openMenu(t)} onclick={() => playList(library.liked, t)}>
 						<span class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></span>
-						<span class="meta"><span class="r-title">{t.title}</span><span class="r-sub">{t.artist}</span></span>
+						<span class="meta"><span class="r-title">{names.dn(t.title)}</span><span class="r-sub">{names.dn(t.artist)}</span></span>
 						<Play size={16} />
 					</button>
 				</li>
@@ -55,9 +61,9 @@
 					<ul class="list">
 						{#each pl.tracks as t (t.uid)}
 							<li>
-								<button class="row" onclick={() => playList(pl.tracks, t)}>
+								<button class="row" use:longpress onlongpress={() => openMenu(t)} onclick={() => playList(pl.tracks, t)}>
 									<span class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></span>
-									<span class="meta"><span class="r-title">{t.title}</span><span class="r-sub">{t.artist}</span></span>
+									<span class="meta"><span class="r-title">{names.dn(t.title)}</span><span class="r-sub">{names.dn(t.artist)}</span></span>
 								</button>
 							</li>
 						{/each}
@@ -71,9 +77,9 @@
 		<ul class="list">
 			{#each library.downloads as t (t.uid)}
 				<li class="rowline">
-					<button class="row" onclick={() => playList(library.downloads, t)}>
+					<button class="row" use:longpress onlongpress={() => openMenu(t)} onclick={() => playList(library.downloads, t)}>
 						<span class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></span>
-						<span class="meta"><span class="r-title">{t.title}</span><span class="r-sub">{t.artist}</span></span>
+						<span class="meta"><span class="r-title">{names.dn(t.title)}</span><span class="r-sub">{names.dn(t.artist)}</span></span>
 					</button>
 					<button class="del" aria-label="Remove" onclick={() => library.removeDownload(t.uid)}><Trash2 size={15} /></button>
 				</li>
@@ -82,6 +88,8 @@
 		<p class="note">Downloaded files are saved to your device. This list references them and re-streams on tap (web apps can't replay arbitrary saved files offline).</p>
 	{:else}<p class="empty"><Download size={28} /><span>No downloads. Use Download in a song's ⋮ menu.</span></p>{/if}
 {/if}
+
+<TrackMenu track={menuTrack} open={menuOpen} onclose={() => (menuOpen = false)} />
 
 <style>
 	.head h1 { font-size: 1.4rem; margin: 16px 0 12px; }

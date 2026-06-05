@@ -13,6 +13,8 @@ const DEFAULT_ACCENT = '#7c5cff';
 
 class Settings {
 	lyricsLang = $state<LyricsLang>('off');
+	/** Translate displayed song titles + artist names to this language (separate from lyrics). */
+	nameLang = $state<LyricsLang>('off');
 	translateMode = $state<TranslateMode>('below');
 	defaultQuality = $state<DefaultQuality>('auto');
 	defaultSource = $state<DefaultSource>('auto');
@@ -34,6 +36,7 @@ class Settings {
 			if (raw) {
 				const v = JSON.parse(raw) as Partial<Settings>;
 				this.lyricsLang = (v.lyricsLang as LyricsLang) ?? 'off';
+				this.nameLang = (v.nameLang as LyricsLang) ?? 'off';
 				this.translateMode = (v.translateMode as TranslateMode) ?? 'below';
 				this.defaultQuality = (v.defaultQuality as DefaultQuality) ?? 'auto';
 				this.defaultSource = (v.defaultSource as DefaultSource) ?? 'auto';
@@ -54,6 +57,7 @@ class Settings {
 				KEY,
 				JSON.stringify({
 					lyricsLang: this.lyricsLang,
+					nameLang: this.nameLang,
 					translateMode: this.translateMode,
 					defaultQuality: this.defaultQuality,
 					defaultSource: this.defaultSource,

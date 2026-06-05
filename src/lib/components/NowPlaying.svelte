@@ -2,17 +2,15 @@
 	import { fly } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import { goto } from '$app/navigation';
-	import {
-		ChevronDown, MoreVertical, Shuffle, SkipBack, SkipForward, Play, Pause, Repeat,
-		Heart, Download, ListPlus, Disc, User, Share2, Info, X, Plus
-	} from '@lucide/svelte';
+	import { ChevronDown, MoreVertical, Shuffle, SkipBack, SkipForward, Play, Pause, Repeat } from '@lucide/svelte';
 	import { player, fmtTime } from '$lib/stores/player.svelte';
-	import { library } from '$lib/stores/library.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
-	import { searchAll, ensureTrackDetails } from '$lib/services/catalog';
+	import { names } from '$lib/stores/names.svelte';
+	import { searchAll } from '$lib/services/catalog';
 	import { dedupeBest } from '$lib/services/dedupe';
 	import { translateLines } from '$lib/services/translate';
-	import { shareUrl } from '$lib/services/share';
+	import { longpress } from '$lib/actions/longpress';
+	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import { parseLRC, type LyricLine } from '$lib/services/lrc';
 	import type { Track } from '$lib/sources/types';
 
@@ -21,18 +19,13 @@
 	let shuffle = $state(false);
 	let repeat = $state(false);
 
+	// shared context menu for current track + long-pressed queue/related rows
+	let menuTrack = $state<Track | null>(null);
 	let menuOpen = $state(false);
-	let pickerOpen = $state(false);
-	let detailTrack = $state<Track | null>(null);
-	let toastMsg = $state('');
-	let toastTimer: ReturnType<typeof setTimeout> | null = null;
-	function toast(m: string) {
-		toastMsg = m;
-		if (toastTimer) clearTimeout(toastTimer);
-		toastTimer = setTimeout(() => (toastMsg = ''), 2200);
+	function openMenu(t: Track | null) {
+		menuTrack = t;
+		menuOpen = !!t;
 	}
-
-	const liked = $derived(player.current ? library.isLiked(player.current.uid) : false);
 
 	function fallbackCover(t: Track | null): string {
 		if (!t) return 'linear-gradient(145deg,#3a2d63,#1a1326)';
@@ -75,7 +68,7 @@
 		if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 	});
 
-	// ---- lyrics translation (settings.lyricsLang) ----
+	// ---- lyrics translation ----
 	let translated = $state<string[]>([]);
 	let translating = $state(false);
 	let trKey = '';
@@ -109,87 +102,6 @@
 		}
 	});
 
-	// ---- options-menu actions ----
-	function gotoArtist() {
-		if (!player.current) return;
-		menuOpen = false;
-		player.collapse();
-		goto(`/artist/${encodeURIComponent(player.current.artist)}`);
-	}
-	function gotoAlbum() {
-		if (!player.current?.album) return;
-		menuOpen = false;
-		player.collapse();
-		goto(`/album/${encodeURIComponent(player.current.album)}`);
-	}
-	function like() {
-		if (player.current) library.toggleLike(player.current);
-	}
-	async function doDownload() {
-		const t = player.current;
-		if (!t) return;
-		menuOpen = false;
-		toast('Preparing download…');
-		const r = await ensureTrackDetails(t).catch(() => t);
-		library.addDownload(r);
-		if (!r.audioUrl) {
-			toast('No audio available');
-			return;
-		}
-		// A web app can't replay an arbitrary saved file offline — the Downloads tab
-		// references the track and re-streams. This just saves the audio file to disk.
-		try {
-			const resp = await fetch(r.audioUrl);
-			const blob = await resp.blob();
-			const ext = (r.audioUrl.split('?')[0].match(/\.(mp3|flac|m4a|aac|ogg|wav)$/i)?.[1] ?? 'mp3').toLowerCase();
-			const a = document.createElement('a');
-			a.href = URL.createObjectURL(blob);
-			a.download = `${t.artist} - ${t.title}.${ext}`.replace(/[/\\?%*:|"<>]/g, '_');
-			a.click();
-			URL.revokeObjectURL(a.href);
-			toast('Downloaded · added to Library');
-		} catch {
-			window.open(r.audioUrl, '_blank'); // CORS may block the blob fetch
-			toast('Opened audio · added to Library');
-		}
-	}
-	async function doShare() {
-		const t = player.current;
-		if (!t) return;
-		menuOpen = false;
-		const url = shareUrl(t);
-		try {
-			const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
-			if (nav.share) await nav.share({ title: `${t.title} — ${t.artist}`, url });
-			else {
-				await navigator.clipboard.writeText(url);
-				toast('Share link copied');
-			}
-		} catch {
-			/* user cancelled */
-		}
-	}
-	async function doDetail() {
-		const t = player.current;
-		if (!t) return;
-		menuOpen = false;
-		detailTrack = await ensureTrackDetails(t).catch(() => t);
-	}
-	function addToPlaylist(id: string) {
-		if (player.current) library.addToPlaylist(id, player.current);
-		pickerOpen = false;
-		toast('Added to playlist');
-	}
-	function newPlaylist() {
-		const name = prompt('New playlist name');
-		if (name && player.current) {
-			const pl = library.createPlaylist(name);
-			library.addToPlaylist(pl.id, player.current);
-			toast('Playlist created');
-		}
-		pickerOpen = false;
-	}
-
 	function openArtist() {
 		if (player.current) {
 			player.collapse();
@@ -197,46 +109,27 @@
 		}
 	}
 
-	// ---- drag-the-cover-down to collapse the overlay ----
+	// ---- cover drag-down to collapse ----
 	let dragY = $state(0);
 	let dragging = $state(false);
 	let startY = 0;
-	function coverDown(e: PointerEvent) {
-		dragging = true;
-		startY = e.clientY;
-		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-	}
-	function coverMove(e: PointerEvent) {
-		if (!dragging) return;
-		dragY = Math.max(0, e.clientY - startY);
-	}
-	function coverUp() {
-		if (!dragging) return;
-		dragging = false;
-		if (dragY > 120) player.collapse();
-		dragY = 0;
-	}
+	function coverDown(e: PointerEvent) { dragging = true; startY = e.clientY; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); }
+	function coverMove(e: PointerEvent) { if (dragging) dragY = Math.max(0, e.clientY - startY); }
+	function coverUp() { if (!dragging) return; dragging = false; if (dragY > 120) player.collapse(); dragY = 0; }
 
-	// ---- grip: sensitive drag (±24px) OR click/tap toggles full/peek ----
+	// ---- grip: sensitive drag OR tap toggles full/peek ----
 	let panelFull = $state(false);
 	let gripStartY = 0;
 	let gripMoved = 0;
 	let gripActive = false;
-	function gripDown(e: PointerEvent) {
-		gripActive = true;
-		gripStartY = e.clientY;
-		gripMoved = 0;
-		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-	}
-	function gripMove(e: PointerEvent) {
-		if (gripActive) gripMoved = e.clientY - gripStartY;
-	}
+	function gripDown(e: PointerEvent) { gripActive = true; gripStartY = e.clientY; gripMoved = 0; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); }
+	function gripMove(e: PointerEvent) { if (gripActive) gripMoved = e.clientY - gripStartY; }
 	function gripUp() {
 		if (!gripActive) return;
 		gripActive = false;
-		if (Math.abs(gripMoved) < 8) panelFull = !panelFull; // tap → toggle
-		else if (gripMoved < -24) panelFull = true; // small drag up → full
-		else if (gripMoved > 24) panelFull = false; // small drag down → peek
+		if (Math.abs(gripMoved) < 8) panelFull = !panelFull;
+		else if (gripMoved < -24) panelFull = true;
+		else if (gripMoved > 24) panelFull = false;
 		gripMoved = 0;
 	}
 </script>
@@ -250,7 +143,7 @@
 	<header class="bar">
 		<button class="icon" aria-label="Collapse" onclick={() => player.collapse()}><ChevronDown /></button>
 		<span class="ctx">Now Playing</span>
-		<button class="icon" aria-label="Options" onclick={() => (menuOpen = !menuOpen)}><MoreVertical /></button>
+		<button class="icon" aria-label="Options" onclick={() => openMenu(player.current)}><MoreVertical /></button>
 	</header>
 
 	<div
@@ -266,8 +159,8 @@
 	></div>
 
 	<div class="meta">
-		<div class="title">{player.current?.title ?? ''}</div>
-		<button class="artist" onclick={openArtist}>{player.current?.artist ?? ''}</button>
+		<div class="title">{player.current ? names.dn(player.current.title) : ''}</div>
+		<button class="artist" onclick={openArtist}>{player.current ? names.dn(player.current.artist) : ''}</button>
 	</div>
 
 	<div class="prog">
@@ -292,17 +185,9 @@
 	</div>
 
 	<div class="sheet" class:full={panelFull}>
-		<div
-			class="grip"
-			role="button"
-			tabindex="0"
-			aria-label={panelFull ? 'Collapse panel' : 'Expand panel'}
-			onpointerdown={gripDown}
-			onpointermove={gripMove}
-			onpointerup={gripUp}
-			onpointercancel={gripUp}
-			onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') panelFull = !panelFull; }}
-		>
+		<div class="grip" role="button" tabindex="0" aria-label={panelFull ? 'Collapse panel' : 'Expand panel'}
+			onpointerdown={gripDown} onpointermove={gripMove} onpointerup={gripUp} onpointercancel={gripUp}
+			onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') panelFull = !panelFull; }}>
 			<span class="handle"></span>
 		</div>
 
@@ -318,9 +203,9 @@
 					<ul class="list">
 						{#each player.queue as t (t.uid)}
 							<li>
-								<button class="row" class:playing={t.uid === player.current?.uid} onclick={() => player.play(t)}>
-									<span class="r-title">{t.title}</span>
-									<span class="r-artist">{t.artist}</span>
+								<button class="row" class:playing={t.uid === player.current?.uid} use:longpress onlongpress={() => openMenu(t)} onclick={() => player.play(t)}>
+									<span class="r-title">{names.dn(t.title)}</span>
+									<span class="r-artist">{names.dn(t.artist)}</span>
 								</button>
 							</li>
 						{/each}
@@ -346,7 +231,7 @@
 				{#if related.length}
 					<ul class="list">
 						{#each related as t (t.uid)}
-							<li><button class="row" onclick={() => player.play(t)}><span class="r-title">{t.title}</span><span class="r-artist">{t.artist}</span></button></li>
+							<li><button class="row" use:longpress onlongpress={() => openMenu(t)} onclick={() => player.play(t)}><span class="r-title">{names.dn(t.title)}</span><span class="r-artist">{names.dn(t.artist)}</span></button></li>
 						{/each}
 					</ul>
 				{:else}<p class="empty">Loading related…</p>{/if}
@@ -354,53 +239,7 @@
 		</div>
 	</div>
 
-	<!-- options menu -->
-	{#if menuOpen}
-		<button class="scrim" aria-label="Close menu" onclick={() => (menuOpen = false)}></button>
-		<div class="menu" transition:fly={{ y: 200, duration: 200 }}>
-			<button class="mi" onclick={doDownload}><Download size={18} /> Download</button>
-			<button class="mi" onclick={like}><Heart size={18} fill={liked ? 'currentColor' : 'none'} /> {liked ? 'Liked' : 'Like'}</button>
-			<button class="mi" onclick={() => { menuOpen = false; pickerOpen = true; }}><ListPlus size={18} /> Add to playlist</button>
-			<button class="mi" onclick={gotoAlbum} disabled={!player.current?.album}><Disc size={18} /> Go to album</button>
-			<button class="mi" onclick={gotoArtist}><User size={18} /> Go to artist</button>
-			<button class="mi" onclick={doShare}><Share2 size={18} /> Share</button>
-			<button class="mi" onclick={doDetail}><Info size={18} /> Detail</button>
-		</div>
-	{/if}
-
-	<!-- playlist picker -->
-	{#if pickerOpen}
-		<button class="scrim" aria-label="Close" onclick={() => (pickerOpen = false)}></button>
-		<div class="menu" transition:fly={{ y: 200, duration: 200 }}>
-			<div class="menu-head">Add to playlist</div>
-			{#each library.playlists as pl (pl.id)}
-				<button class="mi" onclick={() => addToPlaylist(pl.id)}><ListPlus size={18} /> {pl.name} <span class="count">{pl.tracks.length}</span></button>
-			{/each}
-			<button class="mi accent" onclick={newPlaylist}><Plus size={18} /> New playlist…</button>
-		</div>
-	{/if}
-
-	<!-- detail modal -->
-	{#if detailTrack}
-		<button class="scrim" aria-label="Close" onclick={() => (detailTrack = null)}></button>
-		<div class="modal" transition:fly={{ y: 200, duration: 200 }}>
-			<div class="modal-head">
-				<span>Track detail</span>
-				<button class="icon" aria-label="Close" onclick={() => (detailTrack = null)}><X size={18} /></button>
-			</div>
-			<dl class="detail">
-				<dt>Title</dt><dd>{detailTrack.title}</dd>
-				<dt>Artist</dt><dd>{detailTrack.artist}</dd>
-				<dt>Album</dt><dd>{detailTrack.album || '—'}</dd>
-				<dt>Quality</dt><dd>{detailTrack.qualityLabel || detailTrack.quality || 'unknown'}</dd>
-				<dt>Source</dt><dd>{detailTrack.source}</dd>
-				<dt>UID</dt><dd class="mono">{detailTrack.uid}</dd>
-				<dt>Audio URL</dt><dd class="mono break">{detailTrack.audioUrl || '(not resolved)'}</dd>
-			</dl>
-		</div>
-	{/if}
-
-	{#if toastMsg}<div class="toast" transition:fly={{ y: 20, duration: 180 }}>{toastMsg}</div>{/if}
+	<TrackMenu track={menuTrack} open={menuOpen} onclose={() => (menuOpen = false)} />
 </section>
 
 <style>
@@ -445,19 +284,4 @@
 	.lyrics .tr { display: block; font-size: 0.82em; font-weight: 400; color: var(--color-text-muted); margin-top: 2px; }
 	.tr-hint { text-align: center; font-size: 11px; color: var(--color-primary); margin: 0 0 6px; }
 	.empty { color: var(--color-text-muted); font-size: 14px; text-align: center; padding: 24px; }
-
-	.scrim { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,0.45); border: none; }
-	.menu, .modal { position: fixed; left: 12px; right: 12px; bottom: 16px; z-index: 61; background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: 16px; padding: 8px; max-width: 680px; margin: 0 auto; box-shadow: 0 -10px 40px rgba(0,0,0,0.5); }
-	.menu-head, .modal-head { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--color-text-muted); padding: 8px 10px; }
-	.mi { width: 100%; display: flex; align-items: center; gap: 12px; background: none; border: none; color: var(--color-text); font-size: 15px; padding: 12px 12px; border-radius: 10px; cursor: pointer; text-align: left; }
-	.mi:hover { background: var(--color-surface); }
-	.mi:disabled { opacity: 0.4; cursor: default; }
-	.mi.accent { color: var(--color-primary); }
-	.mi .count { margin-left: auto; font-size: 12px; color: var(--color-text-muted); }
-	.detail { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; padding: 6px 12px 14px; margin: 0; }
-	.detail dt { color: var(--color-text-muted); font-size: 12px; }
-	.detail dd { margin: 0; font-size: 13px; }
-	.mono { font-family: ui-monospace, monospace; font-size: 11px; }
-	.break { word-break: break-all; }
-	.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 28px; z-index: 70; background: #000; color: #fff; padding: 10px 16px; border-radius: 999px; font-size: 13px; box-shadow: var(--shadow-lg); }
 </style>

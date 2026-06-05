@@ -5,6 +5,7 @@
 	import { player } from '$lib/stores/player.svelte';
 	import { library } from '$lib/stores/library.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
+	import { names } from '$lib/stores/names.svelte';
 	import NowPlaying from '$lib/components/NowPlaying.svelte';
 
 	let { children } = $props();
@@ -36,9 +37,9 @@
 			<button class="np-open" aria-label="Open now playing" onclick={() => player.expand()}>
 				<span class="np-art" style:background-image={player.current.cover ? `url(${player.current.cover})` : cover(player.current)}></span>
 				<span class="np-meta">
-					<span class="np-title">{player.current.title}</span>
+					<span class="np-title">{names.dn(player.current.title)}</span>
 					<span class="np-artist">
-						{player.current.artist}
+						{names.dn(player.current.artist)}
 						{#if player.loading}· loading…{:else if player.error}· <span class="err">{player.error}</span>{/if}
 					</span>
 				</span>

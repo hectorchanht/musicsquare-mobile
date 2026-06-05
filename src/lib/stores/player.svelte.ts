@@ -60,6 +60,21 @@ class Player {
 		this.queue = dedupeBest(tracks, settings.preferredSource);
 	}
 
+	/** Insert a track right after the current one (de-duped). Plays it if nothing is playing. */
+	playNext(t: Track) {
+		const q = this.queue.filter((x) => x.uid !== t.uid);
+		const i = q.findIndex((x) => x.uid === this.current?.uid);
+		q.splice(i >= 0 ? i + 1 : 0, 0, t);
+		this.queue = q;
+		if (!this.current) this.play(t);
+	}
+
+	/** Append a track to the end of the queue (de-duped). Plays it if nothing is playing. */
+	addToQueue(t: Track) {
+		if (!this.queue.some((x) => x.uid === t.uid)) this.queue = [...this.queue, t];
+		if (!this.current) this.play(t);
+	}
+
 	/**
 	 * Append more diverse picks when the queue is within 2 of the end, so playback
 	 * never runs short. Guarded against re-entry (growing flag) and dry sources.

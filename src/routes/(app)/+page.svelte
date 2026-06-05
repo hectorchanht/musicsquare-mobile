@@ -5,7 +5,13 @@
 	import { buildDiversePicks } from '$lib/services/picks';
 	import { decodeTrack } from '$lib/services/share';
 	import { player } from '$lib/stores/player.svelte';
+	import { names } from '$lib/stores/names.svelte';
+	import { longpress } from '$lib/actions/longpress';
+	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import type { Track } from '$lib/sources/types';
+
+	let menuTrack = $state<Track | null>(null);
+	let menuOpen = $state(false);
 
 	const PICK_COUNT = 9;
 	const CACHE_KEY = 'musicsquare:top-picks:v1';
@@ -107,19 +113,21 @@
 	{:else}
 		<div class="grid">
 			{#each songs as t (t.uid)}
-				<button class="tile" onclick={() => { player.setQueue(songs); player.play(t); }}>
+				<button class="tile" use:longpress onlongpress={() => { menuTrack = t; menuOpen = true; }} onclick={() => { player.setQueue(songs); player.play(t); }}>
 					<div class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></div>
 					{#if t.qualityLabel || t.quality}<span class="q">{t.qualityLabel ?? t.quality}</span>{/if}
 					<div class="scrim"></div>
 					<div class="label">
-						<div class="t-title">{t.title}</div>
-						<div class="t-artist">{t.artist}</div>
+						<div class="t-title">{names.dn(t.title)}</div>
+						<div class="t-artist">{names.dn(t.artist)}</div>
 					</div>
 				</button>
 			{/each}
 		</div>
 	{/if}
 </section>
+
+<TrackMenu track={menuTrack} open={menuOpen} onclose={() => (menuOpen = false)} />
 
 <style>
 	.topnav { display: flex; align-items: center; justify-content: space-between; padding: 14px 0 10px; }

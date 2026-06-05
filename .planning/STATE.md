@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-05)
 Phase: 1 (Data Layer + Proxy Foundation) — EXECUTING
 Plan: 1 of 4
 Status: Executing Phase 1
-Last activity: 2026-06-06 -- Completed quick task 260606-2k7: full-screen now-playing + artist page deployed
+Last activity: 2026-06-06 -- Completed quick task 260606-3a0: persist playback + cached diverse top picks deployed
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -83,6 +83,7 @@ None yet.
 |---|-------------|------|--------|-----------|
 | 260605-wq1 | Sketch-001 variant C home shell + search, wired to data layer; deployed to openmusic.pages.dev | 2026-06-05 | 0684b67 | [260605-wq1-implement-sketch-001-variant-c-home-shel](./quick/260605-wq1-implement-sketch-001-variant-c-home-shel/) |
 | 260606-2k7 | Full-screen now-playing (expand/drag-collapse) + artist page + seekable progress (NaN fix); deployed | 2026-06-06 | a1422fd | [260606-2k7-full-screen-now-playing-artist-page-prog](./quick/260606-2k7-full-screen-now-playing-artist-page-prog/) |
+| 260606-3a0 | Persist playback across nav + nowbar progress sliver + diverse cached top picks (localStorage) + Randomize; deployed | 2026-06-06 | 3a0832b | [260606-3a0-persist-playback-nowbar-progress-diverse](./quick/260606-3a0-persist-playback-nowbar-progress-diverse/) |
 
 > Note: off planned phase order (Phase-4-shaped UI pulled forward as a demo). Basic playback only; full audio engine = Phase 6, formal Mobile UI Shell = Phase 4.
 

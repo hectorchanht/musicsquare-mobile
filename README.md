@@ -8,7 +8,7 @@ A mobile-first web music player that searches and streams tracks aggregated from
 
 👉 **Live:** <https://openmusic.pages.dev>
 
-> Ground-up rebuild of the data layer from [`CharlesPikachu/musicsquare`](https://github.com/CharlesPikachu/musicsquare) into a SvelteKit mobile app. The original single-file desktop player is preserved in [`legacy/`](legacy/) as the porting reference.
+> Ground-up rebuild of the data layer from [`CharlesPikachu/musicsquare`](https://github.com/CharlesPikachu/musicsquare) into a SvelteKit mobile app. The original single-file desktop player lives in the `upstream` remote / git history (it was the porting reference for the source adapters).
 
 ---
 
@@ -81,7 +81,6 @@ src/
     api/translate/      # lyric/name translation proxy
     spike/              # dev: browser-direct audio egress harness
 static/                 # favicon.svg, icon-maskable.svg, og.svg, manifest.webmanifest, robots.txt, sitemap.xml
-legacy/                 # original single-file musicsquare app (porting reference)
 .planning/              # GSD planning docs (roadmap, phases, quick tasks)
 ```
 

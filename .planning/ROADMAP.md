@@ -33,7 +33,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Adding a hypothetical source requires only a new client adapter file + a new proxy adapter file + one registry import — no edits to aggregation/dispatch code
   4. A track's audio URL + lyrics resolve lazily on demand through the proxy, and JOOX returns the *selected* track after the result set is reordered/paginated (index-identity validated)
   5. A spike has confirmed whether each source's audio CDN URL plays browser-direct from a deployed edge, and the metadata-proxy-vs-browser-direct-audio decision is locked
-**Plans**: TBD
+**Plans**: 4 plans (3 waves)
+Plans:
+- [ ] 01-01-PLAN.md — Walking Skeleton: scaffold SvelteKit + Cloudflare, both registries, Netease end-to-end through /api/*, /spike harness shell, LRC util (wave 1)
+- [ ] 01-02-PLAN.md — QQ + Kuwo client/proxy adapters (dual-format guard, level=zp lossless) (wave 2)
+- [ ] 01-03-PLAN.md — JOOX adapter: position-index identity fix + token in platform.env + DATA-02 bundle-grep + proxy integration test (wave 2)
+- [ ] 01-04-PLAN.md — allSettled fan-out + interleave/dedup + ensureTrackDetails dispatch; deploy openmusic + run egress-spike decision gate (wave 3, checkpoint)
 **Research flag**: NEEDS deeper research — Worker egress geo-behavior against JOOX/QQ audio CDNs. Run the egress spike before locking the audio data-flow architecture (`/gsd:plan-phase --research-phase 1`).
 
 ### Phase 2: Audio Engine + Playback Core
@@ -123,7 +128,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Data Layer + Proxy Foundation | 0/TBD | Not started | - |
+| 1. Data Layer + Proxy Foundation | 0/4 | Planned | - |
 | 2. Audio Engine + Playback Core | 0/TBD | Not started | - |
 | 3. Persistence + Library | 0/TBD | Not started | - |
 | 4. Mobile UI Shell | 0/TBD | Not started | - |

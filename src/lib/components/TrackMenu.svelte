@@ -5,6 +5,7 @@
 	import { player } from '$lib/stores/player.svelte';
 	import { library } from '$lib/stores/library.svelte';
 	import { names } from '$lib/stores/names.svelte';
+	import { t } from '$lib/i18n';
 	import { ensureTrackDetails } from '$lib/services/catalog';
 	import { shareUrl } from '$lib/services/share';
 	import type { Track } from '$lib/sources/types';
@@ -26,8 +27,8 @@
 		pickerOpen = false;
 		onclose();
 	}
-	function playNext() { if (track) { player.playNext(track); toast('Playing next'); } close(); }
-	function addQueue() { if (track) { player.addToQueue(track); toast('Added to queue'); } close(); }
+	function playNext() { if (track) { player.playNext(track); toast(t('toast.playingNext')); } close(); }
+	function addQueue() { if (track) { player.addToQueue(track); toast(t('toast.addedToQueue')); } close(); }
 	function like() { if (track) library.toggleLike(track); }
 	function gotoArtist() { if (track) { onclose(); player.collapse(); goto(`/artist/${encodeURIComponent(track.artist)}`); } }
 	function gotoAlbum() { if (track?.album) { onclose(); player.collapse(); goto(`/album/${encodeURIComponent(track.album)}`); } }
@@ -35,10 +36,10 @@
 	async function doDownload() {
 		if (!track) return;
 		onclose();
-		toast('Preparing download…');
+		toast(t('toast.preparingDownload'));
 		const r = await ensureTrackDetails(track).catch(() => track);
 		library.addDownload(r);
-		if (!r.audioUrl) return toast('No audio available');
+		if (!r.audioUrl) return toast(t('toast.noAudio'));
 		// Web sandbox: saved file can't be replayed offline — Downloads references + re-streams.
 		try {
 			const resp = await fetch(r.audioUrl);
@@ -49,10 +50,10 @@
 			a.download = `${track.artist} - ${track.title}.${ext}`.replace(/[/\\?%*:|"<>]/g, '_');
 			a.click();
 			URL.revokeObjectURL(a.href);
-			toast('Downloaded · added to Library');
+			toast(t('toast.downloaded'));
 		} catch {
 			window.open(r.audioUrl, '_blank');
-			toast('Opened audio · added to Library');
+			toast(t('toast.openedAudio'));
 		}
 	}
 	async function doShare() {
@@ -62,7 +63,7 @@
 		try {
 			const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
 			if (nav.share) await nav.share({ title: `${track.title} — ${track.artist}`, url });
-			else { await navigator.clipboard.writeText(url); toast('Share link copied'); }
+			else { await navigator.clipboard.writeText(url); toast(t('toast.shareCopied')); }
 		} catch { /* cancelled */ }
 	}
 	async function doDetail() {
@@ -70,53 +71,53 @@
 		onclose();
 		detailTrack = await ensureTrackDetails(track).catch(() => track);
 	}
-	function addToPlaylist(id: string) { if (track) library.addToPlaylist(id, track); pickerOpen = false; toast('Added to playlist'); }
+	function addToPlaylist(id: string) { if (track) library.addToPlaylist(id, track); pickerOpen = false; toast(t('toast.addedToPlaylist')); }
 	function newPlaylist() {
-		const name = prompt('New playlist name');
-		if (name && track) { const pl = library.createPlaylist(name); library.addToPlaylist(pl.id, track); toast('Playlist created'); }
+		const name = prompt(t('menu.newPlaylistPrompt'));
+		if (name && track) { const pl = library.createPlaylist(name); library.addToPlaylist(pl.id, track); toast(t('toast.playlistCreated')); }
 		pickerOpen = false;
 	}
 </script>
 
 {#if open && track}
-	<button class="scrim" aria-label="Close menu" onclick={close}></button>
+	<button class="scrim" aria-label={t('menu.closeMenu')} onclick={close}></button>
 	<div class="menu" transition:fly={{ y: 240, duration: 200 }}>
 		<div class="menu-head">{names.dn(track.title)} · {names.dn(track.artist)}</div>
-		<button class="mi" onclick={playNext}><ListStart size={18} /> Play next</button>
-		<button class="mi" onclick={addQueue}><ListEnd size={18} /> Add to queue</button>
-		<button class="mi" onclick={doDownload}><Download size={18} /> Download</button>
-		<button class="mi" onclick={like}><Heart size={18} fill={liked ? 'currentColor' : 'none'} /> {liked ? 'Liked' : 'Like'}</button>
-		<button class="mi" onclick={() => { pickerOpen = true; }}><ListPlus size={18} /> Add to playlist</button>
-		<button class="mi" onclick={gotoAlbum} disabled={!track.album}><Disc size={18} /> Go to album</button>
-		<button class="mi" onclick={gotoArtist}><User size={18} /> Go to artist</button>
-		<button class="mi" onclick={doShare}><Share2 size={18} /> Share</button>
-		<button class="mi" onclick={doDetail}><Info size={18} /> Detail</button>
+		<button class="mi" onclick={playNext}><ListStart size={18} /> {t('menu.playNext')}</button>
+		<button class="mi" onclick={addQueue}><ListEnd size={18} /> {t('menu.addToQueue')}</button>
+		<button class="mi" onclick={doDownload}><Download size={18} /> {t('menu.download')}</button>
+		<button class="mi" onclick={like}><Heart size={18} fill={liked ? 'currentColor' : 'none'} /> {liked ? t('menu.liked') : t('menu.like')}</button>
+		<button class="mi" onclick={() => { pickerOpen = true; }}><ListPlus size={18} /> {t('menu.addToPlaylist')}</button>
+		<button class="mi" onclick={gotoAlbum} disabled={!track.album}><Disc size={18} /> {t('menu.goToAlbum')}</button>
+		<button class="mi" onclick={gotoArtist}><User size={18} /> {t('menu.goToArtist')}</button>
+		<button class="mi" onclick={doShare}><Share2 size={18} /> {t('menu.share')}</button>
+		<button class="mi" onclick={doDetail}><Info size={18} /> {t('menu.detail')}</button>
 	</div>
 {/if}
 
 {#if pickerOpen && track}
-	<button class="scrim" aria-label="Close" onclick={() => (pickerOpen = false)}></button>
+	<button class="scrim" aria-label={t('menu.close')} onclick={() => (pickerOpen = false)}></button>
 	<div class="menu" transition:fly={{ y: 240, duration: 200 }}>
-		<div class="menu-head">Add to playlist</div>
+		<div class="menu-head">{t('menu.addToPlaylist')}</div>
 		{#each library.playlists as pl (pl.id)}
 			<button class="mi" onclick={() => addToPlaylist(pl.id)}><ListPlus size={18} /> {pl.name} <span class="count">{pl.tracks.length}</span></button>
 		{/each}
-		<button class="mi accent" onclick={newPlaylist}><Plus size={18} /> New playlist…</button>
+		<button class="mi accent" onclick={newPlaylist}><Plus size={18} /> {t('menu.newPlaylist')}</button>
 	</div>
 {/if}
 
 {#if detailTrack}
-	<button class="scrim" aria-label="Close" onclick={() => (detailTrack = null)}></button>
+	<button class="scrim" aria-label={t('menu.close')} onclick={() => (detailTrack = null)}></button>
 	<div class="modal" transition:fly={{ y: 240, duration: 200 }}>
-		<div class="menu-head row"><span>Track detail</span><button class="x" aria-label="Close" onclick={() => (detailTrack = null)}><X size={18} /></button></div>
+		<div class="menu-head row"><span>{t('menu.trackDetail')}</span><button class="x" aria-label={t('menu.close')} onclick={() => (detailTrack = null)}><X size={18} /></button></div>
 		<dl class="detail">
-			<dt>Title</dt><dd>{detailTrack.title}</dd>
-			<dt>Artist</dt><dd>{detailTrack.artist}</dd>
-			<dt>Album</dt><dd>{detailTrack.album || '—'}</dd>
-			<dt>Quality</dt><dd>{detailTrack.qualityLabel || detailTrack.quality || 'unknown'}</dd>
-			<dt>Source</dt><dd>{detailTrack.source}</dd>
-			<dt>UID</dt><dd class="mono">{detailTrack.uid}</dd>
-			<dt>Audio URL</dt><dd class="mono break">{detailTrack.audioUrl || '(not resolved)'}</dd>
+			<dt>{t('menu.detailTitle')}</dt><dd>{detailTrack.title}</dd>
+			<dt>{t('menu.detailArtist')}</dt><dd>{detailTrack.artist}</dd>
+			<dt>{t('menu.detailAlbum')}</dt><dd>{detailTrack.album || '—'}</dd>
+			<dt>{t('menu.detailQuality')}</dt><dd>{detailTrack.qualityLabel || detailTrack.quality || t('menu.detailUnknown')}</dd>
+			<dt>{t('menu.detailSource')}</dt><dd>{detailTrack.source}</dd>
+			<dt>{t('menu.detailUid')}</dt><dd class="mono">{detailTrack.uid}</dd>
+			<dt>{t('menu.detailAudioUrl')}</dt><dd class="mono break">{detailTrack.audioUrl || t('menu.detailNotResolved')}</dd>
 		</dl>
 	</div>
 {/if}

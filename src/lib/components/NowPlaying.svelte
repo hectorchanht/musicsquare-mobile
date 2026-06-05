@@ -6,6 +6,7 @@
 	import { player, fmtTime } from '$lib/stores/player.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { names } from '$lib/stores/names.svelte';
+	import { t } from '$lib/i18n';
 	import { searchAll } from '$lib/services/catalog';
 	import { dedupeBest } from '$lib/services/dedupe';
 	import { translateLines } from '$lib/services/translate';
@@ -217,16 +218,16 @@
 	style:transition={dragging ? 'none' : 'transform 0.28s cubic-bezier(.22,1,.36,1)'}
 >
 	<header class="bar">
-		<button class="icon" aria-label="Collapse" onclick={() => player.collapse()}><ChevronDown /></button>
-		<span class="ctx">Now Playing</span>
-		<button class="icon" aria-label="Options" onclick={() => openMenu(player.current)}><MoreVertical /></button>
+		<button class="icon" aria-label={t('nowplaying.collapse')} onclick={() => player.collapse()}><ChevronDown /></button>
+		<span class="ctx">{t('nowplaying.nowPlaying')}</span>
+		<button class="icon" aria-label={t('nowplaying.options')} onclick={() => openMenu(player.current)}><MoreVertical /></button>
 	</header>
 
 	<div
 		class="cover"
 		role="button"
 		tabindex="0"
-		aria-label="Album art — drag down to minimize"
+		aria-label={t('nowplaying.albumArt')}
 		onpointerdown={coverDown}
 		onpointermove={coverMove}
 		onpointerup={coverUp}
@@ -240,7 +241,7 @@
 	</div>
 
 	<div class="prog">
-		<div class="track" onclick={seek} onkeydown={seekKey} role="slider" tabindex="0" aria-label="Seek" aria-valuenow={Math.round(frac * 100)}>
+		<div class="track" onclick={seek} onkeydown={seekKey} role="slider" tabindex="0" aria-label={t('nowplaying.seek')} aria-valuenow={Math.round(frac * 100)}>
 			<div class="fill" style:width={`${frac * 100}%`}></div>
 			<div class="knob" style:left={`${frac * 100}%`}></div>
 		</div>
@@ -251,13 +252,13 @@
 	</div>
 
 	<div class="transport">
-		<button class="t" class:on={shuffle} aria-label="Shuffle" onclick={() => (shuffle = !shuffle)}><Shuffle size={20} /></button>
-		<button class="t" aria-label="Previous" onclick={() => player.prev()}><SkipBack size={26} /></button>
-		<button class="play" aria-label="Play/pause" onclick={() => player.toggle()}>
+		<button class="t" class:on={shuffle} aria-label={t('nowplaying.shuffle')} onclick={() => (shuffle = !shuffle)}><Shuffle size={20} /></button>
+		<button class="t" aria-label={t('nowplaying.previous')} onclick={() => player.prev()}><SkipBack size={26} /></button>
+		<button class="play" aria-label={t('nowplaying.playPause')} onclick={() => player.toggle()}>
 			{#if player.playing}<Pause size={26} />{:else}<Play size={26} />{/if}
 		</button>
-		<button class="t" aria-label="Next" onclick={() => player.next()}><SkipForward size={26} /></button>
-		<button class="t" class:on={repeat} aria-label="Repeat" onclick={() => (repeat = !repeat)}><Repeat size={20} /></button>
+		<button class="t" aria-label={t('nowplaying.next')} onclick={() => player.next()}><SkipForward size={26} /></button>
+		<button class="t" class:on={repeat} aria-label={t('nowplaying.repeat')} onclick={() => (repeat = !repeat)}><Repeat size={20} /></button>
 	</div>
 
 	<div
@@ -268,35 +269,35 @@
 		style:transform={sheetDragging ? `translateY(${sheetDragY}px)` : undefined}
 		style:transition={gripActive ? 'none' : 'transform 0.28s cubic-bezier(.22,1,.36,1)'}
 	>
-		<div class="grip" role="button" tabindex="0" aria-label={panelFull ? 'Collapse panel' : 'Expand panel'}
+		<div class="grip" role="button" tabindex="0" aria-label={panelFull ? t('nowplaying.collapsePanel') : t('nowplaying.expandPanel')}
 			onpointerdown={gripDown} onpointermove={gripMove} onpointerup={gripUp} onpointercancel={gripUp}
 			onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') panelFull = !panelFull; }}>
 			<span class="handle"></span>
 		</div>
 
 		<nav class="subnav">
-			<button class:active={tab === 'queue'} onclick={() => (tab = 'queue')}>Up Next</button>
-			<button class:active={tab === 'lyrics'} onclick={() => (tab = 'lyrics')}>Lyrics</button>
-			<button class:active={tab === 'related'} onclick={() => (tab = 'related')}>Related</button>
+			<button class:active={tab === 'queue'} onclick={() => (tab = 'queue')}>{t('nowplaying.upNext')}</button>
+			<button class:active={tab === 'lyrics'} onclick={() => (tab = 'lyrics')}>{t('nowplaying.lyrics')}</button>
+			<button class:active={tab === 'related'} onclick={() => (tab = 'related')}>{t('nowplaying.related')}</button>
 		</nav>
 
 		<div class="panel">
 			{#if tab === 'queue'}
 				{#if player.queue.length}
 					<ul class="list" bind:this={queueListEl}>
-						{#each player.queue as t, i (t.uid)}
+						{#each player.queue as track, i (track.uid)}
 							<li
 								class:lifted={i === dragFrom}
 								class:over={i === dragOver && i !== dragFrom}
 								style:transform={i === dragFrom && rowDragY ? `translateY(${rowDragY}px)` : undefined}
 							>
-								<button class="row q-row" class:playing={t.uid === player.current?.uid} use:longpress onlongpress={() => openMenu(t)} onclick={() => player.play(t, { fresh: true })}>
-									<span class="r-title">{names.dn(t.title)}</span>
-									<span class="r-artist">{names.dn(t.artist)}</span>
+								<button class="row q-row" class:playing={track.uid === player.current?.uid} use:longpress onlongpress={() => openMenu(track)} onclick={() => player.play(track, { fresh: true })}>
+									<span class="r-title">{names.dn(track.title)}</span>
+									<span class="r-artist">{names.dn(track.artist)}</span>
 								</button>
 								<button
 									class="grip-handle"
-									aria-label="Reorder track"
+									aria-label={t('nowplaying.reorderTrack')}
 									onpointerdown={(e) => gripDragDown(e, i)}
 									onpointermove={gripDragMove}
 									onpointerup={gripDragUp}
@@ -306,11 +307,11 @@
 							</li>
 						{/each}
 					</ul>
-				{:else}<p class="empty">No queue yet.</p>{/if}
+				{:else}<p class="empty">{t('nowplaying.noQueue')}</p>{/if}
 			{:else if tab === 'lyrics'}
 				{#if lines.length}
-					{#if translating}<p class="tr-hint">translating…</p>{/if}
-					<div class="lyrics" role="group" aria-label="Lyrics" bind:this={lyricsEl} onpointerdown={lyricsTouched} onwheel={lyricsTouched}>
+					{#if translating}<p class="tr-hint">{t('nowplaying.translating')}</p>{/if}
+					<div class="lyrics" role="group" aria-label={t('nowplaying.lyrics')} bind:this={lyricsEl} onpointerdown={lyricsTouched} onwheel={lyricsTouched}>
 						{#each lines as l, i (i)}
 							<p class:active={i === activeLine}>
 								{#if showTr && settings.translateMode === 'replace'}
@@ -322,15 +323,15 @@
 							</p>
 						{/each}
 					</div>
-				{:else}<p class="empty">No lyrics for this track.</p>{/if}
+				{:else}<p class="empty">{t('nowplaying.noLyrics')}</p>{/if}
 			{:else}
 				{#if related.length}
 					<ul class="list">
-						{#each related as t (t.uid)}
-							<li><button class="row" use:longpress onlongpress={() => openMenu(t)} onclick={() => player.play(t, { fresh: true })}><span class="r-title">{names.dn(t.title)}</span><span class="r-artist">{names.dn(t.artist)}</span></button></li>
+						{#each related as track (track.uid)}
+							<li><button class="row" use:longpress onlongpress={() => openMenu(track)} onclick={() => player.play(track, { fresh: true })}><span class="r-title">{names.dn(track.title)}</span><span class="r-artist">{names.dn(track.artist)}</span></button></li>
 						{/each}
 					</ul>
-				{:else}<p class="empty">Loading related…</p>{/if}
+				{:else}<p class="empty">{t('nowplaying.loadingRelated')}</p>{/if}
 			{/if}
 		</div>
 	</div>

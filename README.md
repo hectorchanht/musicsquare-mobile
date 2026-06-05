@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo.png" alt="MusicSquare logo" width="640">
+  <img src="static/og.svg" alt="MusicSquare logo" width="640">
 </p>
 
 <p align="center">

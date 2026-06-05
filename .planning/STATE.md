@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-05)
 Phase: 1 (Data Layer + Proxy Foundation) — EXECUTING
 Plan: 1 of 4
 Status: Executing Phase 1
-Last activity: 2026-06-06 -- Completed quick task 260606-5ji: logo/favicon + SEO deployed
+Last activity: 2026-06-05 -- Completed quick task 260606-5of: removed unused/fork-cruft files (legacy/, scripts/, .github/)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -90,6 +90,7 @@ None yet.
 | 260606-54l | Translate displayed song/artist names (settings nameLang) + long-press track context menu (Play next / Add to queue + 7 actions, reusable TrackMenu); deployed | 2026-06-06 | ac8b6fd | [260606-54l-translate-song-artist-names-long-press-t](./quick/260606-54l-translate-song-artist-names-long-press-t/) |
 | 260606-5du | Live-drag now-playing panel grip (translateY follows finger, smooth snap like full-page close); deployed | 2026-06-06 | d5201c7 | [260606-5du-smooth-live-drag-now-playing-panel-grip](./quick/260606-5du-smooth-live-drag-now-playing-panel-grip/) |
 | 260606-5ji | openmusic logo/favicon (SVG mark) + SEO (meta, OG/Twitter share card, manifest, robots/sitemap); deployed | 2026-06-06 | 9621a70 | [260606-5ji-favicon-logo-seo-meta-og-twitter-manifes](./quick/260606-5ji-favicon-logo-seo-meta-og-twitter-manifes/) |
+| 260606-5of | Remove unused/fork-cruft: orphan favicon dup, docs/logo.png (README fix), legacy/ (~220KB), g4f issue bot + workflow, fork issue templates + FUNDING; svelte-check clean | 2026-06-05 | e688cfe | [260606-5of-remove-things-that-are-not-used-or-neede](./quick/260606-5of-remove-things-that-are-not-used-or-neede/) |
 
 > Note: off planned phase order (Phase-4-shaped UI pulled forward as a demo). Basic playback only; full audio engine = Phase 6, formal Mobile UI Shell = Phase 4.
 

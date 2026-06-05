@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { Music2, Search, Settings, RotateCw } from '@lucide/svelte';
+	import { Search, Settings, RotateCw } from '@lucide/svelte';
+	import Logo from '$lib/components/Logo.svelte';
 	import { buildDiversePicks } from '$lib/services/picks';
 	import { decodeTrack } from '$lib/services/share';
 	import { player } from '$lib/stores/player.svelte';
@@ -90,7 +91,7 @@
 </script>
 
 <header class="topnav">
-	<div class="brand"><span class="dot"><Music2 size={15} /></span> openmusic</div>
+	<div class="brand"><Logo size={26} /> openmusic</div>
 	<button class="gear" aria-label="Settings" onclick={() => goto('/settings')}><Settings size={20} /></button>
 </header>
 
@@ -132,10 +133,6 @@
 <style>
 	.topnav { display: flex; align-items: center; justify-content: space-between; padding: 14px 0 10px; }
 	.brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 1.35rem; }
-	.brand .dot {
-		width: 26px; height: 26px; border-radius: 50%;
-		background: var(--color-primary); color: #fff; display: grid; place-items: center;
-	}
 	.gear { background: none; border: none; color: var(--color-text); cursor: pointer; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; }
 	.gear:hover { background: var(--color-surface-2); }
 	.searchpill {

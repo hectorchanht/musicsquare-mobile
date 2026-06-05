@@ -1,0 +1,14 @@
+{
+  "name": "openmusic",
+  "short_name": "openmusic",
+  "description": "Stream music aggregated from NetEase, QQ, Kuwo and JOOX — search, play, lyrics, library.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b0b0f",
+  "theme_color": "#0b0b0f",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

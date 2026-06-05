@@ -13,16 +13,15 @@ describe('lookupKey', () => {
 	it('falls back to the en value when a key is missing in the requested locale', () => {
 		// Force a hole in zh-Hant for this assertion, then restore it.
 		const original = dicts['zh-Hant']['nav.home'];
-		// @ts-expect-error — intentionally deleting to simulate a missing key
-		delete dicts['zh-Hant']['nav.home'];
+		// Cast to a loose record so we can delete a key to simulate a missing translation.
+		delete (dicts['zh-Hant'] as Record<string, string>)['nav.home'];
 		expect(lookupKey('nav.home', 'zh-Hant')).toBe('Home');
 		dicts['zh-Hant']['nav.home'] = original;
 	});
 
 	it('returns the raw key (never blank) when the key is missing in ALL dicts', () => {
-		// @ts-expect-error — unknown key on purpose
+		// lookupKey accepts `TranslationKey | string`; an unknown string returns itself.
 		expect(lookupKey('does.not.exist', 'en')).toBe('does.not.exist');
-		// @ts-expect-error — unknown key on purpose
 		expect(lookupKey('does.not.exist', 'zh-Hant')).toBe('does.not.exist');
 	});
 });

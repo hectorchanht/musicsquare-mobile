@@ -2,6 +2,7 @@
 // player/library to avoid circular deps. Persisted to localStorage, SSR-guarded.
 import { browser } from '$app/environment';
 import type { SourceId } from '$lib/sources/types';
+import { detectAppLang, type AppLang } from '$lib/i18n';
 
 export type LyricsLang = 'off' | 'zh-Hant' | 'zh-Hans' | 'en' | 'ja' | 'ko';
 export type TranslateMode = 'replace' | 'below';
@@ -12,6 +13,8 @@ const KEY = 'openmusic:settings:v1';
 const DEFAULT_ACCENT = '#7c5cff';
 
 class Settings {
+	/** UI-chrome language (separate from lyricsLang/nameLang content translation). */
+	appLang = $state<AppLang>('en');
 	lyricsLang = $state<LyricsLang>('off');
 	/** Translate displayed song titles + artist names to this language (separate from lyrics). */
 	nameLang = $state<LyricsLang>('off');
@@ -35,6 +38,9 @@ class Settings {
 			const raw = localStorage.getItem(KEY);
 			if (raw) {
 				const v = JSON.parse(raw) as Partial<Settings>;
+				// First-visit-only auto-detect: if no appLang was ever saved, infer it from
+				// the browser; otherwise the saved choice always wins. (browser-guarded above.)
+				this.appLang = (v.appLang as AppLang) ?? detectAppLang(navigator.language);
 				this.lyricsLang = (v.lyricsLang as LyricsLang) ?? 'off';
 				this.nameLang = (v.nameLang as LyricsLang) ?? 'off';
 				this.translateMode = (v.translateMode as TranslateMode) ?? 'below';
@@ -43,6 +49,9 @@ class Settings {
 				this.accent = (v.accent as string) ?? DEFAULT_ACCENT;
 				this.reduceMotion = !!v.reduceMotion;
 				this.autoExpandOnPlay = !!v.autoExpandOnPlay;
+			} else {
+				// Truly first visit (nothing saved yet): auto-detect UI language once.
+				this.appLang = detectAppLang(navigator.language);
 			}
 		} catch {
 			/* corrupt — keep defaults */
@@ -56,6 +65,7 @@ class Settings {
 			localStorage.setItem(
 				KEY,
 				JSON.stringify({
+					appLang: this.appLang,
 					lyricsLang: this.lyricsLang,
 					nameLang: this.nameLang,
 					translateMode: this.translateMode,

@@ -6,6 +6,7 @@
 import { ensureTrackDetails } from '$lib/services/catalog';
 import { buildDiversePicks } from '$lib/services/picks';
 import { dedupeBest } from '$lib/services/dedupe';
+import { settings } from '$lib/stores/settings.svelte';
 import type { Track } from '$lib/sources/types';
 
 /** mm:ss, NaN/Infinity-safe (avoids the "NaN:NaN" bug before metadata loads). */
@@ -56,7 +57,7 @@ class Player {
 
 	/** Set the active list (home grid / search results) as the Up-Next source. */
 	setQueue(tracks: Track[]) {
-		this.queue = dedupeBest(tracks);
+		this.queue = dedupeBest(tracks, settings.preferredSource);
 	}
 
 	/**
@@ -71,7 +72,7 @@ class Player {
 		try {
 			const have = new Set(this.queue.map((t) => t.uid));
 			const more = await buildDiversePicks(8, have);
-			if (more.length) this.queue = dedupeBest([...this.queue, ...more]);
+			if (more.length) this.queue = dedupeBest([...this.queue, ...more], settings.preferredSource);
 		} catch {
 			/* sources dry — leave the queue as-is */
 		} finally {
@@ -90,6 +91,7 @@ class Player {
 		this.current = track;
 		this.currentTime = 0;
 		this.duration = 0;
+		if (settings.autoExpandOnPlay) this.expanded = true;
 		try {
 			const resolved = await ensureTrackDetails(track);
 			this.current = resolved;

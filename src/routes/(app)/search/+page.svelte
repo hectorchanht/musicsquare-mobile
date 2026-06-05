@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { searchAll } from '$lib/services/catalog';
 	import { dedupeBest } from '$lib/services/dedupe';
+	import { settings } from '$lib/stores/settings.svelte';
 	import { player } from '$lib/stores/player.svelte';
 	import type { Track } from '$lib/sources/types';
 
@@ -27,7 +28,7 @@
 		someFailed = false;
 		try {
 			const { interleaved, perSource } = await searchAll(kw, 1, {}, ac.signal);
-			results = dedupeBest(interleaved);
+			results = dedupeBest(interleaved, settings.preferredSource);
 			someFailed = perSource.some((p) => p.status === 'error');
 		} catch {
 			results = [];

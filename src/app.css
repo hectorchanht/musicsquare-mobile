@@ -34,3 +34,12 @@ body {
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; }
 ::-webkit-scrollbar { width: 0; height: 0; }
+
+/* Reduce-motion setting: kill nonessential transitions/animations app-wide. */
+:root[data-reduce-motion] *,
+:root[data-reduce-motion] *::before,
+:root[data-reduce-motion] *::after {
+	transition: none !important;
+	animation: none !important;
+	scroll-behavior: auto !important;
+}

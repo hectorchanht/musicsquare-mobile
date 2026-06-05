@@ -8,8 +8,10 @@
 	} from '@lucide/svelte';
 	import { player, fmtTime } from '$lib/stores/player.svelte';
 	import { library } from '$lib/stores/library.svelte';
+	import { settings } from '$lib/stores/settings.svelte';
 	import { searchAll, ensureTrackDetails } from '$lib/services/catalog';
 	import { dedupeBest } from '$lib/services/dedupe';
+	import { translateLines } from '$lib/services/translate';
 	import { shareUrl } from '$lib/services/share';
 	import { parseLRC, type LyricLine } from '$lib/services/lrc';
 	import type { Track } from '$lib/sources/types';
@@ -73,6 +75,26 @@
 		if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 	});
 
+	// ---- lyrics translation (settings.lyricsLang) ----
+	let translated = $state<string[]>([]);
+	let translating = $state(false);
+	let trKey = '';
+	$effect(() => {
+		const lang = settings.lyricsLang;
+		const t = player.current;
+		const n = lines.length;
+		if (tab !== 'lyrics' || lang === 'off' || !n || !t) return;
+		const key = `${t.uid}:${lang}:${n}`;
+		if (trKey === key) return;
+		trKey = key;
+		translating = true;
+		translateLines(lines.map((l) => l.text), lang)
+			.then((out) => { if (trKey === key) translated = out; })
+			.catch(() => { if (trKey === key) translated = []; })
+			.finally(() => { if (trKey === key) translating = false; });
+	});
+	const showTr = $derived(settings.lyricsLang !== 'off' && translated.length === lines.length);
+
 	// ---- related ----
 	let related = $state<Track[]>([]);
 	let relatedFor = '';
@@ -82,7 +104,7 @@
 			relatedFor = t.uid;
 			related = [];
 			searchAll(t.artist, 1)
-				.then((r) => (related = dedupeBest(r.interleaved).filter((x) => x.uid !== t.uid).slice(0, 20)))
+				.then((r) => (related = dedupeBest(r.interleaved, settings.preferredSource).filter((x) => x.uid !== t.uid).slice(0, 20)))
 				.catch(() => (related = []));
 		}
 	});
@@ -306,8 +328,18 @@
 				{:else}<p class="empty">No queue yet.</p>{/if}
 			{:else if tab === 'lyrics'}
 				{#if lines.length}
+					{#if translating}<p class="tr-hint">translating…</p>{/if}
 					<div class="lyrics" role="group" aria-label="Lyrics" bind:this={lyricsEl} onpointerdown={lyricsTouched} onwheel={lyricsTouched}>
-						{#each lines as l, i (i)}<p class:active={i === activeLine}>{l.text}</p>{/each}
+						{#each lines as l, i (i)}
+							<p class:active={i === activeLine}>
+								{#if showTr && settings.translateMode === 'replace'}
+									{translated[i]}
+								{:else}
+									{l.text}
+									{#if showTr}<span class="tr">{translated[i]}</span>{/if}
+								{/if}
+							</p>
+						{/each}
 					</div>
 				{:else}<p class="empty">No lyrics for this track.</p>{/if}
 			{:else}
@@ -410,6 +442,8 @@
 	.lyrics { text-align: center; line-height: 2.1; }
 	.lyrics p { color: var(--color-text-muted); transition: color 0.2s ease, transform 0.2s ease; margin: 0; }
 	.lyrics p.active { color: var(--color-text); font-weight: 700; transform: scale(1.04); }
+	.lyrics .tr { display: block; font-size: 0.82em; font-weight: 400; color: var(--color-text-muted); margin-top: 2px; }
+	.tr-hint { text-align: center; font-size: 11px; color: var(--color-primary); margin: 0 0 6px; }
 	.empty { color: var(--color-text-muted); font-size: 14px; text-align: center; padding: 24px; }
 
 	.scrim { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,0.45); border: none; }

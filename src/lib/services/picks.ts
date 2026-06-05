@@ -3,6 +3,7 @@
 // (top picks + Randomize) and the player's queue auto-grow.
 import { searchAll } from '$lib/services/catalog';
 import { dedupeBest } from '$lib/services/dedupe';
+import { settings } from '$lib/stores/settings.svelte';
 import type { Track } from '$lib/sources/types';
 
 export const ARTIST_POOL = [
@@ -33,5 +34,5 @@ export async function buildDiversePicks(count: number, excludeUids: Set<string> 
 		const top = r.value.interleaved[0];
 		if (top) tops.push(top);
 	}
-	return dedupeBest(tops).filter((t) => !excludeUids.has(t.uid));
+	return dedupeBest(tops, settings.preferredSource).filter((t) => !excludeUids.has(t.uid));
 }

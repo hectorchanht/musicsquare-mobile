@@ -4,11 +4,15 @@
 	import { House, Search, Library, Play, Pause } from '@lucide/svelte';
 	import { player } from '$lib/stores/player.svelte';
 	import { library } from '$lib/stores/library.svelte';
+	import { settings } from '$lib/stores/settings.svelte';
 	import NowPlaying from '$lib/components/NowPlaying.svelte';
 
 	let { children } = $props();
 
-	onMount(() => library.load());
+	onMount(() => {
+		library.load();
+		settings.load();
+	});
 
 	const tabs: { href: string; label: string; icon: Component }[] = [
 		{ href: '/', label: 'Home', icon: House },

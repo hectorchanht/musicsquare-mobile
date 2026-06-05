@@ -28,18 +28,24 @@ function key(t: Track): string {
 	return `${norm(t.title)}|${norm(t.artist)}`;
 }
 
-function better(a: Track, b: Track): Track {
+function better(a: Track, b: Track, preferred?: SourceId): Track {
 	const qa = qualityRank(a);
 	const qb = qualityRank(b);
 	if (qa !== qb) return qa > qb ? a : b;
+	// quality tie → a user-preferred source wins, else the static source ranking
+	if (preferred) {
+		if (a.source === preferred && b.source !== preferred) return a;
+		if (b.source === preferred && a.source !== preferred) return b;
+	}
 	return SOURCE_RANK[a.source] >= SOURCE_RANK[b.source] ? a : b;
 }
 
 /**
  * Collapse same-song-different-source duplicates, keeping the best-quality variant.
  * Order is preserved by first appearance. A blank key (no title) is never merged.
+ * `preferred` (optional) wins quality ties — used for the "default source" setting.
  */
-export function dedupeBest(tracks: Track[]): Track[] {
+export function dedupeBest(tracks: Track[], preferred?: SourceId): Track[] {
 	const order: string[] = [];
 	const winner = new Map<string, Track>();
 	for (const t of tracks) {
@@ -54,7 +60,7 @@ export function dedupeBest(tracks: Track[]): Track[] {
 			order.push(k);
 			winner.set(k, t);
 		} else {
-			winner.set(k, better(winner.get(k)!, t));
+			winner.set(k, better(winner.get(k)!, t, preferred));
 		}
 	}
 	return order.map((k) => winner.get(k)!).filter(Boolean);

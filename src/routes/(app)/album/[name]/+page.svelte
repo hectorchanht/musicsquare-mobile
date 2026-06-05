@@ -4,6 +4,7 @@
 	import { ChevronLeft, Play } from '@lucide/svelte';
 	import { searchAll } from '$lib/services/catalog';
 	import { dedupeBest } from '$lib/services/dedupe';
+	import { settings } from '$lib/stores/settings.svelte';
 	import { player } from '$lib/stores/player.svelte';
 	import { goto } from '$app/navigation';
 	import type { Track } from '$lib/sources/types';
@@ -27,7 +28,7 @@
 			tracks = [];
 			searchAll(n, 1)
 				.then((r) => {
-					const all = dedupeBest(r.interleaved);
+					const all = dedupeBest(r.interleaved, settings.preferredSource);
 					// prefer exact-album matches; fall back to all results for the query
 					const exact = all.filter((t) => (t.album || '').trim() === n);
 					tracks = exact.length ? exact : all;

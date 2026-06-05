@@ -6,6 +6,7 @@
 	import { page } from '$app/state';
 	import { searchAll } from '$lib/services/catalog';
 	import { dedupeBest } from '$lib/services/dedupe';
+	import { settings } from '$lib/stores/settings.svelte';
 	import { player } from '$lib/stores/player.svelte';
 	import type { Track } from '$lib/sources/types';
 
@@ -42,7 +43,7 @@
 			loading = true;
 			songs = [];
 			searchAll(n, 1)
-				.then((r) => (songs = dedupeBest(r.interleaved)))
+				.then((r) => (songs = dedupeBest(r.interleaved, settings.preferredSource)))
 				.catch(() => (songs = []))
 				.finally(() => (loading = false));
 		}

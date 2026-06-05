@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { Music2, Search, Settings, RotateCw } from '@lucide/svelte';
 	import { buildDiversePicks } from '$lib/services/picks';
+	import { decodeTrack } from '$lib/services/share';
 	import { player } from '$lib/stores/player.svelte';
 	import type { Track } from '$lib/sources/types';
 
@@ -57,30 +59,43 @@
 	}
 
 	onMount(() => {
+		// Shared link: /?play=<token> → reconstruct the track stub and play it.
+		const token = new URLSearchParams(location.search).get('play');
+		if (token) {
+			const t = decodeTrack(token);
+			if (t) {
+				player.setQueue([t]);
+				player.play(t);
+			}
+			history.replaceState(null, '', location.pathname); // clear the param
+		}
 		// Instant render from localStorage; only hit the network on a cold cache.
 		const cached = loadCache();
 		if (cached) {
 			songs = cached;
-			player.setQueue(cached);
+			if (!token) player.setQueue(cached);
 			loading = false;
-		} else {
+		} else if (!token) {
 			refresh();
+		} else {
+			loading = false;
 		}
 	});
 </script>
 
 <header class="topnav">
-	<div class="brand"><span class="dot">♪</span> MusicSquare</div>
+	<div class="brand"><span class="dot"><Music2 size={15} /></span> openmusic</div>
+	<button class="gear" aria-label="Settings" onclick={() => goto('/settings')}><Settings size={20} /></button>
 </header>
 
 <button class="searchpill" onclick={() => goto('/search')}>
-	🔍 <span>Search songs, artists across all sources</span>
+	<Search size={16} /> <span>Search songs, artists across all sources</span>
 </button>
 
 <section class="section">
 	<div class="head">
 		<h2>Top picks</h2>
-		<button class="more" onclick={refresh} disabled={loading}>{loading ? '…' : '↻ Randomize'}</button>
+		<button class="more" onclick={refresh} disabled={loading}><RotateCw size={13} /> {loading ? 'Loading…' : 'Randomize'}</button>
 	</div>
 
 	{#if loading}
@@ -110,9 +125,11 @@
 	.topnav { display: flex; align-items: center; justify-content: space-between; padding: 14px 0 10px; }
 	.brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 1.35rem; }
 	.brand .dot {
-		width: 24px; height: 24px; border-radius: 50%;
-		background: var(--color-primary); display: grid; place-items: center; font-size: 14px;
+		width: 26px; height: 26px; border-radius: 50%;
+		background: var(--color-primary); color: #fff; display: grid; place-items: center;
 	}
+	.gear { background: none; border: none; color: var(--color-text); cursor: pointer; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; }
+	.gear:hover { background: var(--color-surface-2); }
 	.searchpill {
 		width: 100%; text-align: left; background: var(--color-surface-2);
 		border: 1px solid var(--color-border); border-radius: 999px;
@@ -124,6 +141,7 @@
 	.more, .retry {
 		background: none; border: 1px solid var(--color-border); color: var(--color-text-muted);
 		padding: 5px 12px; border-radius: 999px; font-size: 12px; cursor: pointer;
+		display: inline-flex; align-items: center; gap: 5px;
 	}
 	.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 	.tile {

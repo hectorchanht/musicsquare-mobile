@@ -1,18 +1,22 @@
 <script lang="ts">
+	import { onMount, type Component } from 'svelte';
 	import { page } from '$app/state';
+	import { House, Search, Library, Play, Pause } from '@lucide/svelte';
 	import { player } from '$lib/stores/player.svelte';
+	import { library } from '$lib/stores/library.svelte';
 	import NowPlaying from '$lib/components/NowPlaying.svelte';
 
 	let { children } = $props();
 
-	const tabs = [
-		{ href: '/', label: 'Home', icon: '⌂' },
-		{ href: '/search', label: 'Search', icon: '🔍' },
-		{ href: '/library', label: 'Library', icon: '≡' }
+	onMount(() => library.load());
+
+	const tabs: { href: string; label: string; icon: Component }[] = [
+		{ href: '/', label: 'Home', icon: House },
+		{ href: '/search', label: 'Search', icon: Search },
+		{ href: '/library', label: 'Library', icon: Library }
 	];
 
 	function cover(track: { cover: string | null } | null): string {
-		// deterministic gradient fallback when no cover art
 		return 'linear-gradient(145deg,#3a2d63,#1a1326)';
 	}
 </script>
@@ -36,7 +40,7 @@
 				</span>
 			</button>
 			<button class="np-btn" aria-label="Play/pause" onclick={() => player.toggle()}>
-				{player.playing ? '⏸' : '▶'}
+				{#if player.playing}<Pause size={18} />{:else}<Play size={18} />{/if}
 			</button>
 		</div>
 	{/if}
@@ -47,8 +51,9 @@
 
 	<nav class="tabbar">
 		{#each tabs as t (t.href)}
+			{@const Icon = t.icon}
 			<a class="tab" class:active={page.url.pathname === t.href} href={t.href}>
-				<span class="ic">{t.icon}</span>{t.label}
+				<span class="ic"><Icon size={20} /></span>{t.label}
 			</a>
 		{/each}
 	</nav>
@@ -136,9 +141,10 @@
 		width: 40px;
 		height: 40px;
 		border-radius: 50%;
-		font-size: 16px;
 		cursor: pointer;
 		flex: none;
+		display: grid;
+		place-items: center;
 		transition: transform 0.12s ease;
 	}
 	.np-btn:active { transform: scale(0.92); }
@@ -166,6 +172,6 @@
 		color: var(--color-text-muted);
 		transition: color 0.15s ease;
 	}
-	.tab .ic { font-size: 18px; }
+	.tab .ic { display: grid; place-items: center; }
 	.tab.active { color: var(--color-text); }
 </style>

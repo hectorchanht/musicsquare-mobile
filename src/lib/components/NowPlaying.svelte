@@ -2,7 +2,7 @@
 	import { fly } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import { goto } from '$app/navigation';
-	import { ChevronDown, MoreVertical, Shuffle, SkipBack, SkipForward, Play, Pause, Repeat } from '@lucide/svelte';
+	import { ChevronDown, MoreVertical, Shuffle, SkipBack, SkipForward, Play, Pause, Repeat, GripVertical } from '@lucide/svelte';
 	import { player, fmtTime } from '$lib/stores/player.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { names } from '$lib/stores/names.svelte';
@@ -167,6 +167,47 @@
 			sheetDragY = 0;
 		}, 290);
 	}
+
+	// ---- Up-Next reorder: custom pointer/touch drag on the far-right grip handle ----
+	// (NOT native HTML5 DnD — poor on touch). On drop we call player.reorderQueue,
+	// which pins the moved track manual so it survives the next fresh-play regen.
+	let queueListEl = $state<HTMLElement | null>(null);
+	let dragFrom = $state(-1); // source row index while dragging (-1 = idle)
+	let dragOver = $state(-1); // current target row index
+	let rowDragY = $state(0); // px the lifted row follows the finger
+	let rowDragStartY = 0;
+
+	/** Find the queue row index under client-Y `y` by measuring each <li>'s rect. */
+	function rowIndexAt(y: number): number {
+		if (!queueListEl) return dragFrom;
+		const items = queueListEl.querySelectorAll('li');
+		for (let i = 0; i < items.length; i++) {
+			const r = items[i].getBoundingClientRect();
+			if (y < r.top + r.height / 2) return i;
+		}
+		return items.length - 1;
+	}
+
+	function gripDragDown(e: PointerEvent, index: number) {
+		e.stopPropagation(); // don't trigger the row's play onclick
+		dragFrom = index;
+		dragOver = index;
+		rowDragStartY = e.clientY;
+		rowDragY = 0;
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+	}
+	function gripDragMove(e: PointerEvent) {
+		if (dragFrom < 0) return;
+		rowDragY = e.clientY - rowDragStartY;
+		dragOver = rowIndexAt(e.clientY);
+	}
+	function gripDragUp() {
+		if (dragFrom < 0) return;
+		if (dragOver >= 0 && dragOver !== dragFrom) player.reorderQueue(dragFrom, dragOver);
+		dragFrom = -1;
+		dragOver = -1;
+		rowDragY = 0;
+	}
 </script>
 
 <section
@@ -242,13 +283,26 @@
 		<div class="panel">
 			{#if tab === 'queue'}
 				{#if player.queue.length}
-					<ul class="list">
-						{#each player.queue as t (t.uid)}
-							<li>
-								<button class="row" class:playing={t.uid === player.current?.uid} use:longpress onlongpress={() => openMenu(t)} onclick={() => player.play(t)}>
+					<ul class="list" bind:this={queueListEl}>
+						{#each player.queue as t, i (t.uid)}
+							<li
+								class:lifted={i === dragFrom}
+								class:over={i === dragOver && i !== dragFrom}
+								style:transform={i === dragFrom && rowDragY ? `translateY(${rowDragY}px)` : undefined}
+							>
+								<button class="row q-row" class:playing={t.uid === player.current?.uid} use:longpress onlongpress={() => openMenu(t)} onclick={() => player.play(t, { fresh: true })}>
 									<span class="r-title">{names.dn(t.title)}</span>
 									<span class="r-artist">{names.dn(t.artist)}</span>
 								</button>
+								<button
+									class="grip-handle"
+									aria-label="Reorder track"
+									onpointerdown={(e) => gripDragDown(e, i)}
+									onpointermove={gripDragMove}
+									onpointerup={gripDragUp}
+									onpointercancel={gripDragUp}
+									onclick={(e) => e.stopPropagation()}
+								><GripVertical size={18} /></button>
 							</li>
 						{/each}
 					</ul>
@@ -273,7 +327,7 @@
 				{#if related.length}
 					<ul class="list">
 						{#each related as t (t.uid)}
-							<li><button class="row" use:longpress onlongpress={() => openMenu(t)} onclick={() => player.play(t)}><span class="r-title">{names.dn(t.title)}</span><span class="r-artist">{names.dn(t.artist)}</span></button></li>
+							<li><button class="row" use:longpress onlongpress={() => openMenu(t)} onclick={() => player.play(t, { fresh: true })}><span class="r-title">{names.dn(t.title)}</span><span class="r-artist">{names.dn(t.artist)}</span></button></li>
 						{/each}
 					</ul>
 				{:else}<p class="empty">Loading related…</p>{/if}
@@ -318,6 +372,14 @@
 	.row { width: 100%; text-align: left; background: none; border: none; padding: 8px 6px; border-radius: 8px; cursor: pointer; display: flex; flex-direction: column; }
 	.row:hover { background: var(--color-surface); }
 	.row.playing { background: rgba(124,92,255,0.15); }
+	/* Queue rows: play-button + far-right grip side by side. */
+	.list li { display: flex; align-items: center; gap: 2px; }
+	.q-row { flex: 1; min-width: 0; }
+	.grip-handle { flex: 0 0 auto; background: none; border: none; color: var(--color-text-muted); opacity: 0.55; cursor: grab; touch-action: none; display: grid; place-items: center; padding: 8px 6px; border-radius: 8px; }
+	.grip-handle:active { cursor: grabbing; opacity: 0.9; }
+	.list li.lifted { position: relative; z-index: 2; opacity: 0.92; }
+	.list li.lifted .q-row { background: var(--color-surface); box-shadow: 0 6px 18px rgba(0,0,0,0.4); }
+	.list li.over .q-row { box-shadow: inset 0 2px 0 var(--color-primary); }
 	.r-title { font-size: 14px; font-weight: 600; }
 	.r-artist { font-size: 12px; color: var(--color-text-muted); }
 	.lyrics { text-align: center; line-height: 2.1; }

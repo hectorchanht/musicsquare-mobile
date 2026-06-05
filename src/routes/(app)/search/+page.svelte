@@ -4,6 +4,7 @@
 	import { settings } from '$lib/stores/settings.svelte';
 	import { player } from '$lib/stores/player.svelte';
 	import { names } from '$lib/stores/names.svelte';
+	import { t } from '$lib/i18n';
 	import { longpress } from '$lib/actions/longpress';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import type { Track } from '$lib/sources/types';
@@ -44,26 +45,26 @@
 	}
 </script>
 
-<header class="head"><h1>Search</h1></header>
+<header class="head"><h1>{t('search.title')}</h1></header>
 
 <form class="bar" onsubmit={run}>
 	<input
 		bind:value={q}
-		placeholder="Search across NetEase · QQ · Kuwo · JOOX"
+		placeholder={t('search.placeholder')}
 		autocomplete="off"
 		autocapitalize="off"
 	/>
-	<button type="submit" disabled={loading}>{loading ? '…' : 'Go'}</button>
+	<button type="submit" disabled={loading}>{loading ? t('search.submitting') : t('search.go')}</button>
 </form>
 
 {#if someFailed}
-	<p class="warn">Some sources didn't respond — showing the rest.</p>
+	<p class="warn">{t('search.someFailed')}</p>
 {/if}
 
 {#if loading}
-	<p class="muted">Searching all sources…</p>
+	<p class="muted">{t('search.searching')}</p>
 {:else if searched && results.length === 0}
-	<p class="muted">No results.</p>
+	<p class="muted">{t('search.empty')}</p>
 {:else}
 	<ul class="list">
 		{#each results as t (t.uid)}

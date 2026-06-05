@@ -7,6 +7,7 @@
 	import { decodeTrack } from '$lib/services/share';
 	import { player } from '$lib/stores/player.svelte';
 	import { names } from '$lib/stores/names.svelte';
+	import { t } from '$lib/i18n';
 	import { longpress } from '$lib/actions/longpress';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import type { Track } from '$lib/sources/types';
@@ -56,7 +57,7 @@
 				saveCache(picks);
 				player.setQueue(picks);
 			} else {
-				error = 'no results — sources may be unavailable';
+				error = t('home.noResults');
 			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : String(e);
@@ -92,17 +93,17 @@
 
 <header class="topnav">
 	<div class="brand"><Logo size={26} /> openmusic</div>
-	<button class="gear" aria-label="Settings" onclick={() => goto('/settings')}><Settings size={20} /></button>
+	<button class="gear" aria-label={t('home.settings')} onclick={() => goto('/settings')}><Settings size={20} /></button>
 </header>
 
 <button class="searchpill" onclick={() => goto('/search')}>
-	<Search size={16} /> <span>Search songs, artists across all sources</span>
+	<Search size={16} /> <span>{t('home.searchPill')}</span>
 </button>
 
 <section class="section">
 	<div class="head">
-		<h2>Top picks</h2>
-		<button class="more" onclick={refresh} disabled={loading}><RotateCw size={13} /> {loading ? 'Loading…' : 'Randomize'}</button>
+		<h2>{t('home.topPicks')}</h2>
+		<button class="more" onclick={refresh} disabled={loading}><RotateCw size={13} /> {loading ? t('home.loadingPicks') : t('home.randomize')}</button>
 	</div>
 
 	{#if loading}
@@ -110,7 +111,7 @@
 			{#each Array(9) as _, i (i)}<div class="tile skeleton"></div>{/each}
 		</div>
 	{:else if error}
-		<p class="error">{error} — <button class="retry" onclick={refresh}>retry</button></p>
+		<p class="error">{error} — <button class="retry" onclick={refresh}>{t('common.retry')}</button></p>
 	{:else}
 		<div class="grid">
 			{#each songs as t (t.uid)}

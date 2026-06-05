@@ -6,6 +6,7 @@
 	import { library } from '$lib/stores/library.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { names } from '$lib/stores/names.svelte';
+	import { t, type TranslationKey } from '$lib/i18n';
 	import NowPlaying from '$lib/components/NowPlaying.svelte';
 
 	let { children } = $props();
@@ -15,10 +16,11 @@
 		settings.load();
 	});
 
-	const tabs: { href: string; label: string; icon: Component }[] = [
-		{ href: '/', label: 'Home', icon: House },
-		{ href: '/search', label: 'Search', icon: Search },
-		{ href: '/library', label: 'Library', icon: Library }
+	// Store a translation KEY per tab (not the literal) so the nav re-renders when appLang changes.
+	const tabs: { href: string; labelKey: TranslationKey; icon: Component }[] = [
+		{ href: '/', labelKey: 'nav.home', icon: House },
+		{ href: '/search', labelKey: 'nav.search', icon: Search },
+		{ href: '/library', labelKey: 'nav.library', icon: Library }
 	];
 
 	function cover(track: { cover: string | null } | null): string {
@@ -34,17 +36,17 @@
 	{#if player.current && !player.expanded}
 		<div class="nowbar">
 			<div class="np-prog"><i style:width={`${player.duration > 0 ? (player.currentTime / player.duration) * 100 : 0}%`}></i></div>
-			<button class="np-open" aria-label="Open now playing" onclick={() => player.expand()}>
+			<button class="np-open" aria-label={t('nowbar.openNowPlaying')} onclick={() => player.expand()}>
 				<span class="np-art" style:background-image={player.current.cover ? `url(${player.current.cover})` : cover(player.current)}></span>
 				<span class="np-meta">
 					<span class="np-title">{names.dn(player.current.title)}</span>
 					<span class="np-artist">
 						{names.dn(player.current.artist)}
-						{#if player.loading}· loading…{:else if player.error}· <span class="err">{player.error}</span>{/if}
+						{#if player.loading}· {t('common.loading')}{:else if player.error}· <span class="err">{player.error}</span>{/if}
 					</span>
 				</span>
 			</button>
-			<button class="np-btn" aria-label="Play/pause" onclick={() => player.toggle()}>
+			<button class="np-btn" aria-label={t('nowbar.playPause')} onclick={() => player.toggle()}>
 				{#if player.playing}<Pause size={18} />{:else}<Play size={18} />{/if}
 			</button>
 		</div>
@@ -55,10 +57,10 @@
 	{/if}
 
 	<nav class="tabbar">
-		{#each tabs as t (t.href)}
-			{@const Icon = t.icon}
-			<a class="tab" class:active={page.url.pathname === t.href} href={t.href}>
-				<span class="ic"><Icon size={20} /></span>{t.label}
+		{#each tabs as tab (tab.href)}
+			{@const Icon = tab.icon}
+			<a class="tab" class:active={page.url.pathname === tab.href} href={tab.href}>
+				<span class="ic"><Icon size={20} /></span>{t(tab.labelKey)}
 			</a>
 		{/each}
 	</nav>

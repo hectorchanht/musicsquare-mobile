@@ -1,0 +1,206 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { joox } from './joox';
+import type { Track } from './types';
+import searchFixture from './__fixtures__/joox.search.json';
+import detailFixture from './__fixtures__/joox.detail.json';
+
+const ac = new AbortController();
+
+/** A fetch mock that returns one JSON body for every call. */
+function mockJsonFetch(body: unknown) {
+	return vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
+		return new Response(JSON.stringify(body), {
+			status: 200,
+			headers: { 'content-type': 'application/json' }
+		});
+	});
+}
+
+/**
+ * A fetch mock that distinguishes the upstream-detail call (carries `n=` via the
+ * proxy path) from the probe HEAD/ranged-GET calls (hit the audio CDN URL directly).
+ * Detail call → returns `detailBody`. Probe call → returns 200 (url is reachable).
+ */
+function mockResolveFetch(detailBody: unknown) {
+	return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+		const url = String(input);
+		const method = (init?.method || 'GET').toUpperCase();
+		// The metadata-proxy detail call goes through /api/joox/...
+		if (url.startsWith('/api/joox')) {
+			return new Response(JSON.stringify(detailBody), {
+				status: 200,
+				headers: { 'content-type': 'application/json' }
+			});
+		}
+		// Otherwise it is a probe against the resolved CDN url (HEAD then ranged GET).
+		return new Response(method === 'HEAD' ? null : 'audio-bytes', {
+			status: method === 'HEAD' ? 200 : 206,
+			headers: { 'content-type': 'audio/flac' }
+		});
+	});
+}
+
+beforeEach(() => {
+	vi.restoreAllMocks();
+});
+afterEach(() => {
+	vi.restoreAllMocks();
+});
+
+describe('joox.search (fixture-backed)', () => {
+	// Test 1: Chinese-field mapping, colon uid (joox:${songmid}), inline lrc, songMid/jooxSongId/jooxIndex.
+	it('maps Chinese field names into canonical Track[] keyed joox:${songmid}', async () => {
+		vi.stubGlobal('fetch', mockJsonFetch(searchFixture));
+
+		const tracks = await joox.search('周杰伦', 1, ac.signal);
+
+		expect(tracks.length).toBe(searchFixture.data.songs.length);
+		const first = tracks[0];
+		const f0 = searchFixture.data.songs[0];
+		// colon-form uid keyed by songmid (D-10)
+		expect(first.uid).toBe(`joox:${f0.songmid}`);
+		expect(first.source).toBe('joox');
+		expect(first.songMid).toBe(f0.songmid);
+		expect(first.jooxSongId).toBe(f0['歌曲ID']);
+		// Chinese field name mapping
+		expect(first.title).toBe(f0['歌曲名称']);
+		expect(first.artist).toBe(f0['歌手']);
+		expect(first.album).toBe(f0['专辑']);
+		// lrc inline at search time
+		expect(first.lrc).toBe(f0['歌词内容']);
+		// jooxIndex is 1-based ORDERING only
+		expect(first.jooxIndex).toBe(1);
+		expect(tracks[2].jooxIndex).toBe(3);
+		expect(first.keyword).toBe('周杰伦');
+		expect(first.detailsLoaded).toBe(false);
+	});
+
+	it('hits the same-origin proxy /api/joox/search and NEVER sends a token from the client', async () => {
+		const spy = mockJsonFetch(searchFixture);
+		vi.stubGlobal('fetch', spy);
+
+		await joox.search('hello', 1, ac.signal);
+
+		const calledUrl = String(spy.mock.calls[0][0]);
+		expect(calledUrl).toMatch(/^\/api\/joox\/search\?/);
+		expect(calledUrl).toContain('msg=hello');
+		// the client must NOT inject the token or br — the proxy does that server-side
+		expect(calledUrl).not.toMatch(/token=/i);
+		expect(calledUrl).not.toMatch(/f84ao9lMF/);
+	});
+
+	it('THROWS on a contract-drift (non-200 / missing songs) body', async () => {
+		vi.stubGlobal('fetch', mockJsonFetch({ code: 500, msg: 'upstream down' }));
+		await expect(joox.search('x', 1, ac.signal)).rejects.toThrow();
+	});
+});
+
+describe('joox.resolve — POSITION-INDEX IDENTITY FIX', () => {
+	// Build the canonical search result set, then a helper to grab a known track.
+	async function searchTracks(): Promise<Track[]> {
+		vi.stubGlobal('fetch', mockJsonFetch(searchFixture));
+		return joox.search('周杰伦', 1, ac.signal);
+	}
+
+	// Test 2 (identity — happy path): reorder/paginate, resolve a known track whose
+	// upstream detail returns a MATCHING songmid → resolves the SELECTED track.
+	it('identity: after reorder, the correct track resolves when songmid matches', async () => {
+		const tracks = await searchTracks();
+		// REORDER (shuffle so position != original ordering)
+		const reordered = [tracks[2], tracks[0], tracks[3], tracks[1]];
+		// pick the track whose songmid the detail fixture matches ("稻香", 002cZ5jq3Hk8Yz)
+		const target = reordered.find((t) => t.songMid === detailFixture.data.songmid)!;
+		expect(target).toBeDefined();
+		const originalSongMid = target.songMid;
+
+		vi.stubGlobal('fetch', mockResolveFetch(detailFixture));
+		const out = await joox.resolve(target, ac.signal);
+
+		// resolved the SELECTED track, not whatever sits at position n
+		expect(out.songMid).toBe(originalSongMid);
+		expect(out.title).toBe('稻香');
+		expect(out.audioUrl).toBeTruthy();
+		expect(out.detailsLoaded).toBe(true);
+	});
+
+	// Test 3 (identity — mismatch fails loudly): the mocked detail returns a DIFFERENT
+	// songmid/title than expected → resolve THROWS, detailsLoaded stays false.
+	it('identity: a songmid mismatch THROWS and leaves detailsLoaded false', async () => {
+		const tracks = await searchTracks();
+		const reordered = [tracks[1], tracks[3], tracks[0], tracks[2]];
+		// target "晴天" (001Bnq3w0u8Pql) but the upstream detail returns "稻香" (002cZ5jq3Hk8Yz)
+		const target = reordered.find((t) => t.songMid === '001Bnq3w0u8Pql')!;
+		expect(target).toBeDefined();
+
+		vi.stubGlobal('fetch', mockResolveFetch(detailFixture)); // returns 002cZ5... — WRONG song
+
+		await expect(joox.resolve(target, ac.signal)).rejects.toThrow(/identity|mismatch|songmid/i);
+		expect(target.detailsLoaded).toBe(false);
+		expect(target.audioUrl).toBeNull();
+	});
+
+	// the upstream still requires n= — assert the client keeps sending it
+	it('identity: still sends n= (jooxIndex) to the upstream proxy', async () => {
+		const tracks = await searchTracks();
+		const target = tracks.find((t) => t.songMid === detailFixture.data.songmid)!;
+		const spy = mockResolveFetch(detailFixture);
+		vi.stubGlobal('fetch', spy);
+
+		await joox.resolve(target, ac.signal);
+
+		const detailCall = spy.mock.calls.find((c) => String(c[0]).startsWith('/api/joox'));
+		expect(detailCall).toBeDefined();
+		expect(String(detailCall![0])).toMatch(/n=/);
+	});
+});
+
+describe('joox.resolve — quality order (pickJooxPlayUrl)', () => {
+	// Test 4: with multiple 播放链接 tiers, the highest-priority reachable tier wins.
+	it('picks Atmos全景声 first and tags it lossless', async () => {
+		vi.stubGlobal('fetch', mockJsonFetch(searchFixture));
+		const tracks = await joox.search('周杰伦', 1, ac.signal);
+		const target = tracks.find((t) => t.songMid === detailFixture.data.songmid)!;
+
+		vi.stubGlobal('fetch', mockResolveFetch(detailFixture));
+		const out = await joox.resolve(target, ac.signal);
+
+		expect(out.audioUrl).toBe(detailFixture.data['播放链接']['Atmos全景声']);
+		expect(out.quality).toBe('lossless');
+		expect(out.qualityLabel).toBe('LOSSLESS');
+		expect(out.jooxQualityText).toBe('Atmos全景声');
+	});
+
+	it('falls through to a lower tier when a higher one fails the probe', async () => {
+		vi.stubGlobal('fetch', mockJsonFetch(searchFixture));
+		const tracks = await joox.search('周杰伦', 1, ac.signal);
+		const target = tracks.find((t) => t.songMid === detailFixture.data.songmid)!;
+
+		const atmos = detailFixture.data['播放链接']['Atmos全景声'];
+		const flac = detailFixture.data['播放链接']['无损FLAC'];
+		// Atmos probe fails (network error); FLAC probe succeeds.
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url = String(input);
+				if (url.startsWith('/api/joox')) {
+					return new Response(JSON.stringify(detailFixture), {
+						status: 200,
+						headers: { 'content-type': 'application/json' }
+					});
+				}
+				if (url === atmos) throw new Error('probe network error');
+				if (url === flac) {
+					const method = (init?.method || 'GET').toUpperCase();
+					return new Response(method === 'HEAD' ? null : 'bytes', { status: 200 });
+				}
+				// any other tier: fail so FLAC is the winner
+				throw new Error('unreachable');
+			})
+		);
+
+		const out = await joox.resolve(target, ac.signal);
+		expect(out.audioUrl).toBe(flac);
+		expect(out.quality).toBe('lossless');
+		expect(out.jooxQualityText).toBe('无损FLAC');
+	});
+});

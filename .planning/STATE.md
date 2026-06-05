@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-05)
 Phase: 1 (Data Layer + Proxy Foundation) — EXECUTING
 Plan: 1 of 4
 Status: Executing Phase 1
-Last activity: 2026-06-06 -- Completed quick task 260606-3f6: dedupe + smart lyrics + auto-grow queue deployed
+Last activity: 2026-06-06 -- Completed quick task 260606-4g1: openmusic rebrand + lucide + settings/library + options menu deployed
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -85,6 +85,7 @@ None yet.
 | 260606-2k7 | Full-screen now-playing (expand/drag-collapse) + artist page + seekable progress (NaN fix); deployed | 2026-06-06 | a1422fd | [260606-2k7-full-screen-now-playing-artist-page-prog](./quick/260606-2k7-full-screen-now-playing-artist-page-prog/) |
 | 260606-3a0 | Persist playback across nav + nowbar progress sliver + diverse cached top picks (localStorage) + Randomize; deployed | 2026-06-06 | 3a0832b | [260606-3a0-persist-playback-nowbar-progress-diverse](./quick/260606-3a0-persist-playback-nowbar-progress-diverse/) |
 | 260606-3f6 | Hide source + cross-source dedupe/best-quality + draggable subnav sheet + smart lyrics scroll + auto-advance/auto-grow queue; deployed | 2026-06-06 | aa0260a | [260606-3f6-dedupe-cross-source-hide-source-draggabl](./quick/260606-3f6-dedupe-cross-source-hide-source-draggabl/) |
+| 260606-4g1 | Rebrand openmusic + lucide icons + settings & library pages + now-playing options menu (download/like/playlist/album/artist/share/detail) + sensitive grip; deployed | 2026-06-06 | e959635 | [260606-4g1-rebrand-openmusic-settings-library-nowpl](./quick/260606-4g1-rebrand-openmusic-settings-library-nowpl/) |
 
 > Note: off planned phase order (Phase-4-shaped UI pulled forward as a demo). Basic playback only; full audio engine = Phase 6, formal Mobile UI Shell = Phase 4.
 

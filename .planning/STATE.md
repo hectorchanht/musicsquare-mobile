@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-05)
 Phase: Not started (defining requirements)
 Plan: —
 Status: Defining requirements
-Last activity: 2026-06-05 — Milestone v1.1 started
+Last activity: 2026-06-05 — Completed quick task 260606-6p7: app-language selector + whole-app i18n (en/zh-Hant/zh-Hans)
 
 ## Performance Metrics
 
@@ -90,6 +90,7 @@ None yet.
 | 260606-5of | Remove unused/fork-cruft: orphan favicon dup, docs/logo.png (README fix), legacy/ (~220KB), g4f issue bot + workflow, fork issue templates + FUNDING; svelte-check clean | 2026-06-05 | e688cfe | [260606-5of-remove-things-that-are-not-used-or-neede](./quick/260606-5of-remove-things-that-are-not-used-or-neede/) |
 | 260606-5vm | Rewrite README for the openmusic SvelteKit project (doc-only; reconciled removed legacy/ refs) | 2026-06-06 | bde56ea | [260606-5vm-update-readme-for-svelte-project](./quick/260606-5vm-update-readme-for-svelte-project/) |
 | 260606-5ug | Smarter Up-Next: Last.fm artist.getSimilar gen (server-side key + same-artist fallback) regen-on-fresh-play preserving manual adds, pointer-drag reorder (GripVertical, pins manual), current-track length; check clean, 67/67 tests | 2026-06-05 | be967a3 | [260606-5ug-up-next-list-auto-generated-from-similar](./quick/260606-5ug-up-next-list-auto-generated-from-similar/) |
+| 260606-6p7 | App-language selector (English/繁體中文/简体中文) + whole-app i18n: dependency-free runes t() in src/lib/i18n/, ~74 chrome strings across 12 files (toasts/menus/aria), persisted appLang + first-visit auto-detect, nameLang/lyricsLang kept independent; check clean, 78/78 tests | 2026-06-05 | 66f871c | [260606-6p7-add-app-language-selector-to-settings-i1](./quick/260606-6p7-add-app-language-selector-to-settings-i1/) |
 
 > Note: off planned phase order (Phase-4-shaped UI pulled forward as a demo). Basic playback only; full audio engine = Phase 6, formal Mobile UI Shell = Phase 4.
 

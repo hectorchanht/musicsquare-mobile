@@ -1,0 +1,162 @@
+// Traditional Chinese (繁體中文) UI-chrome dictionary.
+// Key set is IDENTICAL to en.ts (enforced by the `Dict` type + the i18n unit test).
+import type { Dict } from './index';
+
+const zhHant: Dict = {
+	// --- nav ---
+	'nav.home': '首頁',
+	'nav.search': '搜尋',
+	'nav.library': '音樂庫',
+
+	// --- common ---
+	'common.back': '返回',
+	'common.loading': '載入中…',
+	'common.retry': '重試',
+
+	// --- home ---
+	'home.settings': '設定',
+	'home.searchPill': '搜尋歌曲、歌手（跨所有來源）',
+	'home.topPicks': '精選推薦',
+	'home.loadingPicks': '載入中…',
+	'home.randomize': '隨機推薦',
+	'home.noResults': '沒有結果 — 來源可能暫時無法使用',
+
+	// --- search ---
+	'search.title': '搜尋',
+	'search.placeholder': '搜尋歌曲、歌手（跨所有來源）',
+	'search.go': '搜尋',
+	'search.submitting': '…',
+	'search.someFailed': '部分來源沒有回應 — 顯示其餘結果。',
+	'search.searching': '正在搜尋所有來源…',
+	'search.empty': '沒有結果。',
+
+	// --- settings ---
+	'settings.title': '設定 · openmusic',
+	'settings.heading': '設定',
+	'settings.appLanguage': '介面語言',
+	'settings.lyricsTranslation': '歌詞翻譯',
+	'settings.translateNames': '翻譯歌曲與歌手名稱',
+	'settings.translateNamesNote': '以此語言顯示歌名與歌手（例如 簡體 → 繁體）。歌詞設定為獨立項目。',
+	'settings.translateMode': '翻譯模式',
+	'settings.translateModeOffNote': '請先在上方選擇語言以啟用。',
+	'settings.translateModeOnNote': '翻譯使用線上服務，品質可能有差異。',
+	'settings.defaultQuality': '預設音質',
+	'settings.defaultQualityNote': '盡力而為 — 並非所有來源都提供位元率；在已知時會優先選擇。',
+	'settings.defaultSource': '預設音樂來源',
+	'settings.defaultSourceNote': '當同一首歌出現在多個來源時，優先採用偏好來源。',
+	'settings.accentColor': '主題色',
+	'settings.playbackMotion': '播放與動態',
+	'settings.autoExpand': '播放時自動展開正在播放',
+	'settings.reduceMotion': '減少動態效果',
+	'settings.data': '資料',
+	'settings.dataCounts': '{liked} 個收藏 · {playlists} 個播放清單 · {downloads} 個下載',
+	'settings.clearPicks': '清除快取的精選推薦',
+	'settings.clearLibrary': '清空音樂庫',
+	'settings.about': '關於',
+	'settings.aboutLine': 'openmusic · 示範版本 · 串流自公開音樂來源',
+	'settings.optOff': '關閉',
+	'settings.optShowBelow': '顯示於下方',
+	'settings.optReplace': '取代',
+	'settings.optAuto': '自動',
+	'settings.optLossless': '無損',
+	'settings.optAutoAll': '自動（全部）',
+	'settings.picksCleared': '已清除快取的精選推薦。',
+	'settings.libraryCleared': '已清空音樂庫。',
+	'settings.clearLibraryConfirm': '確定清除所有收藏歌曲、播放清單與下載嗎？',
+
+	// --- now playing ---
+	'nowplaying.collapse': '收合',
+	'nowplaying.options': '選項',
+	'nowplaying.nowPlaying': '正在播放',
+	'nowplaying.albumArt': '專輯封面 — 向下拖曳以縮小',
+	'nowplaying.seek': '調整進度',
+	'nowplaying.shuffle': '隨機播放',
+	'nowplaying.previous': '上一首',
+	'nowplaying.playPause': '播放／暫停',
+	'nowplaying.next': '下一首',
+	'nowplaying.repeat': '重複播放',
+	'nowplaying.collapsePanel': '收合面板',
+	'nowplaying.expandPanel': '展開面板',
+	'nowplaying.upNext': '待播清單',
+	'nowplaying.lyrics': '歌詞',
+	'nowplaying.related': '相關',
+	'nowplaying.reorderTrack': '重新排序歌曲',
+	'nowplaying.noQueue': '尚無待播歌曲。',
+	'nowplaying.translating': '翻譯中…',
+	'nowplaying.noLyrics': '這首歌沒有歌詞。',
+	'nowplaying.loadingRelated': '載入相關歌曲中…',
+
+	// --- now bar ---
+	'nowbar.openNowPlaying': '開啟正在播放',
+	'nowbar.playPause': '播放／暫停',
+
+	// --- track menu ---
+	'menu.playNext': '下一首播放',
+	'menu.addToQueue': '加入待播清單',
+	'menu.download': '下載',
+	'menu.like': '收藏',
+	'menu.liked': '已收藏',
+	'menu.addToPlaylist': '加入播放清單',
+	'menu.goToAlbum': '前往專輯',
+	'menu.goToArtist': '前往歌手',
+	'menu.share': '分享',
+	'menu.detail': '詳細資料',
+	'menu.newPlaylist': '新增播放清單…',
+	'menu.newPlaylistPrompt': '新播放清單名稱',
+	'menu.closeMenu': '關閉選單',
+	'menu.close': '關閉',
+	'menu.trackDetail': '歌曲詳細資料',
+	'menu.detailTitle': '標題',
+	'menu.detailArtist': '歌手',
+	'menu.detailAlbum': '專輯',
+	'menu.detailQuality': '音質',
+	'menu.detailSource': '來源',
+	'menu.detailUid': 'UID',
+	'menu.detailAudioUrl': '音訊網址',
+	'menu.detailNotResolved': '（尚未解析）',
+	'menu.detailUnknown': '未知',
+
+	// --- toasts ---
+	'toast.playingNext': '下一首播放',
+	'toast.addedToQueue': '已加入待播清單',
+	'toast.preparingDownload': '正在準備下載…',
+	'toast.noAudio': '沒有可用的音訊',
+	'toast.downloaded': '已下載 · 已加入音樂庫',
+	'toast.openedAudio': '已開啟音訊 · 已加入音樂庫',
+	'toast.shareCopied': '已複製分享連結',
+	'toast.addedToPlaylist': '已加入播放清單',
+	'toast.playlistCreated': '已建立播放清單',
+
+	// --- library ---
+	'library.title': '音樂庫 · openmusic',
+	'library.heading': '音樂庫',
+	'library.liked': '收藏',
+	'library.playlists': '播放清單',
+	'library.downloads': '下載',
+	'library.noLiked': '尚無收藏歌曲。在播放器點 ♥ 收藏。',
+	'library.noPlaylists': '尚無播放清單。從歌曲的 ⋮ 選單建立一個。',
+	'library.noDownloads': '尚無下載。在歌曲的 ⋮ 選單使用「下載」。',
+	'library.emptyPlaylist': '空的播放清單。',
+	'library.deletePlaylist': '刪除播放清單',
+	'library.remove': '移除',
+	'library.downloadsNote': '已下載的檔案儲存在你的裝置上。此清單會引用並在點擊時重新串流（網頁應用無法離線播放任意已儲存的檔案）。',
+
+	// --- artist ---
+	'artist.back': '‹ 返回',
+	'artist.derived': '由跨來源搜尋衍生 · {count} 首歌曲',
+	'artist.loading': '載入 {name} 中…',
+	'artist.albums': '專輯',
+	'artist.trackOne': '{count} 首歌曲',
+	'artist.trackMany': '{count} 首歌曲',
+	'artist.hitSongs': '熱門歌曲',
+	'artist.noSongs': '找不到 {name} 的歌曲。',
+
+	// --- album ---
+	'album.title': '{name} · openmusic',
+	'album.back': '返回',
+	'album.derived': '專輯 · {count} 首歌曲（由搜尋衍生）',
+	'album.loading': '載入專輯中…',
+	'album.noTracks': '找不到「{name}」的歌曲。'
+};
+
+export default zhHant;

@@ -1,0 +1,162 @@
+// English UI-chrome dictionary. SOURCE / REFERENCE locale: values are the CURRENT
+// verbatim on-screen text, so selecting `en` is a visual no-op. All three locale
+// files (en / zh-Hant / zh-Hans) MUST expose an IDENTICAL key set.
+const en = {
+	// --- nav (bottom tab bar) ---
+	'nav.home': 'Home',
+	'nav.search': 'Search',
+	'nav.library': 'Library',
+
+	// --- common ---
+	'common.back': 'Back',
+	'common.loading': 'loading…',
+	'common.retry': 'retry',
+
+	// --- home ---
+	'home.settings': 'Settings',
+	'home.searchPill': 'Search songs, artists across all sources',
+	'home.topPicks': 'Top picks',
+	'home.loadingPicks': 'Loading…',
+	'home.randomize': 'Randomize',
+	'home.noResults': 'no results — sources may be unavailable',
+
+	// --- search ---
+	'search.title': 'Search',
+	'search.placeholder': 'Search songs, artists across all sources',
+	'search.go': 'Go',
+	'search.submitting': '…',
+	'search.someFailed': "Some sources didn't respond — showing the rest.",
+	'search.searching': 'Searching all sources…',
+	'search.empty': 'No results.',
+
+	// --- settings ---
+	'settings.title': 'Settings · openmusic',
+	'settings.heading': 'Settings',
+	'settings.appLanguage': 'App language',
+	'settings.lyricsTranslation': 'Lyrics translation',
+	'settings.translateNames': 'Translate song & artist names',
+	'settings.translateNamesNote': 'Renders titles + artists in this language (e.g. 简体 → 繁體). Lyrics setting is separate.',
+	'settings.translateMode': 'Translate mode',
+	'settings.translateModeOffNote': 'Pick a language above to enable.',
+	'settings.translateModeOnNote': 'Translation uses an online service; quality varies.',
+	'settings.defaultQuality': 'Default song quality',
+	'settings.defaultQualityNote': "Best-effort — sources don't all expose bitrate; biases selection where known.",
+	'settings.defaultSource': 'Default music source',
+	'settings.defaultSourceNote': 'Preferred source wins when the same song appears on several.',
+	'settings.accentColor': 'Accent color',
+	'settings.playbackMotion': 'Playback & motion',
+	'settings.autoExpand': 'Auto-expand now-playing on play',
+	'settings.reduceMotion': 'Reduce motion',
+	'settings.data': 'Data',
+	'settings.dataCounts': '{liked} liked · {playlists} playlists · {downloads} downloads',
+	'settings.clearPicks': 'Clear cached top picks',
+	'settings.clearLibrary': 'Clear library',
+	'settings.about': 'About',
+	'settings.aboutLine': 'openmusic · demo build · streams from public music sources',
+	'settings.optOff': 'Off',
+	'settings.optShowBelow': 'Show below',
+	'settings.optReplace': 'Replace',
+	'settings.optAuto': 'Auto',
+	'settings.optLossless': 'Lossless',
+	'settings.optAutoAll': 'Auto (all)',
+	'settings.picksCleared': 'Cached top picks cleared.',
+	'settings.libraryCleared': 'Library cleared.',
+	'settings.clearLibraryConfirm': 'Clear all liked songs, playlists and downloads?',
+
+	// --- now playing ---
+	'nowplaying.collapse': 'Collapse',
+	'nowplaying.options': 'Options',
+	'nowplaying.nowPlaying': 'Now Playing',
+	'nowplaying.albumArt': 'Album art — drag down to minimize',
+	'nowplaying.seek': 'Seek',
+	'nowplaying.shuffle': 'Shuffle',
+	'nowplaying.previous': 'Previous',
+	'nowplaying.playPause': 'Play/pause',
+	'nowplaying.next': 'Next',
+	'nowplaying.repeat': 'Repeat',
+	'nowplaying.collapsePanel': 'Collapse panel',
+	'nowplaying.expandPanel': 'Expand panel',
+	'nowplaying.upNext': 'Up Next',
+	'nowplaying.lyrics': 'Lyrics',
+	'nowplaying.related': 'Related',
+	'nowplaying.reorderTrack': 'Reorder track',
+	'nowplaying.noQueue': 'No queue yet.',
+	'nowplaying.translating': 'translating…',
+	'nowplaying.noLyrics': 'No lyrics for this track.',
+	'nowplaying.loadingRelated': 'Loading related…',
+
+	// --- now bar (layout) ---
+	'nowbar.openNowPlaying': 'Open now playing',
+	'nowbar.playPause': 'Play/pause',
+
+	// --- track menu ---
+	'menu.playNext': 'Play next',
+	'menu.addToQueue': 'Add to queue',
+	'menu.download': 'Download',
+	'menu.like': 'Like',
+	'menu.liked': 'Liked',
+	'menu.addToPlaylist': 'Add to playlist',
+	'menu.goToAlbum': 'Go to album',
+	'menu.goToArtist': 'Go to artist',
+	'menu.share': 'Share',
+	'menu.detail': 'Detail',
+	'menu.newPlaylist': 'New playlist…',
+	'menu.newPlaylistPrompt': 'New playlist name',
+	'menu.closeMenu': 'Close menu',
+	'menu.close': 'Close',
+	'menu.trackDetail': 'Track detail',
+	'menu.detailTitle': 'Title',
+	'menu.detailArtist': 'Artist',
+	'menu.detailAlbum': 'Album',
+	'menu.detailQuality': 'Quality',
+	'menu.detailSource': 'Source',
+	'menu.detailUid': 'UID',
+	'menu.detailAudioUrl': 'Audio URL',
+	'menu.detailNotResolved': '(not resolved)',
+	'menu.detailUnknown': 'unknown',
+
+	// --- toasts ---
+	'toast.playingNext': 'Playing next',
+	'toast.addedToQueue': 'Added to queue',
+	'toast.preparingDownload': 'Preparing download…',
+	'toast.noAudio': 'No audio available',
+	'toast.downloaded': 'Downloaded · added to Library',
+	'toast.openedAudio': 'Opened audio · added to Library',
+	'toast.shareCopied': 'Share link copied',
+	'toast.addedToPlaylist': 'Added to playlist',
+	'toast.playlistCreated': 'Playlist created',
+
+	// --- library ---
+	'library.title': 'Library · openmusic',
+	'library.heading': 'Library',
+	'library.liked': 'Liked',
+	'library.playlists': 'Playlists',
+	'library.downloads': 'Downloads',
+	'library.noLiked': 'No liked songs yet. Tap ♥ in the player.',
+	'library.noPlaylists': "No playlists. Create one from a song's ⋮ menu.",
+	'library.noDownloads': "No downloads. Use Download in a song's ⋮ menu.",
+	'library.emptyPlaylist': 'Empty playlist.',
+	'library.deletePlaylist': 'Delete playlist',
+	'library.remove': 'Remove',
+	'library.downloadsNote':
+		"Downloaded files are saved to your device. This list references them and re-streams on tap (web apps can't replay arbitrary saved files offline).",
+
+	// --- artist ---
+	'artist.back': '‹ Back',
+	'artist.derived': 'Derived from cross-source search · {count} tracks',
+	'artist.loading': 'Loading {name}…',
+	'artist.albums': 'Albums',
+	'artist.trackOne': '{count} track',
+	'artist.trackMany': '{count} tracks',
+	'artist.hitSongs': 'Hit songs',
+	'artist.noSongs': 'No songs found for {name}.',
+
+	// --- album ---
+	'album.title': '{name} · openmusic',
+	'album.back': 'Back',
+	'album.derived': 'Album · {count} tracks (derived from search)',
+	'album.loading': 'Loading album…',
+	'album.noTracks': 'No tracks found for "{name}".'
+} as const;
+
+export default en;

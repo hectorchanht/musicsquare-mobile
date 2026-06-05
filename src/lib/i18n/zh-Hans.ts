@@ -1,0 +1,162 @@
+// Simplified Chinese (简体中文) UI-chrome dictionary.
+// Key set is IDENTICAL to en.ts (enforced by the `Dict` type + the i18n unit test).
+import type { Dict } from './index';
+
+const zhHans: Dict = {
+	// --- nav ---
+	'nav.home': '首页',
+	'nav.search': '搜索',
+	'nav.library': '音乐库',
+
+	// --- common ---
+	'common.back': '返回',
+	'common.loading': '加载中…',
+	'common.retry': '重试',
+
+	// --- home ---
+	'home.settings': '设置',
+	'home.searchPill': '搜索歌曲、歌手（跨所有来源）',
+	'home.topPicks': '精选推荐',
+	'home.loadingPicks': '加载中…',
+	'home.randomize': '随机推荐',
+	'home.noResults': '没有结果 — 来源可能暂时无法使用',
+
+	// --- search ---
+	'search.title': '搜索',
+	'search.placeholder': '搜索歌曲、歌手（跨所有来源）',
+	'search.go': '搜索',
+	'search.submitting': '…',
+	'search.someFailed': '部分来源没有响应 — 显示其余结果。',
+	'search.searching': '正在搜索所有来源…',
+	'search.empty': '没有结果。',
+
+	// --- settings ---
+	'settings.title': '设置 · openmusic',
+	'settings.heading': '设置',
+	'settings.appLanguage': '界面语言',
+	'settings.lyricsTranslation': '歌词翻译',
+	'settings.translateNames': '翻译歌曲与歌手名称',
+	'settings.translateNamesNote': '以此语言显示歌名与歌手（例如 简体 → 繁体）。歌词设置为独立项。',
+	'settings.translateMode': '翻译模式',
+	'settings.translateModeOffNote': '请先在上方选择语言以启用。',
+	'settings.translateModeOnNote': '翻译使用在线服务，质量可能有差异。',
+	'settings.defaultQuality': '默认音质',
+	'settings.defaultQualityNote': '尽力而为 — 并非所有来源都提供比特率；在已知时会优先选择。',
+	'settings.defaultSource': '默认音乐来源',
+	'settings.defaultSourceNote': '当同一首歌出现在多个来源时，优先采用偏好来源。',
+	'settings.accentColor': '主题色',
+	'settings.playbackMotion': '播放与动效',
+	'settings.autoExpand': '播放时自动展开正在播放',
+	'settings.reduceMotion': '减少动效',
+	'settings.data': '数据',
+	'settings.dataCounts': '{liked} 个收藏 · {playlists} 个播放列表 · {downloads} 个下载',
+	'settings.clearPicks': '清除缓存的精选推荐',
+	'settings.clearLibrary': '清空音乐库',
+	'settings.about': '关于',
+	'settings.aboutLine': 'openmusic · 演示版本 · 流式播放自公开音乐来源',
+	'settings.optOff': '关闭',
+	'settings.optShowBelow': '显示在下方',
+	'settings.optReplace': '替换',
+	'settings.optAuto': '自动',
+	'settings.optLossless': '无损',
+	'settings.optAutoAll': '自动（全部）',
+	'settings.picksCleared': '已清除缓存的精选推荐。',
+	'settings.libraryCleared': '已清空音乐库。',
+	'settings.clearLibraryConfirm': '确定清除所有收藏歌曲、播放列表与下载吗？',
+
+	// --- now playing ---
+	'nowplaying.collapse': '收起',
+	'nowplaying.options': '选项',
+	'nowplaying.nowPlaying': '正在播放',
+	'nowplaying.albumArt': '专辑封面 — 向下拖动以缩小',
+	'nowplaying.seek': '调整进度',
+	'nowplaying.shuffle': '随机播放',
+	'nowplaying.previous': '上一首',
+	'nowplaying.playPause': '播放／暂停',
+	'nowplaying.next': '下一首',
+	'nowplaying.repeat': '重复播放',
+	'nowplaying.collapsePanel': '收起面板',
+	'nowplaying.expandPanel': '展开面板',
+	'nowplaying.upNext': '待播列表',
+	'nowplaying.lyrics': '歌词',
+	'nowplaying.related': '相关',
+	'nowplaying.reorderTrack': '重新排序歌曲',
+	'nowplaying.noQueue': '暂无待播歌曲。',
+	'nowplaying.translating': '翻译中…',
+	'nowplaying.noLyrics': '这首歌没有歌词。',
+	'nowplaying.loadingRelated': '加载相关歌曲中…',
+
+	// --- now bar ---
+	'nowbar.openNowPlaying': '打开正在播放',
+	'nowbar.playPause': '播放／暂停',
+
+	// --- track menu ---
+	'menu.playNext': '下一首播放',
+	'menu.addToQueue': '加入待播列表',
+	'menu.download': '下载',
+	'menu.like': '收藏',
+	'menu.liked': '已收藏',
+	'menu.addToPlaylist': '加入播放列表',
+	'menu.goToAlbum': '前往专辑',
+	'menu.goToArtist': '前往歌手',
+	'menu.share': '分享',
+	'menu.detail': '详细信息',
+	'menu.newPlaylist': '新建播放列表…',
+	'menu.newPlaylistPrompt': '新播放列表名称',
+	'menu.closeMenu': '关闭菜单',
+	'menu.close': '关闭',
+	'menu.trackDetail': '歌曲详细信息',
+	'menu.detailTitle': '标题',
+	'menu.detailArtist': '歌手',
+	'menu.detailAlbum': '专辑',
+	'menu.detailQuality': '音质',
+	'menu.detailSource': '来源',
+	'menu.detailUid': 'UID',
+	'menu.detailAudioUrl': '音频网址',
+	'menu.detailNotResolved': '（尚未解析）',
+	'menu.detailUnknown': '未知',
+
+	// --- toasts ---
+	'toast.playingNext': '下一首播放',
+	'toast.addedToQueue': '已加入待播列表',
+	'toast.preparingDownload': '正在准备下载…',
+	'toast.noAudio': '没有可用的音频',
+	'toast.downloaded': '已下载 · 已加入音乐库',
+	'toast.openedAudio': '已打开音频 · 已加入音乐库',
+	'toast.shareCopied': '已复制分享链接',
+	'toast.addedToPlaylist': '已加入播放列表',
+	'toast.playlistCreated': '已创建播放列表',
+
+	// --- library ---
+	'library.title': '音乐库 · openmusic',
+	'library.heading': '音乐库',
+	'library.liked': '收藏',
+	'library.playlists': '播放列表',
+	'library.downloads': '下载',
+	'library.noLiked': '暂无收藏歌曲。在播放器点 ♥ 收藏。',
+	'library.noPlaylists': '暂无播放列表。从歌曲的 ⋮ 菜单创建一个。',
+	'library.noDownloads': '暂无下载。在歌曲的 ⋮ 菜单使用「下载」。',
+	'library.emptyPlaylist': '空的播放列表。',
+	'library.deletePlaylist': '删除播放列表',
+	'library.remove': '移除',
+	'library.downloadsNote': '已下载的文件保存在你的设备上。此列表会引用并在点击时重新流式播放（网页应用无法离线播放任意已保存的文件）。',
+
+	// --- artist ---
+	'artist.back': '‹ 返回',
+	'artist.derived': '由跨来源搜索衍生 · {count} 首歌曲',
+	'artist.loading': '加载 {name} 中…',
+	'artist.albums': '专辑',
+	'artist.trackOne': '{count} 首歌曲',
+	'artist.trackMany': '{count} 首歌曲',
+	'artist.hitSongs': '热门歌曲',
+	'artist.noSongs': '找不到 {name} 的歌曲。',
+
+	// --- album ---
+	'album.title': '{name} · openmusic',
+	'album.back': '返回',
+	'album.derived': '专辑 · {count} 首歌曲（由搜索衍生）',
+	'album.loading': '加载专辑中…',
+	'album.noTracks': '找不到「{name}」的歌曲。'
+};
+
+export default zhHans;

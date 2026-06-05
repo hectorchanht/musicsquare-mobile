@@ -68,7 +68,7 @@
 	<ul class="list">
 		{#each results as t (t.uid)}
 			<li>
-				<button class="row" onclick={() => player.play(t)}>
+				<button class="row" onclick={() => { player.setQueue(results); player.play(t); }}>
 					<span class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></span>
 					<span class="meta">
 						<span class="r-title">{t.title}</span>

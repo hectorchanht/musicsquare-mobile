@@ -69,7 +69,7 @@
 	{:else}
 		<div class="grid">
 			{#each songs as t (t.uid)}
-				<button class="tile" onclick={() => player.play(t)}>
+				<button class="tile" onclick={() => { player.setQueue(songs); player.play(t); }}>
 					<div class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></div>
 					<span class="src" style:background={SRC_COLOR[t.source]}>{SRC_LABEL[t.source]}</span>
 					{#if t.qualityLabel || t.quality}<span class="q">{t.qualityLabel ?? t.quality}</span>{/if}

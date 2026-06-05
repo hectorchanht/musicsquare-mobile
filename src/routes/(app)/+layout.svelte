@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { player } from '$lib/stores/player.svelte';
+	import NowPlaying from '$lib/components/NowPlaying.svelte';
 
 	let { children } = $props();
 	let audioEl: HTMLAudioElement;
@@ -26,20 +27,26 @@
 		{@render children()}
 	</main>
 
-	{#if player.current}
+	{#if player.current && !player.expanded}
 		<div class="nowbar">
-			<div class="np-art" style:background-image={player.current.cover ? `url(${player.current.cover})` : cover(player.current)}></div>
-			<div class="np-meta">
-				<div class="np-title">{player.current.title}</div>
-				<div class="np-artist">
-					{player.current.artist}
-					{#if player.loading}· loading…{:else if player.error}· <span class="err">{player.error}</span>{/if}
-				</div>
-			</div>
+			<button class="np-open" aria-label="Open now playing" onclick={() => player.expand()}>
+				<span class="np-art" style:background-image={player.current.cover ? `url(${player.current.cover})` : cover(player.current)}></span>
+				<span class="np-meta">
+					<span class="np-title">{player.current.title}</span>
+					<span class="np-artist">
+						{player.current.artist}
+						{#if player.loading}· loading…{:else if player.error}· <span class="err">{player.error}</span>{/if}
+					</span>
+				</span>
+			</button>
 			<button class="np-btn" aria-label="Play/pause" onclick={() => player.toggle()}>
 				{player.playing ? '⏸' : '▶'}
 			</button>
 		</div>
+	{/if}
+
+	{#if player.expanded}
+		<NowPlaying />
 	{/if}
 
 	<nav class="tabbar">
@@ -88,6 +95,19 @@
 		margin: 0 auto;
 		z-index: 20;
 	}
+	.np-open {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		background: none;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+		text-align: left;
+		color: inherit;
+	}
 	.np-art {
 		width: 44px;
 		height: 44px;
@@ -96,9 +116,9 @@
 		background-position: center;
 		flex: none;
 	}
-	.np-meta { flex: 1; min-width: 0; }
-	.np-title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-	.np-artist { font-size: 11px; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.np-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+	.np-title { display: block; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.np-artist { display: block; font-size: 11px; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.err { color: #ff7a90; }
 	.np-btn {
 		background: var(--color-primary);

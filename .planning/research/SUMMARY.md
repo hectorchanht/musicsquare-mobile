@@ -1,46 +1,19 @@
 # Project Research Summary
 
-**Project:** MusicSquare Mobile
-**Domain:** Mobile-first PWA music streaming player (SvelteKit + Cloudflare, multi-source CN audio aggregator)
-**Researched:** 2026-06-05
-**Confidence:** HIGH overall; one contested point requiring real-device validation (see §Contested Item below)
+**Project:** MusicSquare Mobile v1.1 — Last.fm Integration
+**Domain:** Last.fm metadata/auth/scrobble/discovery + YouTube-style playback source, layered onto an existing SvelteKit + Cloudflare Pages/Workers PWA music aggregator
+**Researched:** 2026-06-06
+**Confidence:** HIGH (Last.fm API mechanics verified against official docs; Cloudflare MD5 confirmed in official runtime docs; architecture verified against real codebase files)
+
+---
 
 ## Executive Summary
 
-MusicSquare Mobile is a ground-up reskin of a working desktop music player: the proven data and fetch layer (search aggregation, audio-URL resolution, LRC parsing, persistence) is extracted verbatim from the `index.html` monolith and wired into a brand-new SvelteKit mobile shell. The product is a music streaming PWA — a category with well-studied patterns (bottom nav, expandable now-playing, background audio via `navigator.mediaSession`, installable app shell) — so the technology and UX choices are well-documented and low-risk. The unique challenge is the unofficial-source backend: four (soon six) Chinese music proxies with no SLA, time-limited CDN URLs, and the occasional silent contract drift, which makes reliability and graceful degradation the dominant technical concerns rather than framework choices.
+MusicSquare Mobile v1.1 adds Last.fm as a cross-cutting integration across four distinct capability areas: passive metadata enrichment, optional user auth with two-way sync, editorial discovery tabs, and a new virtual playback source seeded by Last.fm catalog. The foundation is already in place — `LASTFM_KEY` and `LASTFM_SECRET` are declared in `Env`, the `/api/similar` route is a working precedent for a dedicated Last.fm edge proxy, and the source/proxy dual-registry pattern accepts new entries with two files and two lines. **No new npm runtime dependencies are needed for v1.1.** MD5 for `api_sig` is native on Cloudflare Workers via `crypto.subtle.digest({ name: 'MD5' })` (non-standard Cloudflare extension, verified in official docs), and the Cache API is built-in for edge-caching discovery responses.
 
-The recommended approach is three-tier and deliberately layered. At the edge, a Cloudflare Worker co-located with the SvelteKit app (via `adapter-cloudflare`) proxies **metadata only** (search JSON, detail JSON, LRC) and hides the JOOX token; audio bytes flow browser-to-CDN directly via a plain `<audio src>` element, which is not CORS-gated, preserving the geo/IP context that CDN URLs often require. In the browser, a single module-scoped `AudioEngine` singleton owns the one long-lived `<audio>` element, MediaSession wiring, and Wake Lock; Svelte 5 runes in `.svelte.ts` stores hold all reactive state; and a pluggable `SourceAdapter` registry means adding Kugou or Migu touches only a new file plus a registry entry. The SvelteKit root layout mounts the persistent bottom-nav shell and mini-player outside the routed `<slot>`, so navigation never tears down playback.
+The recommended build order is: read-only metadata enrichment + proxy wiring first (Phase 8), then the discovery tab (Phase 9), then the new Last.fm source's 2-step audio resolver (Phase 10), then signed-call infrastructure + auth (Phase 11), then scrobble (Phase 12), then loved-tracks sync (Phase 13). This diverges from the STACK/PITFALLS suggestion (enrichment → auth → discovery → source) in one key respect: architecture research argues that discovery tabs without a playable source are low-value, so the new source's resolver (Phase 10) is sequenced before auth (Phase 11). However, auth is the prerequisite for all write features — scrobble and loved sync cannot ship before Phase 11 regardless of ordering. The roadmapper should treat the enrichment → discovery → source → auth → scrobble → loved sequence (architecture recommendation) as the working default.
 
-The dominant risks are reliability (unofficial proxies die without notice) and iOS audio (see Contested Item below). Both are manageable: `Promise.allSettled` for search fan-out contains source failures, a typed adapter boundary catches contract drift early, and the iOS audio question is resolved empirically with a real-device spike before promising lock-screen behavior to users.
-
----
-
-## Contested Item: iOS Standalone-PWA Background Audio
-
-**STACK.md says:** WebKit bug #198277 ("audio stops when standalone web app is backgrounded") is unfixed as of Safari 26; background audio in installed PWAs on iOS is unreliable.
-
-**PITFALLS.md says:** Bug #198277 was *resolved in iOS 15.4 (2022)*. Background playback now works in installed PWAs. The *residual* fragility is the lock-screen pause-then-resume path (tapping play on the lock screen after ~30-60 s of pause fails silently until the app is foregrounded); Wake Lock is the wrong tool for this (it keeps the screen on, not audio alive, and was itself broken in installed iOS PWAs until iOS 18.4).
-
-**Resolution for the roadmap:** Both researchers agree on the honest answer — this cannot be settled by documentation alone. **Treat as Contested / needs real-device validation.** The recommended implementation stance is:
-
-1. Use iOS 15.4+ as the baseline; do NOT build silent-audio-loop hacks as the primary mechanism.
-2. Ship the single long-lived `<audio>` element + MediaSession action handlers + explicit `playbackState` updates (this is correct regardless of iOS version).
-3. Before publishing any "plays with screen locked" claim, run a real-iPhone spike covering: (a) audio continues when screen locks mid-play, (b) lock-screen controls respond immediately, (c) pause -> wait 60 s -> tap lock-screen play succeeds. Document failures as known limitations.
-4. Surface per-platform guidance in the UI: detect `navigator.standalone` and show different copy on iOS installed vs Safari-tab paths.
-5. Wake Lock is for an optional "keep screen on during lyrics" feature only, not for audio continuity.
-
----
-
-## Cross-Cutting Consensus
-
-All four research files agree on the following load-bearing decisions; these are settled and must not be revisited:
-
-- **Proxy METADATA only through SvelteKit `+server.ts`.** Search, detail, and LRC responses flow through `/api/<source>/...` (same-origin, CORS-free, JOOX token hidden in `platform.env`). Never proxy audio bytes through the Worker.
-- **Stream audio browser-to-CDN directly.** A plain `<audio src="...">` is not CORS-gated for playback. This preserves the geo/IP context that time-limited CDN URLs require and keeps the Worker within free-tier CPU and subrequest limits.
-- **Never cache audio in the service worker.** The SW caches the app shell only. Audio routes must be excluded from all Workbox runtime-caching rules. The 206/Range-request trap breaks seeking when a SW intercepts audio.
-- **Single module-scoped global `<audio>` element.** Owned by `AudioEngine` singleton in `audioEngine.svelte.ts`. Never recreated per route or per track. Reuse the existing element by swapping `.src`. The iOS autoplay-gesture unlock is tied to the element, not to `.play()`.
-- **Svelte 5 runes in `.svelte.ts` for all shared state.** Export `$state` objects (not bare primitives) from `player.svelte.ts`, `queue.svelte.ts`, `search.svelte.ts`, `library.svelte.ts`. Replaces the monolith's imperative `render*()` calls.
-- **Source-adapter registry pattern.** `SourceAdapter` (client) and `ProxyAdapter` (Worker) interfaces with one file per source. Adding Kugou/Migu = new file + registry import. Zero changes to aggregation or dispatch code.
+The highest-risk items at the v1.1 horizon are: (1) `api_sig` UTF-8 encoding on CJK track/artist names, which silently produces error 13 on Chinese tracks while passing English tests; (2) the GD Studio / YouTube-style source's instability — public instance churn and wrong-song resolution are both production-grade risks; (3) the session-key security surface — `sk` has infinite lifetime and, combined with the shared secret, represents account-takeover class exposure identical to JOOX_TOKEN (T-01-04). All three require explicit prevention strategies wired into the phases that own them.
 
 ---
 
@@ -48,166 +21,206 @@ All four research files agree on the following load-bearing decisions; these are
 
 ### Recommended Stack
 
-The stack is narrow and well-justified. SvelteKit 2 + Svelte 5 + Vite 8 is the only supported combination (vite-plugin-svelte 7 requires Vite >= 8; Svelte 5 runes are the current idiom for shared reactive state). Cloudflare deployment uses `@sveltejs/adapter-cloudflare` (v7) which targets Workers Static Assets — the modern path that collapses the PROJECT.md "Pages + separate Worker" plan into one deploy artifact where `+server.ts` routes are the proxy. PWA tooling is `@vite-pwa/sveltekit` (v1.1.0) with Workbox `generateSW`. Persistence starts with localStorage parity and migrates to `idb` (v8) for library growth. No audio library (howler.js is explicitly rejected — unneeded abstraction, degrades iOS MediaSession behavior). Animation uses Svelte built-ins (`crossfade`, `Spring`/`Tween` classes) with `svelte-gestures` (v5, verify Svelte 5 support) for touch.
+The v1.1 additions require zero new runtime packages. The single technology decision that usually trips Last.fm integrations — MD5 for `api_sig` — is resolved by the Cloudflare Workers runtime itself: `crypto.subtle.digest({ name: 'MD5' }, new TextEncoder().encode(str))` works natively on workerd (Cloudflare's documented non-standard extension for legacy interop). This means no `js-md5`, `spark-md5`, `blueimp-md5`, `crypto-js`, or Node `crypto` shim. The fallback if this ever breaks is `spark-md5` 3.0.2 (pure JS, zero Node deps), but it should not be pre-installed.
 
-See `.planning/research/STACK.md` for full version table and alternatives considered.
+Auth uses the **Last.fm Web Application flow**: redirect to `last.fm/api/auth?api_key=...&cb=<callback>`, receive the token at the callback, exchange via `auth.getSession` (signed). The resulting session key (`sk`) has **infinite lifetime** per official Last.fm docs and must be stored server-side only, in an `httpOnly; Secure; SameSite=Lax` cookie. Edge-caching for discovery (charts/tags) uses the **Cloudflare Cache API** (`caches.default`) — free, zero-config, no KV binding needed for v1.1 TTLs.
 
 **Core technologies:**
-- **Svelte 5 / SvelteKit 2 / Vite 8**: UI framework + app shell — only supported combination; runes ideal for player state
-- **@sveltejs/adapter-cloudflare v7**: Cloudflare Workers Static Assets deploy — collapses app + proxy into one artifact
-- **Wrangler v4**: local dev + deploy CLI — required peer of the adapter
-- **@vite-pwa/sveltekit v1.1.0 + Workbox**: PWA manifest + app-shell service worker — purpose-built for SvelteKit's output layout
-- **HTML5 `<audio>` element (no library)**: playback engine — direct URL consumption, best iOS MediaSession compatibility
-- **idb v8**: IndexedDB wrapper for library persistence — async, quota-safe, ~1 KB overhead
-- **Svelte 5 runes in `.svelte.ts`**: shared reactive state — replaces imperative render calls with automatic reactivity
+- `crypto.subtle.digest({ name: 'MD5' })` — native on workerd; computes Last.fm `api_sig` with no npm dependency
+- Last.fm Web Application auth flow — purpose-built for hosted web app with callback URL; returns an infinite-lifetime `sk`
+- `HttpOnly; Secure; SameSite=Lax` cookie — the only acceptable storage for `sk` (never localStorage, never JSON response body)
+- SvelteKit `+server.ts` endpoints — new `/api/lastfm/{session,scrobble,love}` dedicated routes for signed writes, mirroring `/api/similar`
+- Cloudflare Cache API (`caches.default`) — edge-cache Last.fm read endpoints (charts ~1h, getInfo ~24h, tags ~6h); no KV needed
+- GD Studio `ytmusic` source (`music-api.gdstudio.xyz`) — realistic option for the new audio source; requires an edge proxy (Origin header spoofing); 50 req/5 min cap; study-only ToS; MEDIUM confidence
+
+**What NOT to use:**
+- Any MD5 npm package — unnecessary, adds bundle weight and supply-chain surface
+- `localStorage` for `sk` — permanent write credential exposed to XSS
+- YouTube Data API v3 — 100 units/search, no audio URLs, useless for playback
+- Public Piped/Invidious instances called directly from the browser — CORS-blocked, high instance churn in 2025–2026
+- `yt-dlp` / `ytmusicapi` on the edge — Python runtime, incompatible with workerd
 
 ### Expected Features
 
-The data layer already delivers ~60% of the feature set. The rebuild's work is the mobile UI shell, the audio singleton pattern, MediaSession wiring, and the explicit queue model.
+**Must have (table stakes — P1 for v1.1):**
+- Worker-side Last.fm proxy + `api_sig` signing — enabler; nothing else works without it
+- Metadata enrichment (track/artist/album.getInfo, tags, bio snippet, higher-res cover) — visible value with zero auth
+- Placeholder art filter (grey-star hash `2a96cbd8b46e442fc41c2b86b821562f` + empty `#text`) — mandatory; without it the UI fills with broken images
+- Charts + tags discovery tabs (chart.*, geo.*, tag.*) — the editorial discovery payoff; no auth required
+- Last.fm-searchable source — makes discovery cards playable in one tap
+- Optional sign-in (auth.getToken → browser grant → auth.getSession) — gateway to all sync features
+- Scrobbling (updateNowPlaying at play-start + track.scrobble at 50%/4-min threshold) — headline reason Last.fm users connect
+- Loved-tracks two-way sync (track.love/unlove + user.getLovedTracks merge-on-sign-in) — hearts feel connected
 
-See `.planning/research/FEATURES.md` for full prioritization matrix and competitor analysis.
+**Should have (differentiators):**
+- Vibe/mood + genre tag browsing (chart.getTopTags → tag grid → tag.getTopTracks/Artists/Albums) — engages users who don't know what to search
+- Listening history surface (user.getRecentTracks — handle nowplaying item with no date) — re-engagement
+- Per-period top artists/tracks/albums (user.getTop* with period switcher) — stats recaps
+- Similar-queue entries enriched with tags/art — tightens the "vibe" feel
 
-**Must have (table stakes) — v1:**
-- Persistent mini-player docked above bottom nav (NEW wrapper around existing state)
-- Expandable full-screen now-playing with swipe-down dismiss (NEW — defining interaction)
-- Bottom-tab navigation: Home / Search / Library (NEW shell; replaces desktop panels)
-- Background playback + MediaSession lock-screen controls + metadata (NEW; validate on iOS)
-- Installable PWA with app-shell caching (NEW; audio stays online-only)
-- Reactive global playback store + single root-level `<audio>` element (NEW architecture; enables all else)
-- Search across sources + tap-to-play (EXISTS — thin wrapper)
-- Transport: play/pause/next/prev, seek, play modes (EXISTS — thin wrapper)
-- Synced lyrics view (EXISTS data; NEW scrolling UI)
-- Library: favorites + playlists + import/export (EXISTS — thin wrapper)
-- Loading / buffering / error states with differentiated messages (NEW UX over existing logic)
-- Responsive layout + zh/en i18n (EXISTS i18n; NEW responsive shell)
-
-**Should have (differentiators) — v1.x:**
-- Explicit queue / Up-Next view with remove + jump-to (NEW; biggest backend gap — requires queue model refactor)
-- Drag-to-reorder queue + swipe-to-add-to-queue gestures (NEW; depends on queue model)
-- Swipe-to-change-track gesture on now-playing (NEW; polish)
-- Sleep timer (NEW; cheap, high satisfaction)
-- Recently played / search history on Home tab (NEW; prevents empty Home)
-- Custom PWA install coachmark (Android prompt + iOS Share instructions) (NEW)
-- Per-source / quality badges on results (EXISTS data; surface in UI)
-
-**Defer to v2+:**
-- Source fallback on play failure (cross-source matching) — high value, high effort; no shared IDs across sources
-- Tap-lyric-line-to-seek — small delight, low priority
-- New sources beyond Kugou/Migu — orthogonal; adapter pattern makes it easy whenever
+**Defer to v1.x post-validation:**
+- Offline scrobble queue with batched flush (≤50 per request, per-item timestamps, 14-day expiry)
+- `library.getArtists` full-library import — heavy, niche
+- Personal track tagging UI (track.getTags + write)
 
 **Anti-features (never build):**
-- Offline audio download / track caching — legal exposure, storage cost, expiring CDN URLs make it technically near-impossible
-- User accounts / cloud sync — contradicts local-first design; JSON import/export covers portability
-- Audio-reactive visualizer via real FFT — cross-origin audio cannot be analyzed; keep decorative motion
-- Crossfade / equalizer — require Web Audio routing which is blocked for cross-origin media elements
+- Treat Last.fm as an audio source — metadata/social only; no streams
+- Store LASTFM_KEY/SECRET or sk client-side — account-takeover risk at JOOX_TOKEN parity
+- Auto-unlove on the server to mirror local removals — destroys loves from other clients; additive union only
+- Scrobble on every seek or without threshold — violates official rules, inflates plays
+- Require sign-in to use the app — breaks local-first boundary
 
 ### Architecture Approach
 
-Three tiers with hard boundaries: (1) Cloudflare Worker owns CORS, secrets, caching, retry, and metadata normalization for upstream proxies; (2) Browser service layer (pure TS) owns search aggregation, audio engine, and persistence; (3) SvelteKit UI layer (Svelte 5 components + runes stores) reads stores and calls actions only — never touches `<audio>` or upstream URLs directly. The service worker sits at the browser edge caching only the app shell. The root layout mounts the persistent shell (bottom nav + mini-player) outside the routed slot so navigation never interrupts playback.
+The v1.1 architecture extends the existing dual-registry + thin-edge-proxy pattern without redesigning it. The critical routing decision: **read-only Last.fm calls** (getInfo, chart.*, tag.*, geo.*, user.get*) go through the existing `/api/[source]/[...path]` catch-all with `source=lastfm`. **Signed writes** (auth.getSession, track.scrobble, track.love/unlove) get dedicated `/api/lastfm/{session,scrobble,love}` routes because they need: MD5 signing over full param set, server-side cookie read for `sk`, HTTP POST with form-encoded body, and clean JSON shaping. A shared `proxy/sign.ts` helper (~10 lines, edge-only) owns the single correct implementation of `api_sig`. The `lastfm` source's `resolve()` performs a 2-step audio resolve: delegates to `searchAll()` + `dedupeBest()` (existing catalog.ts), keeping audio on proven CN-source infrastructure.
 
-See `.planning/research/ARCHITECTURE.md` for full data-flow diagrams, component table, and build order.
-
-**Major components:**
-1. **Cloudflare Worker / SvelteKit `+server.ts` routes** — CORS proxy for metadata; hides JOOX token; edge-caches search and detail responses; never proxies audio bytes
-2. **`AudioEngine` singleton (`audioEngine.svelte.ts`)** — owns the one `<audio>` element; wires MediaSession + Wake Lock; emits events that update stores; survives route changes
-3. **Source-adapter registry (`lib/sources/`)** — `SourceAdapter` interface + one file per source; `catalog.ts` iterates the registry for aggregated search and lazy detail resolution
-4. **Runes stores (`lib/stores/*.svelte.ts`)** — `playerStore`, `queueStore`, `searchStore`, `libraryStore`; replace imperative `render*()` calls with automatic reactive subscriptions
-5. **SvelteKit root layout (`+layout.svelte`)** — persistent shell: bottom nav + mini-player outside `<slot>`; NowPlaying as an overlay driven by `uiStore.nowPlayingOpen`
-6. **Service worker (`src/service-worker.ts`)** — precaches app shell only; bypasses `/api/*` and all audio CDN requests
+**Major new components:**
+1. `proxy/lastfm.ts` + `proxy/sign.ts` — edge ProxyAdapter (read-only buildUrl) + MD5 api_sig helper (edge-only)
+2. `api/lastfm/session`, `api/lastfm/scrobble`, `api/lastfm/love` — three dedicated signed-write routes
+3. `auth/callback/+server.ts` — OAuth-style redirect landing, sets cookies, redirects
+4. `services/lastfm.ts` — enrichment + discovery list builders (mirrors similar.ts posture)
+5. `services/scrobble.ts` — 3 player lifecycle hooks; gates on `lastfm.authed`; no-ops signed-out
+6. `stores/lastfm.svelte.ts` — `username`, `authed`, `lovedKeys` runes singleton; NO sk on client
+7. `sources/lastfm.ts` — SourceAdapter: search emits stubs, resolve() 2-step delegates to searchAll
+8. `(app)/explore/+page.{ts,svelte}` — discovery tab with SSR load() for charts/tags
 
 ### Critical Pitfalls
 
-See `.planning/research/PITFALLS.md` for full prevention strategies, warning signs, recovery steps, and phase mapping.
+1. **api_sig UTF-8 on CJK names (P8/P9)** — `TextEncoder().encode()` is mandatory; MD5 of raw JS string (UTF-16) produces error 13 specifically on Chinese artist/track names while English passes. Also: exclude `format` and `callback` from the signed string (but still send them on the request); use raw (not URL-encoded) values in the concat; sort keys with default `Array.sort()` (ASCII). Write a `周杰伦`/`稻香` fixture test as the single highest-value P9 unit test.
 
-1. **Caching audio in the service worker (206/Range trap)** — Never let the SW intercept audio URLs. Configure explicit Workbox denylist for audio routes. Verify by installing the PWA and confirming seeking works and Cache Storage holds no audio bytes.
+2. **LASTFM_SECRET / sk leakage (T-lfm-01, T-lfm-02, T-lfm-03 — P9)** — `sk` has **infinite lifetime**. Leaking via JSON body, localStorage, `$env/*/public`, or a universal `+page.ts` load is permanent write-access exposure. Mirror the existing no-leak test from `similar-endpoint.test.ts`: assert response body + all headers contain neither `LASTFM_SECRET` nor `sk` nor `api_sig`. CSRF defense: `SameSite=Lax` cookie + origin check on write endpoints (reuse `isAllowedOrigin`); POST-only.
 
-2. **Recreating the `<audio>` element per track or per route (iOS silent auto-advance)** — The iOS autoplay-gesture unlock is bound to the element instance. Singleton engine, swap `.src` only, never recreate. This must be correct before any UI is built on top.
+3. **Double-scrobble / wrong timestamp / signed-out fires (P9)** — Per-play `scrobbleState = { trackUid, playStartedAt (UTC sec), scrobbled: boolean }`. Capture `playStartedAt = Math.floor(Date.now()/1000)` once at play start. Fire scrobble once per play instance; guard every call with `if (!lastfm.authed) return` — failure must never block playback.
 
-3. **Buffering audio through the Cloudflare Worker (`arrayBuffer()` on audio response)** — Return `new Response(upstream.body, { headers })` only; forward client `Range` headers; propagate `206 + Content-Range` unchanged. Buffering burns the 10ms free-tier CPU budget on any large file.
+4. **Enrichment overwrites good data / placeholder art (P8)** — Enrichment is additive and async, off the playback critical path. Filter the placeholder hash (`2a96cbd8b46e442fc41c2b86b821562f`) and empty `#text` before using any Last.fm image. Error 6 (no Last.fm match) must be silent.
 
-4. **Worker egress geo-mismatch breaking CDN URLs** — Audio CDN URLs are often geo/IP-bound to the browser's region. Proxy metadata only; let `<audio>` stream direct from CDN. Spike this against all four sources (especially JOOX) before committing architecture.
-
-5. **Silent unofficial-API failures masked as empty results** — Use `Promise.allSettled` for search fan-out; validate response shape at each adapter boundary; distinguish "source down" from "paywalled" from "network offline" in the UI. Pin adapter contracts with fixture-based tests so shape changes fail CI rather than silently breaking users.
-
-6. **iOS background audio / lock-screen resume (contested — see §Contested Item)** — Implement MediaSession correctly regardless; spike on real device before promising lock-screen behavior.
-
-7. **JOOX detail fetched by position index, not stable ID** — Capture the full `(songmid, keyword, index)` tuple at search time; re-validate after detail fetch; fail loudly on mismatch rather than playing the wrong song.
+5. **GD Studio / YouTube-style source instability + wrong-song resolution (T-lfm-04 — P10)** — Score the match (normalize + fuzzy-compare, penalize cover/karaoke/live keywords, duration sanity-check). Isolate behind `Promise.allSettled` + `AbortSignal.timeout`. Never take `results[0]` blindly. A dead source degrades like a down CN proxy.
 
 ---
 
 ## Implications for Roadmap
 
-Research (especially ARCHITECTURE.md §Suggested Build Order) strongly recommends a bottom-up phase structure: data layer first, audio engine second, UI third, PWA polish fourth. This avoids the trap of building UI on an audio engine that breaks on iOS navigation, or deploying a service worker before the audio bypass is proven safe.
+Phases continue from prior v1.0 milestone, starting at Phase 8.
 
-### Phase 1: Data Layer Extraction + Proxy Skeleton
-**Rationale:** Everything else depends on having the source-adapter registry, Worker proxy boundary, and Track contract in place. This is also the lowest-risk phase — it is extracting proven logic, not writing new logic. Pitfall 4 (geo mismatch) must be spiked here before the architecture is locked.
-**Delivers:** Working `SourceAdapter` + `ProxyAdapter` interfaces; `/api/*` routing with CORS and Cloudflare Cache; one end-to-end source (Netease) proven through the new boundary; `catalog.ts` search aggregation with `allSettled`; JOOX token moved to Worker env.
-**Addresses:** Multi-source aggregation (EXISTS), JOOX token security, adapter registry foundation for Kugou/Migu.
-**Avoids:** Pitfalls 3 (Worker buffering), 4 (geo mismatch spike), 6 (silent failures — `allSettled` + shape validation), 7 (JOOX index identity).
-**Research flag:** NEEDS research-phase — Worker egress geo behavior against JOOX/QQ audio CDNs is the critical unknown that shapes the whole audio data flow.
+### Phase 8: Last.fm Read Foundation (Metadata Enrichment + Proxy Wiring)
 
-### Phase 2: Remaining Sources + Audio Engine Core
-**Rationale:** Port QQ, Kuwo, JOOX adapters (proven logic, low risk) and build the `AudioEngine` singleton + runes stores. This is "tap a track, hear audio" headless — no UI yet. Getting the single-element + iOS unlock model right here before UI is built on top is the key insight from PITFALLS.md.
-**Delivers:** All four existing sources working through the new proxy; `AudioEngine` singleton with play/pause/seek/auto-advance; `playerStore` + `queueStore`; `ensureTrackDetails` wiring; LRC parse.
-**Addresses:** Background playback foundation, auto-advance across tracks, URL expiry re-resolution, next-track prefetch.
-**Avoids:** Pitfall 5 (per-track `<audio>` element / iOS silent advance) — foundational here.
-**Research flag:** Standard patterns for source porting. NEEDS validation for iOS single-element + gesture-unlock behavior — schedule real-device test as an explicit acceptance criterion.
+**Rationale:** Everything in v1.1 requires the edge proxy layer. Enrichment is read-only, key-only, auth-free — zero dependencies on signed infrastructure, delivers immediately visible value (richer now-playing, tags, bios, better art). Also establishes the match-key normalization primitive reused by Phase 13's loved-sync. De-risks proxy wiring before auth complexity.
 
-### Phase 3: Persistence + Library
-**Rationale:** Depends on the Track shape (Phase 1) and stores (Phase 2); can overlap with Phase 4. Ensures favorites/playlists are preserved before UI is built on top, avoiding a rebuild that loses existing user data.
-**Delivers:** `persist` service with localStorage parity (existing `pikachu-music-library-v1` key preserved); `libraryStore` hydration; import/export wiring; IndexedDB (`idb`) migration path ready.
-**Addresses:** Favorites + playlists (EXISTS), import/export (EXISTS), library persistence across refreshes.
-**Avoids:** Risk of UID scheme changes breaking saved tracks; keep `uid = {source}-{id}` stable.
-**Research flag:** Standard patterns (localStorage to IndexedDB migration is well-documented).
+**Delivers:** `proxy/lastfm.ts` (read-only buildUrl), registration in both registries, `services/lastfm.ts` enrichment (track/artist/album.getInfo → merge onto Track), placeholder art filter, `platform?.env` graceful absent-key fallback, match-key normalization primitive (`normalize(artist) + ' ' + normalize(track)`).
 
-### Phase 4: SvelteKit Mobile UI Shell
-**Rationale:** First phase a human can use the app. Depends on stores (Phase 2) and persistence (Phase 3). Bottom-nav + mini-player + now-playing overlay define the "native feel" core value. NowPlaying as an overlay (not a route) is critical for audio continuity on navigation.
-**Delivers:** Root layout with bottom nav (Home/Search/Library) + persistent mini-player; expandable NowPlaying overlay with swipe-down dismiss and shared-element cover transition; Search route; Library route; Playlist route; synced lyrics view; play-mode toggle; favorite toggle; loading/error states with differentiated messages; zh/en i18n; responsive layout.
-**Addresses:** Bottom-tab nav (NEW), persistent mini-player (NEW), expandable now-playing (NEW), synced lyrics (NEW view), error UX (NEW).
-**Avoids:** NowPlaying-as-route pitfall; safe-area / `dvh` layout issues (notch + home indicator); hover-only affordances carried from desktop.
-**Research flag:** Standard SvelteKit + Svelte 5 patterns. `svelte-gestures` Svelte 5 compatibility should be confirmed at build time.
+**Addresses FEATURES.md:** Metadata enrichment, higher-res/fallback cover art (both P1 table stakes).
 
-### Phase 5: PWA + Service Worker
-**Rationale:** Depends on a deployable app (Phase 4). PWA install and service worker must be done in the correct order: app shell precache first, audio bypass verified second, update-prompt flow third.
-**Delivers:** `web.manifest` + icons; `@vite-pwa/sveltekit` configured with Workbox `generateSW`; app-shell precache; explicit audio/`/api/*` bypass rules; SW update prompt ("Update available, tap to refresh"); iOS Add-to-Home-Screen coachmark; Android `beforeinstallprompt` custom prompt.
-**Addresses:** Installable PWA (NEW), app-shell offline, stale-cache update path.
-**Avoids:** Pitfall 2 (SW caching audio / 206 trap) — this is the primary verification milestone for this phase. Install + seek + confirm no audio bytes in Cache Storage.
-**Research flag:** Standard Workbox patterns. The audio bypass configuration is the one non-obvious step; PITFALLS.md covers it explicitly.
+**Avoids PITFALLS.md:** Pitfall 8 (enrichment on critical path + placeholder overwrite), Pitfall 10 (env plumbing), Pitfall 2 (UTF-8 foundation).
 
-### Phase 6: Background Audio Polish + MediaSession + Real-Device Validation
-**Rationale:** Depends on Phase 2 (AudioEngine) and Phase 5 (PWA installed). This is the highest-uncertainty phase (iOS contested item). Scheduling it after the core app is working means the spike has a real product to test against.
-**Delivers:** Full MediaSession action handlers (play/pause/next/prev/seekto) wired to `AudioEngine`/`queueStore`; `setPositionState` for lock-screen scrubber; artwork at 96x96 and 512x512; `playbackState` updates on every state change; Wake Lock for optional "keep screen on" mode only; iOS `navigator.standalone` detection with platform-appropriate UX copy; real-device iOS test matrix results documented.
-**Addresses:** Background playback + lock-screen controls (NEW, P1).
-**Avoids:** Pitfall 1 (iOS background audio — the contested item is resolved here empirically); Wake Lock misuse as audio-continuity mechanism.
-**Research flag:** NEEDS real-device validation — this phase should include an explicit spike story: verify pause-lock-60s-resume on target iOS version list before marking done.
+**Research flag:** Standard patterns (mirrors `/api/similar`). No deep research needed.
 
-### Phase 7: New Sources + Queue Model
-**Rationale:** Proves the source-adapter abstraction (Kugou, Migu) and introduces the one true backend gap (explicit queue model). These can overlap; they are separate deliverables.
-**Delivers:** Kugou adapter (client + Worker); Migu adapter; explicit `queueStore` refactor decoupled from `playContext`; Up-Next view (list + remove + jump-to); `playNext()` consuming the queue; drag-to-reorder and swipe-to-add-to-queue gestures.
-**Addresses:** Kugou/Migu sources (Active), explicit queue (NEW — P2 after core stable).
-**Avoids:** Queue model introduced before core playback is stable; source additions touching shared aggregation code (acceptance test: adding a source touches zero shared files).
-**Research flag:** Standard adapter pattern for new sources. Queue model refactor needs careful dependency tracking (playNext, shuffle, playMode all touch queueStore).
+---
+
+### Phase 9: Discovery Tab (Charts + Tags + Country Top-Lists)
+
+**Rationale:** Auth-free; uses proxy from Phase 8. Shipping before the new source creates a brief "list-only, not yet playable" state — but it validates discovery UX and API response shapes before wiring audio resolution. The ARCHITECTURE ordering (enrichment → discovery → source → auth) is recommended over STACK/PITFALLS ordering (enrichment → auth → discovery → source) because auth introduces the highest-complexity signed-call surface and should land after simpler read-only surfaces are validated.
+
+**Delivers:** `(app)/explore/+page.{ts,svelte}`, Explore entry in `tabs[]`, discovery builders in `services/lastfm.ts` (chart.*, geo.*, tag.*), edge-caching via Cache API (charts ~1h, tags ~6h), concurrency cap on fan-out (3–5 in-flight), `Cache-Control: public` on discovery, `private, no-store` on anything user-keyed.
+
+**Addresses FEATURES.md:** Charts tab, vibe/mood tag browsing (P1 + differentiator).
+
+**Avoids PITFALLS.md:** Pitfall 11 (rate-limit fan-out + caching), Pitfall 10 (personalized-cache separation).
+
+**Research flag:** Standard SvelteKit `+page.ts` SSR + Cache API patterns. No research phase needed.
+
+---
+
+### Phase 10: Last.fm Source Playback (2-Step Audio Resolver)
+
+**Rationale:** Discovery cards without audio are a dead end. `sources/lastfm.ts` `resolve()` delegates to `searchAll` + `dedupeBest` (re-search resolver, recommended default). GD Studio `ytmusic` is the optional parallel deliverable if re-search coverage is insufficient for Western catalog. `enabledByDefault: false` on ytmusic keeps the existing 4-source fan-out unaffected until explicitly enabled.
+
+**Delivers:** `sources/lastfm.ts` (SourceId `'lastfm'`, search emits stubs, resolve() calls searchAll + dedupeBest), `'lastfm'` in registry.ts + proxy-registry.ts. Optional: `proxy/ytmusic.ts` + `sources/ytmusic.ts` (GD Studio, `enabledByDefault: false`).
+
+**Addresses FEATURES.md:** Last.fm-searchable source (P1 table stakes), discovery cards playable in one tap.
+
+**Avoids PITFALLS.md:** Pitfall 7 (YT instability + wrong-song — score match, isolate behind allSettled+timeout).
+
+**Research flag:** Re-search resolver path — no additional research needed. **GD Studio ytmusic path — flag for `--research-phase`**: `s` checksum host/version drift, 50 req/5 min cap under load, instance failover, Western-catalog match rate vs CN sources all need validation.
+
+**Key tension for planning:** Re-search resolver works today but may yield poor matches for Western-catalog Last.fm discoveries. GD Studio fills that gap but is third-party, unstable, study-only ToS. Recommend: ship re-search first, measure match rate, add GD Studio if coverage is insufficient.
+
+---
+
+### Phase 11: Signed-Call Infrastructure + Auth
+
+**Rationale:** All write features gate on this phase. It introduces the highest-complexity security surface — `api_sig` signing, httpOnly cookie for `sk`, CSRF defense. Comes after read-only phases are validated to reduce blast radius of auth bugs. Auth UI has no value until there is something to unlock (scrobble/loved-sync).
+
+**Delivers:** `proxy/sign.ts` (MD5 api_sig helper, edge-only, UTF-8 correct, format/callback excluded, CJK fixture test), `/api/lastfm/session/+server.ts` (auth.getSession + httpOnly cookie + boot "who am I"), `/auth/callback/+server.ts`, `stores/lastfm.svelte.ts` (`username`, `authed`, `lovedKeys` — NO sk), sign-in/out UI, no-leak test (body + headers + client bundle grep).
+
+**Addresses FEATURES.md:** Optional sign-in (P1 table stakes), gateway to scrobble + loved-sync.
+
+**Avoids PITFALLS.md:** Pitfall 1 (MD5 assumed unavailable), Pitfall 2 (api_sig correctness), Pitfall 3 (T-lfm-01 secret/sk leak), Pitfall 4 (T-lfm-02/03 sk storage + CSRF).
+
+**Research flag:** api_sig algorithm fully specified at HIGH confidence. Cookie + CSRF patterns are standard. No additional research needed. CJK fixture test is a mandatory deliverable.
+
+---
+
+### Phase 12: Scrobble + Now-Playing
+
+**Rationale:** Headline reason Last.fm users connect. Depends on Phase 11. Player lifecycle hooks are already identified; this phase wires `services/scrobble.ts` into them without coupling the player to Last.fm directly.
+
+**Delivers:** `services/scrobble.ts` (onPlayStart, onProgress, flush), `/api/lastfm/scrobble/+server.ts` (signed POST for track.updateNowPlaying + track.scrobble), per-play scrobbleState guard, signed-out no-op path.
+
+**Addresses FEATURES.md:** Scrobbling, updateNowPlaying profile badge (both P1 table stakes).
+
+**Avoids PITFALLS.md:** Pitfall 5 (double-scrobble, wrong timestamp, signed-out fires), Pitfall 6 (offline queue — MVP online-only; batch queue deferred to v1.x).
+
+**Research flag:** Scrobble rules fully documented at HIGH confidence. No research phase needed.
+
+---
+
+### Phase 13: Loved-Tracks Two-Way Sync + History
+
+**Rationale:** Remaining auth-dependent features. Depends on Phase 11 auth store. The identity-mismatch challenge (local `uid` vs Last.fm `{artist, track}` strings) is the primary complexity; Phase 8's match-key normalization is the bridge.
+
+**Delivers:** `/api/lastfm/love/+server.ts` (signed POST for track.love/unlove), `library.toggleLike` wrapper (posts to love endpoint when authed, non-blocking), sign-in reconciliation (`user.getLovedTracks` → union-merge into `library.liked` via match-key, additive/non-destructive), `lovedKeys` mirror in `lastfm.svelte.ts`, optional recent-tracks history view (`user.getRecentTracks`, handle nowplaying item with no date).
+
+**Addresses FEATURES.md:** Loved-tracks two-way sync (P1), listening history surface (differentiator/P2).
+
+**Avoids PITFALLS.md:** Pitfall 4 (CSRF on love endpoint), Pitfall 9 (uid ⇄ {artist,track} reconciliation, non-destructive merge).
+
+**Research flag:** Reconciliation logic is fully specified in ARCHITECTURE.md. Consider `--research-phase` only if CJK normalization edge cases prove complex during implementation.
+
+---
 
 ### Phase Ordering Rationale
 
-- Phases 1-2 are the de-risking core: extract proven logic, prove the proxy boundary, and get the single audio element right before any UI depends on it.
-- Phases 3-4 can partially overlap once the Track shape and store interfaces are stable.
-- Phase 5 (PWA) must follow Phase 4 (a deployable app exists to install).
-- Phase 6 (iOS validation) is placed after Phase 5 because the contested behavior only manifests in the installed PWA, not in a Safari tab during development.
-- Phase 7 (new sources + queue) is last because it proves the abstraction and extends the product rather than enabling the core value.
+**Two competing orderings surfaced in research:**
+
+| | Source | Sequence |
+|---|---|---|
+| **Recommended** | ARCHITECTURE.md | Enrichment (P8) → Discovery (P9) → Source (P10) → Auth (P11) → Scrobble (P12) → Loved (P13) |
+| Alternative | STACK.md + PITFALLS.md | Enrichment → Auth → Discovery → Source |
+
+**Why the ARCHITECTURE ordering is recommended:** Auth (P11) is the most complex and highest-risk surface. Deferring it until the read-only surfaces are validated reduces the blast radius of auth bugs and keeps Phases 8–10 entirely security-surface-free. The only cost: discovery cards (Phase 9) are briefly unplayable until Phase 10 — acceptable for an internal milestone sequence.
+
+**Why auth cannot move earlier than P11:** Scrobble (P12) and loved-sync (P13) have a hard dependency on the `sk` cookie and auth store. They cannot be moved earlier regardless of ordering preference.
+
+**Key dependency chain:**
+```
+Phase 8 (proxy wiring + match-key) ──▶ Phase 9 (discovery reads)
+                                    ──▶ Phase 10 (source resolver)
+Phase 11 (auth + signed-call infra) ──▶ Phase 12 (scrobble)
+                                    ──▶ Phase 13 (loved sync)
+Phase 8 match-key primitive ────────▶ Phase 13 (identity reconciliation)
+```
 
 ### Research Flags
 
-Phases likely needing deeper research during planning (`/gsd:plan-phase --research-phase <N>`):
-- **Phase 1:** Worker egress geo-behavior against JOOX/QQ audio CDNs — spike required before architecture is locked. The audio-proxy-vs-browser-direct decision is load-bearing.
-- **Phase 6:** iOS background audio / lock-screen resume — real-device spike on target iOS versions is the only way to resolve the contested STACK.md vs PITFALLS.md disagreement.
+**Phases likely needing `--research-phase` during planning:**
+- **Phase 10** (if GD Studio ytmusic path is in scope): `s` checksum host/version drift, 50 req/5 min cap under real load, instance failover strategy, wrong-song match scoring for CJK vs Western catalog.
+- **Phase 13** (if CJK normalization proves complex): Traditional/Simplified Chinese variant matching in `normalize()`, conflict resolution for tracks loved on Last.fm but not in any CN source, "ghost entry" lifecycle for loved stubs with no playable audio.
 
-Phases with well-established patterns (skip extra research):
-- **Phase 2:** Source porting is extraction of proven logic; `AudioEngine` singleton pattern is well-documented.
-- **Phase 3:** localStorage to IndexedDB migration with `idb` is standard.
-- **Phase 4:** SvelteKit routing + Svelte 5 runes + Svelte transitions are well-documented; NowPlaying overlay pattern is standard.
-- **Phase 5:** Workbox `generateSW` + app-shell precache is standard; the audio-bypass rule is the one gotcha (documented in PITFALLS.md).
-- **Phase 7:** Adapter pattern is defined in Phase 1; adding a source is mechanical.
+**Phases with standard patterns (skip research-phase):**
+- **Phase 8** — mirrors `/api/similar` exactly; placeholder filter fully specified.
+- **Phase 9** — standard SvelteKit SSR load + Cache API TTL caching.
+- **Phase 11** — api_sig algorithm fully specified in official Last.fm docs; httpOnly cookie + SameSite CSRF is standard web security.
+- **Phase 12** — scrobble rules verified against official docs; player hook points already identified.
 
 ---
 
@@ -215,54 +228,47 @@ Phases with well-established patterns (skip extra research):
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All versions verified against npm registry on 2026-06-05; peer-dep chain confirmed; Cloudflare adapter guidance from official docs |
-| Features | HIGH | UX patterns verified against web.dev, MDN, and current competitor behavior; existing capabilities confirmed from codebase analysis |
-| Architecture | HIGH | Three-tier pattern verified against SvelteKit + Cloudflare docs; MediaSession data flow from MDN/web.dev; source-adapter pattern is a direct generalization of existing code |
-| Pitfalls | HIGH (platform realities) / MEDIUM (unofficial-API drift specifics) | Platform pitfalls sourced from WebKit bugs, Cloudflare official limits, jake archibald / philna range-request research; API drift inferred from codebase evidence |
+| Stack | HIGH | MD5 on Workers confirmed in official Cloudflare docs. Web auth flow verified against Last.fm official docs. No npm deps is a definitive finding. GD Studio is MEDIUM (third-party, no SLA, study-only ToS). |
+| Features | HIGH | All Last.fm API methods verified against official API reference. Scrobble rules verified. Image placeholder behavior corroborated by multiple sources. Discovery UX patterns from product writeups (MEDIUM). |
+| Architecture | HIGH | Integration points verified against real source files. Signed-route vs catch-all routing decision derived from reading the actual `buildUrl()` contract. |
+| Pitfalls | HIGH | api_sig UTF-8 + format-exclusion + sort bugs verified against official docs + community error-13 threads. JOOX_TOKEN / sk security is first-principles. YouTube-source instability is MEDIUM (community reports, 2025 mass-block events). |
 
-**Overall confidence:** HIGH, with one explicit contested item (iOS standalone-PWA background audio) that requires empirical resolution.
+**Overall confidence:** HIGH for all Last.fm mechanics and architecture integration. MEDIUM for the GD Studio / YouTube-style source (third-party instability is a runtime risk, not a research gap).
 
 ### Gaps to Address
 
-- **iOS standalone-PWA background audio reality (Phase 6):** The contested STACK.md vs PITFALLS.md disagreement cannot be resolved by documentation. A real-device spike on multiple iOS versions (iOS 15.4, 16, 17, 18, ideally 18.4+) covering play-while-locked AND pause-wait-resume-from-lock is the mandatory gate before this feature is called done. Plan this as an explicit story in Phase 6, not a "we'll test it at the end."
-
-- **Worker egress geo-behavior against audio CDNs (Phase 1):** Whether JOOX and QQ audio CDN URLs work when fetched from a Cloudflare edge IP (vs the browser's IP) is unconfirmed. The architecture recommendation (proxy metadata only, browser-direct audio) is sound, but must be spiked against all four existing sources before Phase 1 closes. If any source's CDN hard-requires Worker egress, the fallback design (Worker resolves URL; browser fetches audio; SW bypasses) is the answer.
-
-- **`svelte-gestures` Svelte 5 compatibility (Phase 4):** Version 5.2.2 is current but Svelte 5 support should be confirmed at build time. If unsupported, implement touch gestures with Pointer Events + `Spring` (documented fallback in STACK.md).
-
-- **JOOX `jooxIndex` stability under pagination/re-search (Phase 2):** The existing code fetches JOOX detail by 1-based position in the original search result set. The adapter refactor must pin and re-validate the `(songmid, keyword, index)` tuple, and prefer stable ID-based lookup if the proxy supports it. This is a known fragile area (CONCERNS.md) that must be explicitly addressed in the JOOX adapter.
-
-- **Queue model scope (Phase 7):** Introducing an explicit `queueStore` (decoupled from `playContext`) requires refactoring `playNext`, shuffle, and play-mode logic. The scope of this refactor should be planned carefully to avoid breaking the working auto-advance behavior established in Phase 2.
+- **GD Studio `s` checksum version string drift:** The host|version|ts|id formula is sourced from upstream `musicdl` Python code. Verify the current formula against a live test call before Phase 10 implementation; capture a fixture response.
+- **Re-search resolver match quality for Western catalog:** The re-search path (searchAll → dedupeBest) works well for CN-source catalog. Its hit rate for Western artists discovered via Last.fm charts is unknown. Validate with a representative sample during Phase 10 planning — this may decide whether GD Studio is in-scope for v1.1 or deferred.
+- **CJK normalization completeness:** Whether `dedupe.key()` correctly handles Traditional/Simplified Chinese variants and CJK punctuation variants for the loved-sync match key is unverified. Flag for Phase 13 planning.
+- **MD5 test strategy in workerd vs Node:** `crypto.subtle.digest({ name: 'MD5' })` works in workerd but NOT in plain `vite dev` / jsdom. Use `@cloudflare/vitest-pool-workers` or inject the hash function and stub it in unit tests. Decide in Phase 11 planning.
+- **Offline scrobble queue:** Fully specified (≤50 batch, ASCII array-index sort, 14-day expiry, per-item timestamps) but deferred to v1.x post-validation. Mobile users on flaky connections will lose scrobbles until built.
 
 ---
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- SvelteKit official docs (`svelte.dev/docs/kit`) — adapter-cloudflare, `+server.ts` proxy pattern, `platform.env`, service-worker module, `$state` runes
-- npm registry (2026-06-05 snapshot) — pinned versions for all dependencies
-- MDN (Media Session API, Screen Wake Lock API, Autoplay guide) — API shape, artwork sizing, gesture-unlock model
-- web.dev (Media Session, PWA installability, SW range requests) — MediaSession data flow, 206 trap documentation
-- Cloudflare Workers docs — Cache API, platform limits (CPU/memory/subrequests), egress policies
-- WebKit Bug #198277 (resolved iOS 15.4) and WebKit Bug #254545 (Wake Lock fixed iOS 18.4) — background audio and Wake Lock history
-- `.planning/codebase/` (ARCHITECTURE.md, INTEGRATIONS.md, CONCERNS.md, PROJECT.md) — authoritative for existing capabilities, track contract, fragile areas
+- https://www.last.fm/api/webauth — Web Application auth flow, api_sig construction, token lifetime, session key infinite lifetime
+- https://www.last.fm/api/scrobbling — Scrobble rules (30s/50%/4-min), updateNowPlaying vs scrobble distinction
+- https://www.last.fm/api/show/track.scrobble — POST write service, ≤50 batch, timestamp UTC seconds, error codes
+- https://www.last.fm/api/show/track.love — POST write service, signed
+- https://developers.cloudflare.com/workers/runtime-apis/web-crypto/ — MD5 is supported in `crypto.subtle.digest` on Workers (non-standard CF extension)
+- https://developers.cloudflare.com/workers/runtime-apis/cache/ — Cache API, programmatic put/match, no Set-Cookie caching
+- https://lastfm-docs.github.io/api-docs/auth/signature/ — api_sig detail (exclude format/callback, ASCII sort, raw values, UTF-8)
+- Existing source files (read directly): `src/lib/proxy/{proxy-types,proxy-registry,http}.ts`, `src/routes/api/similar/+server.ts`, `src/lib/sources/{types,registry}.ts`, `src/lib/stores/{player,library}.svelte.ts`, `src/lib/services/{catalog,picks,similar,dedupe}.ts`
 
 ### Secondary (MEDIUM confidence)
-- dbushell.com — iOS PWA Media Session reality (artwork sizing, iOS 16.4/18 improvements)
-- Apple Developer Forums thread 762582 — lock-screen pause-then-resume failure reports
-- webkit.org/blog/16993 (Safari 26 WWDC25) — no standalone background-audio fix announced; media additions are MediaRecorder/WebCodecs/MSE
-- whatpwacando.today/audio — PWA audio capability demos
-- MagicBell PWA iOS limitations guide — storage limits (~50 MB, 7-day eviction), install behaviors
-- MobiLoud PWA iOS 2026 — EU iOS 17.4 regression, iOS 26 behavior changes
-- 9to5Google / Android Police — YouTube Music 2026 now-playing redesign patterns
-- XDA / HowToGeek — Spotify queue and gesture UX patterns
-- Cloudflare Community — Worker CPU-limit buffering reports
-- Mainmatter / Joy of Code — Svelte 5 global state patterns and caveats
-- jakearchibald.com and philna.sh — SW range-request / 206 trap research
+- https://music-api.gdstudio.xyz/api.php — GD Studio API endpoint (third-party, no SLA)
+- https://github.com/CharlesPikachu/musicdl/blob/master/musicdl/modules/common/gdstudio.py — GD Studio `s` checksum construction
+- https://sumguy.com/invidious-piped-redlib-nitter-2026/ — 2026 status of public Piped/Invidious instances
+- https://support.last.fm/t/last-fm-api-artist-getinfo-only-returns-placeholder-images-for-artists/117821 — placeholder star image confirmation
+- Community error-13 threads (ruby-lastfm #66, php-lastfm #2, navidrome #5178) — UTF-8/sort/format-exclusion bug taxonomy
 
 ### Tertiary (LOW confidence)
-- cogley.jp — Cloudflare Pages to Workers migration (2026, single source; used only to corroborate the official adapter docs recommendation)
+- Spotify/YouTube Music discovery UX patterns — tab structure and Home-personal vs Explore-editorial split (inferred from product writeups)
 
 ---
-*Research completed: 2026-06-05*
+*Research completed: 2026-06-06*
+*Milestone: v1.1 Last.fm Integration*
+*Phases: 8–13 (continuing from v1.0 milestone)*
 *Ready for roadmap: yes*

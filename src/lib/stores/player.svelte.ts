@@ -5,6 +5,7 @@
 // reproduces the legacy <meta no-referrer> so referer-gated CDNs don't 403.
 import { ensureTrackDetails } from '$lib/services/catalog';
 import { buildDiversePicks } from '$lib/services/picks';
+import { buildSimilarQueue } from '$lib/services/similar';
 import { dedupeBest } from '$lib/services/dedupe';
 import { settings } from '$lib/stores/settings.svelte';
 import type { Track } from '$lib/sources/types';
@@ -34,6 +35,12 @@ class Player {
 
 	private audio: HTMLAudioElement | null = null;
 	private growing = false;
+	/**
+	 * Uids the user pinned as "manual" (Play Next / Add to Queue / reordered). These
+	 * survive a fresh-play regeneration; auto-grown + similar-generated tracks do not.
+	 * Plain Set (not $state) so Track objects stay clean — no origin field on Track.
+	 */
+	private manualUids = new Set<string>();
 
 	/** Bind the single long-lived <audio> element (called once from the layout). */
 	attach(el: HTMLAudioElement) {
@@ -62,6 +69,7 @@ class Player {
 
 	/** Insert a track right after the current one (de-duped). Plays it if nothing is playing. */
 	playNext(t: Track) {
+		this.manualUids.add(t.uid); // explicit manual add — preserved across regen
 		const q = this.queue.filter((x) => x.uid !== t.uid);
 		const i = q.findIndex((x) => x.uid === this.current?.uid);
 		q.splice(i >= 0 ? i + 1 : 0, 0, t);
@@ -71,6 +79,7 @@ class Player {
 
 	/** Append a track to the end of the queue (de-duped). Plays it if nothing is playing. */
 	addToQueue(t: Track) {
+		this.manualUids.add(t.uid); // explicit manual add — preserved across regen
 		if (!this.queue.some((x) => x.uid === t.uid)) this.queue = [...this.queue, t];
 		if (!this.current) this.play(t);
 	}
@@ -100,7 +109,14 @@ class Player {
 		return this.queue.findIndex((t) => t.uid === track.uid);
 	}
 
-	async play(track: Track) {
+	/**
+	 * Play a track. `opts.fresh` marks a FRESH user-initiated play (the user tapped a
+	 * song in a list to start something new) — that regenerates the AUTO portion of
+	 * Up-Next from songs similar to the new track, preserving the current track + all
+	 * manual entries. `next()`, `prev()`, and auto-advance (ended) call the NON-fresh
+	 * path, so they never regenerate.
+	 */
+	async play(track: Track, opts?: { fresh?: boolean }) {
 		this.error = null;
 		this.loading = true;
 		this.current = track;
@@ -113,7 +129,6 @@ class Player {
 			// keep the queue entry in sync with the resolved track
 			const i = this.indexOf(track);
 			if (i >= 0) this.queue[i] = resolved;
-			void this.ensureAhead();
 			if (!resolved.audioUrl) {
 				this.error = 'no playable audio for this track';
 				return;
@@ -124,10 +139,32 @@ class Player {
 					/* autoplay may require a gesture — the controls still work */
 				});
 			}
+			// Fresh play -> regenerate the auto portion (best-effort, never blocks
+			// playback). Otherwise just keep the queue topped up via auto-grow.
+			if (opts?.fresh) void this.regenerate(resolved);
+			else void this.ensureAhead();
 		} catch (e) {
 			this.error = e instanceof Error ? e.message : String(e);
 		} finally {
 			this.loading = false;
+		}
+	}
+
+	/**
+	 * Rebuild the AUTO portion of Up-Next from songs similar to `seed`, preserving the
+	 * seed (current) + manual entries in their existing order. Best-effort: on any
+	 * failure the queue is left as-is. Only invoked on a fresh user-initiated play.
+	 */
+	private async regenerate(seed: Track) {
+		try {
+			const manualEntries = this.queue.filter(
+				(t) => this.manualUids.has(t.uid) && t.uid !== seed.uid
+			);
+			const exclude = new Set<string>([seed.uid, ...manualEntries.map((t) => t.uid)]);
+			const auto = await buildSimilarQueue(seed, exclude);
+			this.queue = dedupeBest([seed, ...manualEntries, ...auto], settings.preferredSource);
+		} catch {
+			/* leave queue as-is */
 		}
 	}
 
@@ -159,6 +196,23 @@ class Player {
 		const i = this.indexOf(this.current);
 		if (i > 0) this.play(this.queue[i - 1]);
 		else if (this.audio) this.audio.currentTime = 0;
+	}
+
+	/**
+	 * Move a queue entry from `from` to `to` (clamped) and pin the moved track as
+	 * manual so the next fresh-play regeneration preserves it. No-op if indices are
+	 * out of range or equal.
+	 */
+	reorderQueue(from: number, to: number) {
+		const n = this.queue.length;
+		if (from < 0 || from >= n) return;
+		const target = Math.max(0, Math.min(n - 1, to));
+		if (target === from) return;
+		const next = [...this.queue];
+		const [moved] = next.splice(from, 1);
+		next.splice(target, 0, moved);
+		this.queue = next;
+		this.manualUids.add(moved.uid); // reordered = pinned manual
 	}
 
 	/** Seek to a fraction [0,1] of the track. */

@@ -117,20 +117,55 @@
 	function coverMove(e: PointerEvent) { if (dragging) dragY = Math.max(0, e.clientY - startY); }
 	function coverUp() { if (!dragging) return; dragging = false; if (dragY > 120) player.collapse(); dragY = 0; }
 
-	// ---- grip: sensitive drag OR tap toggles full/peek ----
+	// ---- grip: live vertical drag (translateY follows finger), snaps + settles ----
 	let panelFull = $state(false);
+	let sheetEl = $state<HTMLElement | null>(null);
+	let sheetDragY = $state(0); // px in full-coordinates (0 = full, peekOffset = peek)
+	let sheetDragging = $state(false); // forces absolute layout while dragging/snapping
+	let gripActive = $state(false); // true only while finger is down (transition off)
 	let gripStartY = 0;
 	let gripMoved = 0;
-	let gripActive = false;
-	function gripDown(e: PointerEvent) { gripActive = true; gripStartY = e.clientY; gripMoved = 0; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); }
-	function gripMove(e: PointerEvent) { if (gripActive) gripMoved = e.clientY - gripStartY; }
+	let peekOffset = 300; // distance from full-top to peek-top (measured at drag start)
+	let snapTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function gripDown(e: PointerEvent) {
+		gripActive = true;
+		gripStartY = e.clientY;
+		gripMoved = 0;
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+		if (snapTimer) clearTimeout(snapTimer);
+		const np = sheetEl?.closest('.np') as HTMLElement | null;
+		if (sheetEl && np && !panelFull) {
+			peekOffset = Math.max(80, sheetEl.getBoundingClientRect().top - np.getBoundingClientRect().top);
+		}
+		sheetDragging = true;
+		sheetDragY = panelFull ? 0 : peekOffset;
+	}
+	function gripMove(e: PointerEvent) {
+		if (!gripActive) return;
+		gripMoved = e.clientY - gripStartY;
+		const start = panelFull ? 0 : peekOffset;
+		sheetDragY = Math.max(0, Math.min(peekOffset, start + gripMoved));
+	}
 	function gripUp() {
 		if (!gripActive) return;
 		gripActive = false;
-		if (Math.abs(gripMoved) < 8) panelFull = !panelFull;
-		else if (gripMoved < -24) panelFull = true;
-		else if (gripMoved > 24) panelFull = false;
-		gripMoved = 0;
+		if (Math.abs(gripMoved) < 8) {
+			// tap → toggle, no live offset
+			sheetDragging = false;
+			sheetDragY = 0;
+			panelFull = !panelFull;
+			return;
+		}
+		const threshold = peekOffset * 0.25;
+		const toFull = panelFull ? !(gripMoved > threshold) : -gripMoved > threshold;
+		sheetDragY = toFull ? 0 : peekOffset; // animate (transition on now that gripActive=false)
+		if (snapTimer) clearTimeout(snapTimer);
+		snapTimer = setTimeout(() => {
+			panelFull = toFull;
+			sheetDragging = false;
+			sheetDragY = 0;
+		}, 290);
 	}
 </script>
 
@@ -184,7 +219,14 @@
 		<button class="t" class:on={repeat} aria-label="Repeat" onclick={() => (repeat = !repeat)}><Repeat size={20} /></button>
 	</div>
 
-	<div class="sheet" class:full={panelFull}>
+	<div
+		class="sheet"
+		class:full={panelFull}
+		class:dragging={sheetDragging}
+		bind:this={sheetEl}
+		style:transform={sheetDragging ? `translateY(${sheetDragY}px)` : undefined}
+		style:transition={gripActive ? 'none' : 'transform 0.28s cubic-bezier(.22,1,.36,1)'}
+	>
 		<div class="grip" role="button" tabindex="0" aria-label={panelFull ? 'Collapse panel' : 'Expand panel'}
 			onpointerdown={gripDown} onpointermove={gripMove} onpointerup={gripUp} onpointercancel={gripUp}
 			onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') panelFull = !panelFull; }}>
@@ -263,8 +305,8 @@
 	.t { background: none; border: none; color: var(--color-text); cursor: pointer; opacity: 0.85; display: grid; place-items: center; }
 	.t.on { color: var(--color-primary); opacity: 1; }
 	.play { width: 62px; height: 62px; border-radius: 50%; border: none; background: #fff; color: #000; cursor: pointer; display: grid; place-items: center; }
-	.sheet { display: flex; flex-direction: column; flex: 1; min-height: 0; border-top: 1px solid var(--color-border); transition: all 0.28s cubic-bezier(.22,1,.36,1); }
-	.sheet.full { position: absolute; inset: 0; z-index: 5; background: var(--color-bg); border-top: none; padding: 8px 18px env(safe-area-inset-bottom); }
+	.sheet { display: flex; flex-direction: column; flex: 1; min-height: 0; border-top: 1px solid var(--color-border); will-change: transform; }
+	.sheet.full, .sheet.dragging { position: absolute; inset: 0; z-index: 5; background: var(--color-bg); border-top: none; padding: 8px 18px env(safe-area-inset-bottom); }
 	.grip { display: flex; justify-content: center; padding: 10px 0 6px; cursor: grab; touch-action: none; }
 	.grip:active { cursor: grabbing; }
 	.handle { width: 44px; height: 5px; border-radius: 999px; background: var(--color-text-muted); opacity: 0.6; }

@@ -10,6 +10,11 @@ import type { SourceId } from '../sources/types';
 /** Server-only environment bindings (Cloudflare `platform.env`). Never reaches the client bundle. */
 export interface Env {
 	JOOX_TOKEN: string;
+	// OPTIONAL Last.fm key for /api/similar (artist.getSimilar). Server-side only —
+	// injected into the upstream URL on the edge, never echoed to the client
+	// (threat parity with JOOX_TOKEN / T-01-04, T-5ug-01). Absent key is a SUPPORTED
+	// state: /api/similar returns { artists: [] } so the service falls back to same-artist.
+	LASTFM_KEY?: string;
 }
 
 export interface ProxyAdapter {

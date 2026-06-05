@@ -10,6 +10,9 @@ declare global {
 		interface Platform {
 			env: {
 				JOOX_TOKEN: string;
+				// OPTIONAL Last.fm key for /api/similar — server-side only, never on the
+				// client bundle (threat T-5ug-01, parity with JOOX_TOKEN / T-01-04).
+				LASTFM_KEY?: string;
 			};
 			// ctx?: ExecutionContext;  // add if waitUntil() is needed for caching later
 		}

@@ -8,6 +8,19 @@ A mobile-first web music player that searches and streams tracks aggregated from
 
 A user on their phone can search a song, tap it, and have it play instantly with a smooth, native-app-like experience — and keep playing when the screen locks.
 
+## Current Milestone: v1.1 Last.fm Integration
+
+**Goal:** Connect the standalone aggregator to Last.fm — richer track/artist/album metadata, an optional sign-in that syncs likes/scrobbles/history back to last.fm, discovery tabs built from Last.fm charts/tags, and a new Last.fm-searchable playback source.
+
+**Target features:**
+- Last.fm metadata enrichment layered onto existing multi-source tracks (track/artist/album.getInfo, top tags, bios, higher-res cover art)
+- Optional Last.fm user authentication — signed auth flow (md5 api_sig with LASTFM_SECRET, auth.getSession), session key + username stored, restorable on return
+- Two-way sync: loved tracks (track.love/unlove), scrobbles (track.scrobble), recent-tracks history (user.getRecentTracks)
+- Discovery / hot-picks tabs: latest hits, charts/leaderboards (chart + geo.getTopTracks), vibe/mood tags (tag.getTopTracks/Artists), top albums/tracks/artists
+- New Last.fm-searchable source (YouTube-style) that resolves playable audio for Last.fm-discovered tracks via the existing source/proxy adapter registry
+
+**Boundaries:** Last.fm sign-in is optional/additive — local-first (favorites/playlists in localStorage) keeps working signed-out. All Last.fm key + shared-secret use stays server-side only (JOOX_TOKEN parity).
+
 ## Requirements
 
 ### Validated
@@ -40,8 +53,8 @@ A user on their phone can search a song, tap it, and have it play instantly with
 ### Out of Scope
 
 - Native iOS/Android apps — PWA delivers the app-like experience without app-store overhead and ToS exposure
-- User accounts / cloud sync of library — local-first (localStorage/IndexedDB); import/export covers portability
-- Official Spotify / Apple Music / YouTube Music APIs — licensing + auth complexity; this aggregates the same unofficial sources as today
+- First-party account system (own email/password, own user DB) — REVERSED in v1.1 *only* via Last.fm: sign-in is delegated to Last.fm (optional), which provides cloud-synced likes/scrobbles/history. We still build no proprietary account store; local-first remains the signed-out default.
+- Official *paid streaming* APIs (Spotify / Apple Music) — licensing + auth complexity. NOTE: a YouTube-style source for resolving playable audio of Last.fm-discovered tracks IS in scope for v1.1 (uses the same unofficial-proxy posture as existing sources); Last.fm itself is metadata/social only, not a stream provider.
 - Audio downloads / offline track caching — streaming only; legal exposure and storage cost
 - Keeping the old desktop `index.html` UI maintained in parallel — it is the reference/source to extract from, not a maintained surface
 
@@ -70,6 +83,8 @@ A user on their phone can search a song, tap it, and have it play instantly with
 | Extract reusable data layer into modules before/while building UI | Monolith couples data with DOM; modules let new UI consume proven fetch logic | — Pending |
 | Add Kugou + Migu, others best-effort | Lowest-effort high-value CN sources via meting-style proxies; avoid over-committing to fragile ones | — Pending |
 | Replace desktop UI (responsive mobile-first), don't maintain both | "Mobile first"; maintaining two UIs doubles cost | — Pending |
+| v1.1: integrate Last.fm (optional auth + metadata + discovery + new source) | Delegate accounts/cloud-sync to Last.fm instead of building our own; unlock richer metadata + charts/tags discovery for free | — Pending |
+| Last.fm key + shared secret stay server-side (edge) only | Shared secret signs auth/scrobble calls; exposing it = account-takeover risk. Mirrors JOOX_TOKEN handling (threat T-01-04) | — Pending |
 
 ## Evolution
 
@@ -89,4 +104,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-05 after initialization*
+*Last updated: 2026-06-06 after starting milestone v1.1 (Last.fm Integration)*

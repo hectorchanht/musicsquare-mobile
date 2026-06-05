@@ -24,35 +24,10 @@ describe('SOURCES registry (DATA-04 — single enumeration point)', () => {
 		}
 	});
 
-	it('the 3 not-yet-implemented adapters throw not-implemented from search/resolve', async () => {
-		const stub: SourceId[] = ['qq', 'kuwo', 'joox'];
-		const ac = new AbortController();
-		for (const key of stub) {
-			await expect(SOURCES[key].search('x', 1, ac.signal)).rejects.toThrow(/not-implemented/);
-			await expect(
-				SOURCES[key].resolve(
-					{
-						uid: makeUid(key, '1'),
-						source: key,
-						songid: '1',
-						title: '',
-						artist: '',
-						album: '',
-						cover: null,
-						audioUrl: null,
-						lrc: null,
-						lrcUrl: null,
-						detailsLoaded: false,
-						quality: null,
-						qualityLabel: null,
-						keyword: 'x',
-						displayIndex: 1
-					},
-					ac.signal
-				)
-			).rejects.toThrow(/not-implemented/);
-		}
-	});
+	// Note: all four adapters (netease/qq/kuwo/joox) are implemented as of Wave 2
+	// (plans 01-02, 01-03). The earlier "stubs throw not-implemented" assertion was
+	// removed when the stubs were filled in. Adapter shape is covered by Test 5 above;
+	// per-source behavior is covered by each adapter's own *.test.ts.
 });
 
 describe('getEnabledAdapters', () => {

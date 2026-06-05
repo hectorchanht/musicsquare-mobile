@@ -107,7 +107,7 @@ describe('/api/joox proxy route — token injected upstream, ABSENT from the cli
 	});
 
 	it('returns 400 (bad request) when JOOX_TOKEN is missing — never proxies token=undefined', async () => {
-		const fetchSpy = vi.fn(async () => new Response('{}', { status: 200 }));
+		const fetchSpy = vi.fn(async (..._args: unknown[]) => new Response('{}', { status: 200 }));
 		vi.stubGlobal('fetch', fetchSpy);
 
 		const event = fakeEvent('joox', 'search', { msg: 'x' }); // no platform.env

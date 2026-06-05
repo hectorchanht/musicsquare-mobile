@@ -1,21 +1,14 @@
 <script lang="ts">
 	import { searchAll } from '$lib/services/catalog';
+	import { dedupeBest } from '$lib/services/dedupe';
 	import { player } from '$lib/stores/player.svelte';
-	import type { SourceId, Track } from '$lib/sources/types';
-
-	const SRC_LABEL: Record<SourceId, string> = { netease: 'NetEase', qq: 'QQ', kuwo: 'Kuwo', joox: 'JOOX' };
-	const SRC_COLOR: Record<SourceId, string> = {
-		netease: 'var(--src-netease)',
-		qq: 'var(--src-qq)',
-		kuwo: 'var(--src-kuwo)',
-		joox: 'var(--src-joox)'
-	};
+	import type { Track } from '$lib/sources/types';
 
 	let q = $state('');
 	let results = $state<Track[]>([]);
 	let loading = $state(false);
 	let searched = $state(false);
-	let failing = $state<string[]>([]);
+	let someFailed = $state(false);
 	let ac: AbortController | null = null;
 
 	function fallbackCover(t: Track): string {
@@ -31,11 +24,11 @@
 		ac = new AbortController();
 		loading = true;
 		searched = true;
-		failing = [];
+		someFailed = false;
 		try {
 			const { interleaved, perSource } = await searchAll(kw, 1, {}, ac.signal);
-			results = interleaved;
-			failing = perSource.filter((p) => p.status === 'error').map((p) => SRC_LABEL[p.source]);
+			results = dedupeBest(interleaved);
+			someFailed = perSource.some((p) => p.status === 'error');
 		} catch {
 			results = [];
 		} finally {
@@ -56,8 +49,8 @@
 	<button type="submit" disabled={loading}>{loading ? '…' : 'Go'}</button>
 </form>
 
-{#if failing.length}
-	<p class="warn">Some sources didn't respond: {failing.join(', ')} — showing the rest.</p>
+{#if someFailed}
+	<p class="warn">Some sources didn't respond — showing the rest.</p>
 {/if}
 
 {#if loading}
@@ -74,7 +67,6 @@
 						<span class="r-title">{t.title}</span>
 						<span class="r-artist">{t.artist}</span>
 					</span>
-					<span class="src" style:background={SRC_COLOR[t.source]}>{SRC_LABEL[t.source]}</span>
 				</button>
 			</li>
 		{/each}
@@ -105,5 +97,4 @@
 	.meta { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 	.r-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.r-artist { font-size: 12px; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-	.src { font-size: 9px; font-weight: 800; padding: 3px 7px; border-radius: 999px; color: #fff; text-transform: uppercase; flex: none; }
 </style>

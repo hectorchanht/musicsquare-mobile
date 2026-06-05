@@ -1,22 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { searchAll } from '$lib/services/catalog';
+	import { buildDiversePicks } from '$lib/services/picks';
 	import { player } from '$lib/stores/player.svelte';
-	import type { SourceId, Track } from '$lib/sources/types';
+	import type { Track } from '$lib/sources/types';
 
-	const SRC_LABEL: Record<SourceId, string> = { netease: 'NetEase', qq: 'QQ', kuwo: 'Kuwo', joox: 'JOOX' };
-	const SRC_COLOR: Record<SourceId, string> = {
-		netease: 'var(--src-netease)',
-		qq: 'var(--src-qq)',
-		kuwo: 'var(--src-kuwo)',
-		joox: 'var(--src-joox)'
-	};
-	// Top picks = one hit from each of N DISTINCT artists (not one keyword).
-	const ARTIST_POOL = [
-		'周杰伦', '邓紫棋', '林俊杰', '陈奕迅', '五月天', '李荣浩', '张惠妹', '王菲', '周深', '李宗盛',
-		'Taylor Swift', 'Ed Sheeran', 'Lana Del Rey', 'Bruno Mars', 'Adele', 'The Weeknd', 'Billie Eilish', 'Coldplay', 'Maroon 5', 'Dua Lipa'
-	];
 	const PICK_COUNT = 9;
 	const CACHE_KEY = 'musicsquare:top-picks:v1';
 
@@ -27,32 +15,6 @@
 	function fallbackCover(t: Track): string {
 		const h = (t.uid.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 47) % 360;
 		return `linear-gradient(145deg, hsl(${h} 55% 32%), hsl(${(h + 40) % 360} 55% 18%))`;
-	}
-
-	function sample<T>(arr: T[], n: number): T[] {
-		const a = [...arr];
-		for (let i = a.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[a[i], a[j]] = [a[j], a[i]];
-		}
-		return a.slice(0, n);
-	}
-
-	// Fan out across N random artists, take each artist's top result → diverse grid.
-	async function buildPicks(): Promise<Track[]> {
-		const artists = sample(ARTIST_POOL, PICK_COUNT);
-		const results = await Promise.allSettled(artists.map((a) => searchAll(a, 1)));
-		const picks: Track[] = [];
-		const seen = new Set<string>();
-		for (const r of results) {
-			if (r.status !== 'fulfilled') continue;
-			const top = r.value.interleaved[0];
-			if (top && !seen.has(top.uid)) {
-				seen.add(top.uid);
-				picks.push(top);
-			}
-		}
-		return picks;
 	}
 
 	// localStorage is browser-only; these run inside onMount / click handlers (never SSR).
@@ -79,7 +41,7 @@
 		loading = true;
 		error = null;
 		try {
-			const picks = await buildPicks();
+			const picks = await buildDiversePicks(PICK_COUNT);
 			if (picks.length) {
 				songs = picks;
 				saveCache(picks);
@@ -132,7 +94,6 @@
 			{#each songs as t (t.uid)}
 				<button class="tile" onclick={() => { player.setQueue(songs); player.play(t); }}>
 					<div class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></div>
-					<span class="src" style:background={SRC_COLOR[t.source]}>{SRC_LABEL[t.source]}</span>
 					{#if t.qualityLabel || t.quality}<span class="q">{t.qualityLabel ?? t.quality}</span>{/if}
 					<div class="scrim"></div>
 					<div class="label">
@@ -178,7 +139,6 @@
 	.label { position: absolute; left: 7px; right: 7px; bottom: 6px; text-align: left; }
 	.t-title { font-size: 11px; font-weight: 700; line-height: 1.2; color: #fff; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 	.t-artist { font-size: 10px; color: #d8d8de; margin-top: 2px; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-	.src { position: absolute; top: 6px; left: 6px; font-size: 8.5px; font-weight: 800; letter-spacing: 0.3px; padding: 2px 6px; border-radius: 999px; color: #fff; text-transform: uppercase; }
 	.q { position: absolute; top: 6px; right: 6px; font-size: 8px; font-weight: 700; padding: 2px 5px; border-radius: 4px; background: rgba(0,0,0,0.55); color: #fff; }
 	.error { color: #ff7a90; font-size: 14px; }
 </style>

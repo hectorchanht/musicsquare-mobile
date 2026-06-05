@@ -5,10 +5,9 @@
 	// Not a true artist catalog — an approximation from cross-source search.
 	import { page } from '$app/state';
 	import { searchAll } from '$lib/services/catalog';
+	import { dedupeBest } from '$lib/services/dedupe';
 	import { player } from '$lib/stores/player.svelte';
-	import type { SourceId, Track } from '$lib/sources/types';
-
-	const SRC_LABEL: Record<SourceId, string> = { netease: 'NetEase', qq: 'QQ', kuwo: 'Kuwo', joox: 'JOOX' };
+	import type { Track } from '$lib/sources/types';
 
 	const name = $derived(decodeURIComponent(page.params.name ?? ''));
 
@@ -43,7 +42,7 @@
 			loading = true;
 			songs = [];
 			searchAll(n, 1)
-				.then((r) => (songs = r.interleaved))
+				.then((r) => (songs = dedupeBest(r.interleaved)))
 				.catch(() => (songs = []))
 				.finally(() => (loading = false));
 		}
@@ -86,7 +85,7 @@
 						<button class="row" onclick={() => { player.setQueue(songs); player.play(t); }}>
 							<span class="rank">{i + 1}</span>
 							<span class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></span>
-							<span class="meta"><span class="r-title">{t.title}</span><span class="r-sub">{t.album || t.artist} · {SRC_LABEL[t.source]}</span></span>
+							<span class="meta"><span class="r-title">{t.title}</span><span class="r-sub">{t.album || t.artist}</span></span>
 						</button>
 					</li>
 				{/each}

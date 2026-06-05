@@ -4,6 +4,8 @@
 // metadata was already proxied via the data layer. referrerpolicy=no-referrer
 // reproduces the legacy <meta no-referrer> so referer-gated CDNs don't 403.
 import { ensureTrackDetails } from '$lib/services/catalog';
+import { buildDiversePicks } from '$lib/services/picks';
+import { dedupeBest } from '$lib/services/dedupe';
 import type { Track } from '$lib/sources/types';
 
 /** mm:ss, NaN/Infinity-safe (avoids the "NaN:NaN" bug before metadata loads). */
@@ -30,6 +32,7 @@ class Player {
 	duration = $state(0);
 
 	private audio: HTMLAudioElement | null = null;
+	private growing = false;
 
 	/** Bind the single long-lived <audio> element (called once from the layout). */
 	attach(el: HTMLAudioElement) {
@@ -53,7 +56,27 @@ class Player {
 
 	/** Set the active list (home grid / search results) as the Up-Next source. */
 	setQueue(tracks: Track[]) {
-		this.queue = tracks;
+		this.queue = dedupeBest(tracks);
+	}
+
+	/**
+	 * Append more diverse picks when the queue is within 2 of the end, so playback
+	 * never runs short. Guarded against re-entry (growing flag) and dry sources.
+	 */
+	private async ensureAhead() {
+		if (this.growing) return;
+		const i = this.indexOf(this.current);
+		if (i < 0 || this.queue.length - i > 2) return;
+		this.growing = true;
+		try {
+			const have = new Set(this.queue.map((t) => t.uid));
+			const more = await buildDiversePicks(8, have);
+			if (more.length) this.queue = dedupeBest([...this.queue, ...more]);
+		} catch {
+			/* sources dry — leave the queue as-is */
+		} finally {
+			this.growing = false;
+		}
 	}
 
 	private indexOf(track: Track | null): number {
@@ -73,6 +96,7 @@ class Player {
 			// keep the queue entry in sync with the resolved track
 			const i = this.indexOf(track);
 			if (i >= 0) this.queue[i] = resolved;
+			void this.ensureAhead();
 			if (!resolved.audioUrl) {
 				this.error = 'no playable audio for this track';
 				return;
@@ -98,7 +122,15 @@ class Player {
 
 	next() {
 		const i = this.indexOf(this.current);
-		if (i >= 0 && i + 1 < this.queue.length) this.play(this.queue[i + 1]);
+		if (i >= 0 && i + 1 < this.queue.length) {
+			this.play(this.queue[i + 1]);
+		} else {
+			// at/near the end — grow the queue, then advance to the freshly-added track
+			void this.ensureAhead().then(() => {
+				const j = this.indexOf(this.current);
+				if (j >= 0 && j + 1 < this.queue.length) this.play(this.queue[j + 1]);
+			});
+		}
 	}
 
 	prev() {

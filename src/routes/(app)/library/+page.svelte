@@ -4,6 +4,7 @@
 	import { library } from '$lib/stores/library.svelte';
 	import { player } from '$lib/stores/player.svelte';
 	import { names } from '$lib/stores/names.svelte';
+	import { t } from '$lib/i18n';
 	import { longpress } from '$lib/actions/longpress';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import type { Track } from '$lib/sources/types';
@@ -25,68 +26,68 @@
 	}
 </script>
 
-<svelte:head><title>Library · openmusic</title></svelte:head>
+<svelte:head><title>{t('library.title')}</title></svelte:head>
 
-<header class="head"><h1>Library</h1></header>
+<header class="head"><h1>{t('library.heading')}</h1></header>
 
 <nav class="tabs">
-	<button class:active={tab === 'liked'} onclick={() => (tab = 'liked')}><Heart size={15} /> Liked</button>
-	<button class:active={tab === 'playlists'} onclick={() => (tab = 'playlists')}><ListMusic size={15} /> Playlists</button>
-	<button class:active={tab === 'downloads'} onclick={() => (tab = 'downloads')}><Download size={15} /> Downloads</button>
+	<button class:active={tab === 'liked'} onclick={() => (tab = 'liked')}><Heart size={15} /> {t('library.liked')}</button>
+	<button class:active={tab === 'playlists'} onclick={() => (tab = 'playlists')}><ListMusic size={15} /> {t('library.playlists')}</button>
+	<button class:active={tab === 'downloads'} onclick={() => (tab = 'downloads')}><Download size={15} /> {t('library.downloads')}</button>
 </nav>
 
 {#if tab === 'liked'}
 	{#if library.liked.length}
 		<ul class="list">
-			{#each library.liked as t (t.uid)}
+			{#each library.liked as track (track.uid)}
 				<li>
-					<button class="row" use:longpress onlongpress={() => openMenu(t)} onclick={() => playList(library.liked, t)}>
-						<span class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></span>
-						<span class="meta"><span class="r-title">{names.dn(t.title)}</span><span class="r-sub">{names.dn(t.artist)}</span></span>
+					<button class="row" use:longpress onlongpress={() => openMenu(track)} onclick={() => playList(library.liked, track)}>
+						<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
+						<span class="meta"><span class="r-title">{names.dn(track.title)}</span><span class="r-sub">{names.dn(track.artist)}</span></span>
 						<Play size={16} />
 					</button>
 				</li>
 			{/each}
 		</ul>
-	{:else}<p class="empty"><Heart size={28} /><span>No liked songs yet. Tap ♥ in the player.</span></p>{/if}
+	{:else}<p class="empty"><Heart size={28} /><span>{t('library.noLiked')}</span></p>{/if}
 {:else if tab === 'playlists'}
 	{#if library.playlists.length}
 		{#each library.playlists as pl (pl.id)}
 			<section class="pl">
 				<div class="pl-head">
 					<h2>{pl.name} <span class="count">{pl.tracks.length}</span></h2>
-					<button class="del" aria-label="Delete playlist" onclick={() => library.deletePlaylist(pl.id)}><Trash2 size={16} /></button>
+					<button class="del" aria-label={t('library.deletePlaylist')} onclick={() => library.deletePlaylist(pl.id)}><Trash2 size={16} /></button>
 				</div>
 				{#if pl.tracks.length}
 					<ul class="list">
-						{#each pl.tracks as t (t.uid)}
+						{#each pl.tracks as track (track.uid)}
 							<li>
-								<button class="row" use:longpress onlongpress={() => openMenu(t)} onclick={() => playList(pl.tracks, t)}>
-									<span class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></span>
-									<span class="meta"><span class="r-title">{names.dn(t.title)}</span><span class="r-sub">{names.dn(t.artist)}</span></span>
+								<button class="row" use:longpress onlongpress={() => openMenu(track)} onclick={() => playList(pl.tracks, track)}>
+									<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
+									<span class="meta"><span class="r-title">{names.dn(track.title)}</span><span class="r-sub">{names.dn(track.artist)}</span></span>
 								</button>
 							</li>
 						{/each}
 					</ul>
-				{:else}<p class="empty-sm">Empty playlist.</p>{/if}
+				{:else}<p class="empty-sm">{t('library.emptyPlaylist')}</p>{/if}
 			</section>
 		{/each}
-	{:else}<p class="empty"><ListMusic size={28} /><span>No playlists. Create one from a song's ⋮ menu.</span></p>{/if}
+	{:else}<p class="empty"><ListMusic size={28} /><span>{t('library.noPlaylists')}</span></p>{/if}
 {:else}
 	{#if library.downloads.length}
 		<ul class="list">
-			{#each library.downloads as t (t.uid)}
+			{#each library.downloads as track (track.uid)}
 				<li class="rowline">
-					<button class="row" use:longpress onlongpress={() => openMenu(t)} onclick={() => playList(library.downloads, t)}>
-						<span class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></span>
-						<span class="meta"><span class="r-title">{names.dn(t.title)}</span><span class="r-sub">{names.dn(t.artist)}</span></span>
+					<button class="row" use:longpress onlongpress={() => openMenu(track)} onclick={() => playList(library.downloads, track)}>
+						<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
+						<span class="meta"><span class="r-title">{names.dn(track.title)}</span><span class="r-sub">{names.dn(track.artist)}</span></span>
 					</button>
-					<button class="del" aria-label="Remove" onclick={() => library.removeDownload(t.uid)}><Trash2 size={15} /></button>
+					<button class="del" aria-label={t('library.remove')} onclick={() => library.removeDownload(track.uid)}><Trash2 size={15} /></button>
 				</li>
 			{/each}
 		</ul>
-		<p class="note">Downloaded files are saved to your device. This list references them and re-streams on tap (web apps can't replay arbitrary saved files offline).</p>
-	{:else}<p class="empty"><Download size={28} /><span>No downloads. Use Download in a song's ⋮ menu.</span></p>{/if}
+		<p class="note">{t('library.downloadsNote')}</p>
+	{:else}<p class="empty"><Download size={28} /><span>{t('library.noDownloads')}</span></p>{/if}
 {/if}
 
 <TrackMenu track={menuTrack} open={menuOpen} onclose={() => (menuOpen = false)} />

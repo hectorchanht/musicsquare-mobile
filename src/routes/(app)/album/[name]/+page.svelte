@@ -7,6 +7,7 @@
 	import { settings } from '$lib/stores/settings.svelte';
 	import { player } from '$lib/stores/player.svelte';
 	import { names } from '$lib/stores/names.svelte';
+	import { t } from '$lib/i18n';
 	import { longpress } from '$lib/actions/longpress';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import { goto } from '$app/navigation';
@@ -45,32 +46,32 @@
 	});
 </script>
 
-<svelte:head><title>{name} · openmusic</title></svelte:head>
+<svelte:head><title>{t('album.title', { name })}</title></svelte:head>
 
 <header class="hero">
-	<button class="back" aria-label="Back" onclick={() => goto('/')}><ChevronLeft size={22} /></button>
+	<button class="back" aria-label={t('album.back')} onclick={() => goto('/')}><ChevronLeft size={22} /></button>
 	<div class="cover" style:background-image={hero ? `url(${hero})` : 'linear-gradient(145deg,#3a2d63,#1a1326)'}></div>
 	<h1>{names.dn(name)}</h1>
-	<p class="note">Album · {tracks.length} tracks (derived from search)</p>
+	<p class="note">{t('album.derived', { count: tracks.length })}</p>
 </header>
 
 {#if loading}
-	<p class="muted">Loading album…</p>
+	<p class="muted">{t('album.loading')}</p>
 {:else if tracks.length}
 	<ul class="list">
-		{#each tracks as t, i (t.uid)}
+		{#each tracks as track, i (track.uid)}
 			<li>
-				<button class="row" use:longpress onlongpress={() => { menuTrack = t; menuOpen = true; }} onclick={() => { player.setQueue(tracks); player.play(t); }}>
+				<button class="row" use:longpress onlongpress={() => { menuTrack = track; menuOpen = true; }} onclick={() => { player.setQueue(tracks); player.play(track); }}>
 					<span class="rank">{i + 1}</span>
-					<span class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></span>
-					<span class="meta"><span class="r-title">{names.dn(t.title)}</span><span class="r-sub">{names.dn(t.artist)}</span></span>
+					<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
+					<span class="meta"><span class="r-title">{names.dn(track.title)}</span><span class="r-sub">{names.dn(track.artist)}</span></span>
 					<Play size={16} />
 				</button>
 			</li>
 		{/each}
 	</ul>
 {:else}
-	<p class="muted">No tracks found for “{name}”.</p>
+	<p class="muted">{t('album.noTracks', { name: names.dn(name) })}</p>
 {/if}
 
 <TrackMenu track={menuTrack} open={menuOpen} onclose={() => (menuOpen = false)} />

@@ -9,6 +9,7 @@
 	import { settings } from '$lib/stores/settings.svelte';
 	import { player } from '$lib/stores/player.svelte';
 	import { names } from '$lib/stores/names.svelte';
+	import { t } from '$lib/i18n';
 	import { longpress } from '$lib/actions/longpress';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 
@@ -59,24 +60,24 @@
 <svelte:head><title>{name} · MusicSquare</title></svelte:head>
 
 <header class="hero">
-	<a class="back" href="/">‹ Back</a>
+	<a class="back" href="/">{t('artist.back')}</a>
 	<div class="herocover" style:background-image={hero ? `url(${hero})` : 'linear-gradient(145deg,#3a2d63,#1a1326)'}></div>
 	<h1>{names.dn(name)}</h1>
-	<p class="note">Derived from cross-source search · {songs.length} tracks</p>
+	<p class="note">{t('artist.derived', { count: songs.length })}</p>
 </header>
 
 {#if loading}
-	<p class="muted">Loading {name}…</p>
+	<p class="muted">{t('artist.loading', { name: names.dn(name) })}</p>
 {:else}
 	{#if albums.length}
 		<section>
-			<h2>Albums</h2>
+			<h2>{t('artist.albums')}</h2>
 			<div class="albumrow">
 				{#each albums as al (al.name)}
 					<button class="album" onclick={() => { player.setQueue(al.tracks); player.play(al.tracks[0]); }}>
 						<span class="al-cover" style:background-image={al.cover ? `url(${al.cover})` : fallbackCover(al.tracks[0])}></span>
 						<span class="al-name">{names.dn(al.name)}</span>
-						<span class="al-count">{al.tracks.length} track{al.tracks.length > 1 ? 's' : ''}</span>
+						<span class="al-count">{al.tracks.length > 1 ? t('artist.trackMany', { count: al.tracks.length }) : t('artist.trackOne', { count: al.tracks.length })}</span>
 					</button>
 				{/each}
 			</div>
@@ -84,20 +85,20 @@
 	{/if}
 
 	<section>
-		<h2>Hit songs</h2>
+		<h2>{t('artist.hitSongs')}</h2>
 		{#if songs.length}
 			<ul class="list">
-				{#each songs.slice(0, 30) as t, i (t.uid)}
+				{#each songs.slice(0, 30) as track, i (track.uid)}
 					<li>
-						<button class="row" use:longpress onlongpress={() => { menuTrack = t; menuOpen = true; }} onclick={() => { player.setQueue(songs); player.play(t); }}>
+						<button class="row" use:longpress onlongpress={() => { menuTrack = track; menuOpen = true; }} onclick={() => { player.setQueue(songs); player.play(track); }}>
 							<span class="rank">{i + 1}</span>
-							<span class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></span>
-							<span class="meta"><span class="r-title">{names.dn(t.title)}</span><span class="r-sub">{names.dn(t.album || t.artist)}</span></span>
+							<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
+							<span class="meta"><span class="r-title">{names.dn(track.title)}</span><span class="r-sub">{names.dn(track.album || track.artist)}</span></span>
 						</button>
 					</li>
 				{/each}
 			</ul>
-		{:else}<p class="muted">No songs found for {name}.</p>{/if}
+		{:else}<p class="muted">{t('artist.noSongs', { name: names.dn(name) })}</p>{/if}
 	</section>
 {/if}
 

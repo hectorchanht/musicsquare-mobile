@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-05)
 Phase: 1 (Data Layer + Proxy Foundation) — EXECUTING
 Plan: 1 of 4
 Status: Executing Phase 1
-Last activity: 2026-06-06 -- Completed quick task 260606-54l: name translation + long-press track menu deployed
+Last activity: 2026-06-06 -- Completed quick task 260606-5du: live-drag panel grip deployed
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -88,6 +88,7 @@ None yet.
 | 260606-4g1 | Rebrand openmusic + lucide icons + settings & library pages + now-playing options menu (download/like/playlist/album/artist/share/detail) + sensitive grip; deployed | 2026-06-06 | e959635 | [260606-4g1-rebrand-openmusic-settings-library-nowpl](./quick/260606-4g1-rebrand-openmusic-settings-library-nowpl/) |
 | 260606-4pn | Settings: live lyrics translation (/api/translate, replace/below) + default quality/source + accent/reduce-motion/auto-expand; deployed | 2026-06-06 | ec862cc | [260606-4pn-settings-lyrics-translation-default-qual](./quick/260606-4pn-settings-lyrics-translation-default-qual/) |
 | 260606-54l | Translate displayed song/artist names (settings nameLang) + long-press track context menu (Play next / Add to queue + 7 actions, reusable TrackMenu); deployed | 2026-06-06 | ac8b6fd | [260606-54l-translate-song-artist-names-long-press-t](./quick/260606-54l-translate-song-artist-names-long-press-t/) |
+| 260606-5du | Live-drag now-playing panel grip (translateY follows finger, smooth snap like full-page close); deployed | 2026-06-06 | d5201c7 | [260606-5du-smooth-live-drag-now-playing-panel-grip](./quick/260606-5du-smooth-live-drag-now-playing-panel-grip/) |
 
 > Note: off planned phase order (Phase-4-shaped UI pulled forward as a demo). Basic playback only; full audio engine = Phase 6, formal Mobile UI Shell = Phase 4.
 

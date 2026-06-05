@@ -12,29 +12,80 @@
 		kuwo: 'var(--src-kuwo)',
 		joox: 'var(--src-joox)'
 	};
-	// "top random songs" — a rotating pool; pick one keyword per load.
-	const POOL = ['周杰伦', '邓紫棋', '林俊杰', '陈奕迅', 'Taylor Swift', 'Ed Sheeran', 'Lana Del Rey', '五月天'];
+	// Top picks = one hit from each of N DISTINCT artists (not one keyword).
+	const ARTIST_POOL = [
+		'周杰伦', '邓紫棋', '林俊杰', '陈奕迅', '五月天', '李荣浩', '张惠妹', '王菲', '周深', '李宗盛',
+		'Taylor Swift', 'Ed Sheeran', 'Lana Del Rey', 'Bruno Mars', 'Adele', 'The Weeknd', 'Billie Eilish', 'Coldplay', 'Maroon 5', 'Dua Lipa'
+	];
+	const PICK_COUNT = 9;
+	const CACHE_KEY = 'musicsquare:top-picks:v1';
 
 	let songs = $state<Track[]>([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
-	let seed = $state('');
 
 	function fallbackCover(t: Track): string {
 		const h = (t.uid.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 47) % 360;
 		return `linear-gradient(145deg, hsl(${h} 55% 32%), hsl(${(h + 40) % 360} 55% 18%))`;
 	}
 
-	async function load() {
+	function sample<T>(arr: T[], n: number): T[] {
+		const a = [...arr];
+		for (let i = a.length - 1; i > 0; i--) {
+			const j = Math.floor(Math.random() * (i + 1));
+			[a[i], a[j]] = [a[j], a[i]];
+		}
+		return a.slice(0, n);
+	}
+
+	// Fan out across N random artists, take each artist's top result → diverse grid.
+	async function buildPicks(): Promise<Track[]> {
+		const artists = sample(ARTIST_POOL, PICK_COUNT);
+		const results = await Promise.allSettled(artists.map((a) => searchAll(a, 1)));
+		const picks: Track[] = [];
+		const seen = new Set<string>();
+		for (const r of results) {
+			if (r.status !== 'fulfilled') continue;
+			const top = r.value.interleaved[0];
+			if (top && !seen.has(top.uid)) {
+				seen.add(top.uid);
+				picks.push(top);
+			}
+		}
+		return picks;
+	}
+
+	// localStorage is browser-only; these run inside onMount / click handlers (never SSR).
+	function saveCache(list: Track[]) {
+		try {
+			localStorage.setItem(CACHE_KEY, JSON.stringify(list));
+		} catch {
+			/* quota or unavailable — non-fatal */
+		}
+	}
+	function loadCache(): Track[] | null {
+		try {
+			const raw = localStorage.getItem(CACHE_KEY);
+			if (!raw) return null;
+			const v: unknown = JSON.parse(raw);
+			return Array.isArray(v) && v.length ? (v as Track[]) : null;
+		} catch {
+			return null;
+		}
+	}
+
+	// Fetch a fresh diverse set, cache it, seed the queue. Used by Randomize + cold start.
+	async function refresh() {
 		loading = true;
 		error = null;
-		seed = POOL[Math.floor(Math.random() * POOL.length)];
 		try {
-			const { interleaved, perSource } = await searchAll(seed, 1);
-			songs = interleaved.slice(0, 9);
-			if (songs.length === 0) {
-				const errs = perSource.filter((p) => p.status === 'error').map((p) => p.source);
-				error = errs.length ? `no results (sources failing: ${errs.join(', ')})` : 'no results';
+			const picks = await buildPicks();
+			if (picks.length) {
+				songs = picks;
+				saveCache(picks);
+				player.setQueue(picks);
+			} else {
+				error = 'no results — sources may be unavailable';
 			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : String(e);
@@ -43,7 +94,17 @@
 		}
 	}
 
-	onMount(load);
+	onMount(() => {
+		// Instant render from localStorage; only hit the network on a cold cache.
+		const cached = loadCache();
+		if (cached) {
+			songs = cached;
+			player.setQueue(cached);
+			loading = false;
+		} else {
+			refresh();
+		}
+	});
 </script>
 
 <header class="topnav">
@@ -56,8 +117,8 @@
 
 <section class="section">
 	<div class="head">
-		<h2>Top picks {#if seed}· {seed}{/if}</h2>
-		<button class="more" onclick={load} disabled={loading}>{loading ? '…' : '↻ Shuffle'}</button>
+		<h2>Top picks</h2>
+		<button class="more" onclick={refresh} disabled={loading}>{loading ? '…' : '↻ Randomize'}</button>
 	</div>
 
 	{#if loading}
@@ -65,7 +126,7 @@
 			{#each Array(9) as _, i (i)}<div class="tile skeleton"></div>{/each}
 		</div>
 	{:else if error}
-		<p class="error">{error} — <button class="retry" onclick={load}>retry</button></p>
+		<p class="error">{error} — <button class="retry" onclick={refresh}>retry</button></p>
 	{:else}
 		<div class="grid">
 			{#each songs as t (t.uid)}

@@ -4,11 +4,6 @@
 	import NowPlaying from '$lib/components/NowPlaying.svelte';
 
 	let { children } = $props();
-	let audioEl: HTMLAudioElement;
-
-	$effect(() => {
-		if (audioEl) player.attach(audioEl);
-	});
 
 	const tabs = [
 		{ href: '/', label: 'Home', icon: '⌂' },
@@ -29,6 +24,7 @@
 
 	{#if player.current && !player.expanded}
 		<div class="nowbar">
+			<div class="np-prog"><i style:width={`${player.duration > 0 ? (player.currentTime / player.duration) * 100 : 0}%`}></i></div>
 			<button class="np-open" aria-label="Open now playing" onclick={() => player.expand()}>
 				<span class="np-art" style:background-image={player.current.cover ? `url(${player.current.cover})` : cover(player.current)}></span>
 				<span class="np-meta">
@@ -56,9 +52,7 @@
 			</a>
 		{/each}
 	</nav>
-
-	<!-- single long-lived audio element (browser-direct) -->
-	<audio bind:this={audioEl}></audio>
+	<!-- audio element lives in the ROOT layout (persists across navigation) -->
 </div>
 
 <style>
@@ -94,6 +88,21 @@
 		max-width: 704px;
 		margin: 0 auto;
 		z-index: 20;
+		overflow: hidden;
+	}
+	.np-prog {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: 3px;
+		background: rgba(255, 255, 255, 0.12);
+	}
+	.np-prog > i {
+		display: block;
+		height: 100%;
+		background: var(--color-primary);
+		transition: width 0.25s linear;
 	}
 	.np-open {
 		flex: 1;
@@ -159,5 +168,4 @@
 	}
 	.tab .ic { font-size: 18px; }
 	.tab.active { color: var(--color-text); }
-	audio { display: none; }
 </style>

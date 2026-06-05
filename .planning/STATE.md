@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-05)
 Phase: 1 (Data Layer + Proxy Foundation) — EXECUTING
 Plan: 1 of 4
 Status: Executing Phase 1
-Last activity: 2026-06-05 -- Phase 1 execution started
+Last activity: 2026-06-05 -- Completed quick task 260605-wq1: home shell deployed to openmusic.pages.dev
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -76,6 +76,14 @@ None yet.
 
 - [Phase 1]: Worker egress geo-behavior against JOOX/QQ audio CDNs is unconfirmed — spike required before the audio data-flow architecture is locked. Research flag set.
 - [Phase 6]: iOS standalone-PWA background audio is contested (STACK.md vs PITFALLS.md); only a real-device spike (iOS 15.4 / 16 / 17 / 18 / 18.4+) covering play-while-locked AND pause→wait→resume-from-lock can resolve it. Research flag set.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260605-wq1 | Sketch-001 variant C home shell + search, wired to data layer; deployed to openmusic.pages.dev | 2026-06-05 | 0684b67 | [260605-wq1-implement-sketch-001-variant-c-home-shel](./quick/260605-wq1-implement-sketch-001-variant-c-home-shel/) |
+
+> Note: off planned phase order (Phase-4-shaped UI pulled forward as a demo). Basic playback only; full audio engine = Phase 6, formal Mobile UI Shell = Phase 4.
 
 ## Deferred Items
 

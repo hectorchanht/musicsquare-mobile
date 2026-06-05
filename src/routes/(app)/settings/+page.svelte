@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { ChevronLeft, Languages, Replace, Music, Radio, Palette, Zap, Maximize2, Trash2, RefreshCw, Info } from '@lucide/svelte';
+	import { ChevronLeft, Languages, Globe, Replace, Music, Radio, Palette, Zap, Maximize2, Trash2, RefreshCw, Info } from '@lucide/svelte';
 	import { settings, ACCENT_PRESETS, type LyricsLang, type TranslateMode, type DefaultQuality, type DefaultSource } from '$lib/stores/settings.svelte';
 	import { library } from '$lib/stores/library.svelte';
+	import { t, type AppLang, type TranslationKey } from '$lib/i18n';
 
 	const TOP_PICKS_KEY = 'musicsquare:top-picks:v1';
 	let msg = $state('');
@@ -16,6 +17,13 @@
 	});
 
 	function flash(m: string) { msg = m; setTimeout(() => (msg = ''), 1800); }
+	// App-language endonyms render literally (NOT through t()).
+	const appLangs: { v: AppLang; label: string }[] = [
+		{ v: 'en', label: 'English' },
+		{ v: 'zh-Hant', label: '繁體中文' },
+		{ v: 'zh-Hans', label: '简体中文' }
+	];
+	// `off` + language endonyms are literal; only 'Off' is chrome → resolved in the template.
 	const langs: { v: LyricsLang; label: string }[] = [
 		{ v: 'off', label: 'Off' },
 		{ v: 'zh-Hant', label: '繁體中文' },
@@ -24,24 +32,27 @@
 		{ v: 'ja', label: '日本語' },
 		{ v: 'ko', label: '한국어' }
 	];
-	const modes: { v: TranslateMode; label: string }[] = [
-		{ v: 'below', label: 'Show below' },
-		{ v: 'replace', label: 'Replace' }
+	const modes: { v: TranslateMode; key: string }[] = [
+		{ v: 'below', key: 'settings.optShowBelow' },
+		{ v: 'replace', key: 'settings.optReplace' }
 	];
-	const qualities: { v: DefaultQuality; label: string }[] = [
-		{ v: 'auto', label: 'Auto' },
-		{ v: 'lossless', label: 'Lossless' },
-		{ v: '320', label: '320k' },
-		{ v: '128', label: '128k' }
+	// Quality tokens (320k/128k) are literal; Auto/Lossless are chrome.
+	const qualities: { v: DefaultQuality; key?: string; literal?: string }[] = [
+		{ v: 'auto', key: 'settings.optAuto' },
+		{ v: 'lossless', key: 'settings.optLossless' },
+		{ v: '320', literal: '320k' },
+		{ v: '128', literal: '128k' }
 	];
-	const sources: { v: DefaultSource; label: string }[] = [
-		{ v: 'auto', label: 'Auto (all)' },
-		{ v: 'netease', label: 'NetEase' },
-		{ v: 'qq', label: 'QQ' },
-		{ v: 'kuwo', label: 'Kuwo' },
-		{ v: 'joox', label: 'JOOX' }
+	// Proper-noun source labels stay literal; only 'Auto (all)' is chrome.
+	const sources: { v: DefaultSource; key?: string; literal?: string }[] = [
+		{ v: 'auto', key: 'settings.optAutoAll' },
+		{ v: 'netease', literal: 'NetEase' },
+		{ v: 'qq', literal: 'QQ' },
+		{ v: 'kuwo', literal: 'Kuwo' },
+		{ v: 'joox', literal: 'JOOX' }
 	];
 
+	function setAppLang(v: AppLang) { settings.appLang = v; settings.save(); }
 	function setLang(v: LyricsLang) { settings.lyricsLang = v; settings.save(); }
 	function setNameLang(v: LyricsLang) { settings.nameLang = v; settings.save(); }
 	function setMode(v: TranslateMode) { settings.translateMode = v; settings.save(); }
@@ -51,74 +62,83 @@
 	function toggleMotion() { settings.reduceMotion = !settings.reduceMotion; settings.save(); }
 	function toggleExpand() { settings.autoExpandOnPlay = !settings.autoExpandOnPlay; settings.save(); }
 
-	function clearPicks() { try { localStorage.removeItem(TOP_PICKS_KEY); } catch { /* */ } flash('Cached top picks cleared.'); }
+	function clearPicks() { try { localStorage.removeItem(TOP_PICKS_KEY); } catch { /* */ } flash(t('settings.picksCleared')); }
 	function clearLibrary() {
-		if (confirm('Clear all liked songs, playlists and downloads?')) {
+		if (confirm(t('settings.clearLibraryConfirm'))) {
 			library.clearAll();
 			counts = { liked: 0, playlists: 0, downloads: 0 };
-			flash('Library cleared.');
+			flash(t('settings.libraryCleared'));
 		}
 	}
 </script>
 
-<svelte:head><title>Settings · openmusic</title></svelte:head>
+<svelte:head><title>{t('settings.title')}</title></svelte:head>
 
 <header class="head">
-	<button class="back" aria-label="Back" onclick={() => goto('/')}><ChevronLeft size={22} /></button>
-	<h1>Settings</h1>
+	<button class="back" aria-label={t('common.back')} onclick={() => goto('/')}><ChevronLeft size={22} /></button>
+	<h1>{t('settings.heading')}</h1>
 </header>
 
 <section>
-	<h2><Languages size={15} /> Lyrics translation</h2>
+	<h2><Globe size={15} /> {t('settings.appLanguage')}</h2>
 	<div class="chips">
-		{#each langs as l (l.v)}
-			<button class="chip" class:on={settings.lyricsLang === l.v} onclick={() => setLang(l.v)}>{l.label}</button>
+		{#each appLangs as l (l.v)}
+			<button class="chip" class:on={settings.appLang === l.v} onclick={() => setAppLang(l.v)}>{l.label}</button>
 		{/each}
 	</div>
 </section>
 
 <section>
-	<h2><Languages size={15} /> Translate song &amp; artist names</h2>
+	<h2><Languages size={15} /> {t('settings.lyricsTranslation')}</h2>
 	<div class="chips">
 		{#each langs as l (l.v)}
-			<button class="chip" class:on={settings.nameLang === l.v} onclick={() => setNameLang(l.v)}>{l.label}</button>
+			<button class="chip" class:on={settings.lyricsLang === l.v} onclick={() => setLang(l.v)}>{l.v === 'off' ? t('settings.optOff') : l.label}</button>
 		{/each}
 	</div>
-	<p class="muted">Renders titles + artists in this language (e.g. 简体 → 繁體). Lyrics setting is separate.</p>
 </section>
 
 <section>
-	<h2><Replace size={15} /> Translate mode</h2>
+	<h2><Languages size={15} /> {t('settings.translateNames')}</h2>
+	<div class="chips">
+		{#each langs as l (l.v)}
+			<button class="chip" class:on={settings.nameLang === l.v} onclick={() => setNameLang(l.v)}>{l.v === 'off' ? t('settings.optOff') : l.label}</button>
+		{/each}
+	</div>
+	<p class="muted">{t('settings.translateNamesNote')}</p>
+</section>
+
+<section>
+	<h2><Replace size={15} /> {t('settings.translateMode')}</h2>
 	<div class="seg" class:disabled={settings.lyricsLang === 'off'}>
 		{#each modes as m (m.v)}
-			<button class:on={settings.translateMode === m.v} disabled={settings.lyricsLang === 'off'} onclick={() => setMode(m.v)}>{m.label}</button>
+			<button class:on={settings.translateMode === m.v} disabled={settings.lyricsLang === 'off'} onclick={() => setMode(m.v)}>{t(m.key as TranslationKey)}</button>
 		{/each}
 	</div>
-	<p class="muted">{settings.lyricsLang === 'off' ? 'Pick a language above to enable.' : 'Translation uses an online service; quality varies.'}</p>
+	<p class="muted">{settings.lyricsLang === 'off' ? t('settings.translateModeOffNote') : t('settings.translateModeOnNote')}</p>
 </section>
 
 <section>
-	<h2><Music size={15} /> Default song quality</h2>
+	<h2><Music size={15} /> {t('settings.defaultQuality')}</h2>
 	<div class="seg">
 		{#each qualities as q (q.v)}
-			<button class:on={settings.defaultQuality === q.v} onclick={() => setQuality(q.v)}>{q.label}</button>
+			<button class:on={settings.defaultQuality === q.v} onclick={() => setQuality(q.v)}>{q.key ? t(q.key as TranslationKey) : q.literal}</button>
 		{/each}
 	</div>
-	<p class="muted">Best-effort — sources don't all expose bitrate; biases selection where known.</p>
+	<p class="muted">{t('settings.defaultQualityNote')}</p>
 </section>
 
 <section>
-	<h2><Radio size={15} /> Default music source</h2>
+	<h2><Radio size={15} /> {t('settings.defaultSource')}</h2>
 	<div class="chips">
 		{#each sources as s (s.v)}
-			<button class="chip" class:on={settings.defaultSource === s.v} onclick={() => setSource(s.v)}>{s.label}</button>
+			<button class="chip" class:on={settings.defaultSource === s.v} onclick={() => setSource(s.v)}>{s.key ? t(s.key as TranslationKey) : s.literal}</button>
 		{/each}
 	</div>
-	<p class="muted">Preferred source wins when the same song appears on several.</p>
+	<p class="muted">{t('settings.defaultSourceNote')}</p>
 </section>
 
 <section>
-	<h2><Palette size={15} /> Accent color</h2>
+	<h2><Palette size={15} /> {t('settings.accentColor')}</h2>
 	<div class="swatches">
 		{#each ACCENT_PRESETS as c (c)}
 			<button class="swatch" class:on={settings.accent === c} style:background={c} aria-label={c} onclick={() => setAccent(c)}></button>
@@ -127,27 +147,27 @@
 </section>
 
 <section>
-	<h2><Zap size={15} /> Playback &amp; motion</h2>
+	<h2><Zap size={15} /> {t('settings.playbackMotion')}</h2>
 	<button class="row-toggle" onclick={toggleExpand}>
-		<span><Maximize2 size={16} /> Auto-expand now-playing on play</span>
+		<span><Maximize2 size={16} /> {t('settings.autoExpand')}</span>
 		<span class="sw" class:on={settings.autoExpandOnPlay}></span>
 	</button>
 	<button class="row-toggle" onclick={toggleMotion}>
-		<span><Zap size={16} /> Reduce motion</span>
+		<span><Zap size={16} /> {t('settings.reduceMotion')}</span>
 		<span class="sw" class:on={settings.reduceMotion}></span>
 	</button>
 </section>
 
 <section>
-	<h2>Data</h2>
-	<p class="muted">{counts.liked} liked · {counts.playlists} playlists · {counts.downloads} downloads</p>
-	<button class="item" onclick={clearPicks}><RefreshCw size={18} /> Clear cached top picks</button>
-	<button class="item danger" onclick={clearLibrary}><Trash2 size={18} /> Clear library</button>
+	<h2>{t('settings.data')}</h2>
+	<p class="muted">{t('settings.dataCounts', { liked: counts.liked, playlists: counts.playlists, downloads: counts.downloads })}</p>
+	<button class="item" onclick={clearPicks}><RefreshCw size={18} /> {t('settings.clearPicks')}</button>
+	<button class="item danger" onclick={clearLibrary}><Trash2 size={18} /> {t('settings.clearLibrary')}</button>
 </section>
 
 <section>
-	<h2>About</h2>
-	<div class="item static"><Info size={18} /> openmusic · demo build · streams from public music sources</div>
+	<h2>{t('settings.about')}</h2>
+	<div class="item static"><Info size={18} /> {t('settings.aboutLine')}</div>
 </section>
 
 {#if msg}<p class="flash">{msg}</p>{/if}

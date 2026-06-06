@@ -5,6 +5,11 @@
 // renderMiniSearchList, playFromList) are dropped — those are Phase 4.
 import { SOURCES, getEnabledAdapters } from '$lib/sources/registry';
 import type { SourceId, Track, SettledSourceResult } from '$lib/sources/types';
+import { cached, __clearSearchCache } from './ttl-cache';
+
+// Re-exported so tests (and any future cache-busting caller) can reset the search
+// cache between cases — the 3 existing fan-out spy tests rely on this in afterEach.
+export { __clearSearchCache };
 
 export interface SearchResult {
 	/** Per-source outcome (DATA-03): one failure is isolated, not fatal. */
@@ -14,14 +19,50 @@ export interface SearchResult {
 }
 
 /**
- * Fan out a search across all enabled sources with per-source isolation.
+ * D-04 search-result TTL (ms). Search/discovery metadata changes infrequently, so a
+ * few minutes of memoization gives instant repeat responses + fewer proxy calls
+ * without serving stale data for long. This caches the SearchResult METADATA only —
+ * never resolved (short-lived) audio URLs, which stay un-cached in `ensureTrackDetails`.
+ */
+const SEARCH_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * Fan out a search across all enabled sources with per-source isolation, memoized at
+ * the catalog seam (D-04). Every search/discovery-resolution path funnels through here
+ * (`resolveStub`, `buildDiversePicks`, `buildSimilarQueue`, the search page), so the
+ * single TTL wrap covers them all.
+ *
+ * Cache key = `${normQuery}|${enabledSources}|${page}` — it INCLUDES `page` so each
+ * cumulative-superset page caches independently (D-04 Pitfall 3: a page-less key would
+ * serve the wrong superset). The raw `keyword` (not the normalized key) is passed to
+ * the adapters, so upstream calls are unchanged. Normalization (trim + lowercase) is
+ * for the cache key ONLY, so "Jay" and "jay " share an entry. The cached value is the
+ * resolved SearchResult; a HIT returns instantly (nothing in flight to abort, so the
+ * AbortSignal is moot on a hit; a MISS still honors `signal`).
+ */
+export async function searchAll(
+	keyword: string,
+	page = 1,
+	prefs: Partial<Record<SourceId, boolean>> = {},
+	signal?: AbortSignal
+): Promise<SearchResult> {
+	const enabledKey = getEnabledAdapters(prefs)
+		.map((a) => a.id)
+		.join(',');
+	const key = `${keyword.trim().toLowerCase()}|${enabledKey}|${page}`;
+	return cached(key, SEARCH_TTL_MS, () => searchAllUncached(keyword, page, prefs, signal));
+}
+
+/**
+ * The actual fan-out (un-memoized). Split out of `searchAll` so the exported function
+ * is purely the D-04 cache wrapper.
  *
  * Uses `Promise.allSettled` (NOT `Promise.all`, legacy 2244) so one rejecting
  * adapter yields a typed `status:'error'` entry while the others' results survive
  * (DATA-03 / criterion #1). Results are deduped by canonical colon uid and
  * interleaved round-robin in registry order — no source named (DATA-04).
  */
-export async function searchAll(
+async function searchAllUncached(
 	keyword: string,
 	page = 1,
 	prefs: Partial<Record<SourceId, boolean>> = {},

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { searchAll, ensureTrackDetails } from './catalog';
+import { searchAll, ensureTrackDetails, __clearSearchCache } from './catalog';
 import { SOURCES } from '$lib/sources/registry';
 import { makeUid, type SourceId, type Track } from '$lib/sources/types';
 
@@ -32,6 +32,9 @@ function mk(source: SourceId, songid: string, displayIndex = 1, extra: Partial<T
 }
 
 afterEach(() => {
+	// Clear the D-04 TTL cache so the fan-out spy tests never observe a stale
+	// cached SearchResult from a prior case (they all reuse the keyword 'x', page 1).
+	__clearSearchCache();
 	vi.restoreAllMocks();
 });
 
@@ -89,6 +92,53 @@ describe('searchAll (DATA-03 fan-out)', () => {
 			'joox:j1',
 			'netease:n2'
 		]);
+	});
+});
+
+describe('searchAll (D-04 TTL cache)', () => {
+	it('does NOT re-fan-out on a second call with the same (keyword, page, sources)', async () => {
+		const n = vi.spyOn(SOURCES.netease, 'search').mockResolvedValue([mk('netease', 'n1')]);
+		const q = vi.spyOn(SOURCES.qq, 'search').mockResolvedValue([mk('qq', 'q1')]);
+		vi.spyOn(SOURCES.kuwo, 'search').mockResolvedValue([]);
+		vi.spyOn(SOURCES.joox, 'search').mockResolvedValue([]);
+
+		const first = await searchAll('cachekw', 1, ALL);
+		const second = await searchAll('cachekw', 1, ALL);
+
+		// adapters fanned out exactly once — the second call is a cache HIT
+		expect(n).toHaveBeenCalledOnce();
+		expect(q).toHaveBeenCalledOnce();
+		// same resolved shape
+		expect(second.interleaved.map((t) => t.uid)).toEqual(first.interleaved.map((t) => t.uid));
+		expect(second.interleaved.map((t) => t.uid)).toEqual(['netease:n1', 'qq:q1']);
+	});
+
+	it('keys the cache by PAGE — page 1 and page 2 are distinct entries', async () => {
+		const n = vi.spyOn(SOURCES.netease, 'search').mockResolvedValue([mk('netease', 'n1')]);
+		vi.spyOn(SOURCES.qq, 'search').mockResolvedValue([]);
+		vi.spyOn(SOURCES.kuwo, 'search').mockResolvedValue([]);
+		vi.spyOn(SOURCES.joox, 'search').mockResolvedValue([]);
+
+		await searchAll('pagekw', 1, ALL);
+		await searchAll('pagekw', 2, ALL);
+
+		// page 1 and page 2 are separate cache keys → two distinct fan-outs
+		expect(n).toHaveBeenCalledTimes(2);
+		expect(n.mock.calls[0][1]).toBe(1);
+		expect(n.mock.calls[1][1]).toBe(2);
+	});
+
+	it('normalizes the cache key (trim + lowercase) so "Jay" and " jay " share an entry', async () => {
+		const n = vi.spyOn(SOURCES.netease, 'search').mockResolvedValue([mk('netease', 'n1')]);
+		vi.spyOn(SOURCES.qq, 'search').mockResolvedValue([]);
+		vi.spyOn(SOURCES.kuwo, 'search').mockResolvedValue([]);
+		vi.spyOn(SOURCES.joox, 'search').mockResolvedValue([]);
+
+		await searchAll('Jay', 1, ALL);
+		await searchAll('  jay  ', 1, ALL);
+
+		// same normalized key → only one fan-out
+		expect(n).toHaveBeenCalledOnce();
 	});
 });
 

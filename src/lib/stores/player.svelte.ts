@@ -1,14 +1,22 @@
 // App-scoped playback store (Svelte 5 runes singleton). Basic playback for the
-// demo — the full audio engine (MediaSession, real queue model) is Phase 2/6/7.
-// Audio is browser-direct (a single <audio> whose .src is the resolved CDN URL);
-// metadata was already proxied via the data layer. referrerpolicy=no-referrer
-// reproduces the legacy <meta no-referrer> so referer-gated CDNs don't 403.
+// demo — the full audio engine (real queue model) is Phase 2/6/7; the W3C Media
+// Session slice was pulled forward here so the OS/browser media UI (Chrome media
+// hub, macOS Now Playing, lock screens) shows the current track + working
+// transport. Audio is browser-direct (a single <audio> whose .src is the resolved
+// CDN URL); metadata was already proxied via the data layer. referrerpolicy=
+// no-referrer reproduces the legacy <meta no-referrer> so referer-gated CDNs don't
+// 403. All Media Session access goes through the single `ms` accessor, which
+// enforces the SSR guard + feature detection (MS-05) — every call early-returns
+// when unsupported. The throw-prone artwork/position/state logic lives in the pure,
+// node-tested media-session.ts; this store is a thin caller of those helpers.
 import { ensureTrackDetails } from '$lib/services/catalog';
 import { buildDiversePicks } from '$lib/services/picks';
 import { buildSimilarQueue } from '$lib/services/similar';
 import { dedupeBest } from '$lib/services/dedupe';
+import { buildArtwork, safePositionState, playbackStateFor } from '$lib/services/media-session';
 import { settings } from '$lib/stores/settings.svelte';
 import { history } from '$lib/stores/history.svelte';
+import { names } from '$lib/stores/names.svelte';
 import type { Track } from '$lib/sources/types';
 
 /** mm:ss, NaN/Infinity-safe (avoids the "NaN:NaN" bug before metadata loads). */
@@ -43,23 +51,102 @@ class Player {
 	 */
 	private manualUids = new Set<string>();
 
+	/**
+	 * Single SSR + feature-detection guard for the Media Session API (MS-05, T-kyf-03).
+	 * Returns `navigator.mediaSession` only when running client-side on a browser that
+	 * supports it; null otherwise. EVERY Media Session call goes through this accessor
+	 * and early-returns when it is null, so nothing crashes under SSR or on unsupported
+	 * browsers (e.g. iOS Safari prior to support).
+	 */
+	private get ms(): MediaSession | null {
+		return typeof navigator !== 'undefined' && 'mediaSession' in navigator
+			? navigator.mediaSession
+			: null;
+	}
+
+	/** Push the current finite, in-range position to the OS media UI (guarded, MS-04). */
+	private syncPosition(el: HTMLAudioElement) {
+		const ms = this.ms;
+		if (!ms) return;
+		const st = safePositionState(el.duration, el.currentTime);
+		if (st) ms.setPositionState(st);
+	}
+
+	/** Keep the OS media UI play/pause/none state synced with real playback (MS-02). */
+	private syncPlaybackState() {
+		const ms = this.ms;
+		if (ms) ms.playbackState = playbackStateFor(!!this.current, this.playing);
+	}
+
+	/** Clear OS media metadata + set state 'none' when playback stops / track cleared (MS-05/MS-02). */
+	private clearMedia() {
+		const ms = this.ms;
+		if (!ms) return;
+		ms.metadata = null;
+		ms.playbackState = 'none';
+		ms.setPositionState(); // clears any stale position
+	}
+
 	/** Bind the single long-lived <audio> element (called once from the layout). */
 	attach(el: HTMLAudioElement) {
 		this.audio = el;
 		el.setAttribute('referrerpolicy', 'no-referrer');
-		el.addEventListener('play', () => (this.playing = true));
-		el.addEventListener('pause', () => (this.playing = false));
-		el.addEventListener('timeupdate', () => (this.currentTime = el.currentTime || 0));
-		const syncDur = () => (this.duration = Number.isFinite(el.duration) ? el.duration : 0);
+		el.addEventListener('play', () => {
+			this.playing = true;
+			this.syncPlaybackState();
+		});
+		el.addEventListener('pause', () => {
+			this.playing = false;
+			this.syncPlaybackState();
+		});
+		el.addEventListener('timeupdate', () => {
+			this.currentTime = el.currentTime || 0;
+			this.syncPosition(el);
+		});
+		const syncDur = () => {
+			this.duration = Number.isFinite(el.duration) ? el.duration : 0;
+			this.syncPosition(el);
+		};
 		el.addEventListener('loadedmetadata', syncDur);
 		el.addEventListener('durationchange', syncDur);
 		el.addEventListener('ended', () => {
 			this.playing = false;
+			this.syncPlaybackState();
 			this.next();
 		});
 		el.addEventListener('error', () => {
 			this.error = 'playback failed (source may be region-locked or expired)';
 			this.playing = false;
+			this.clearMedia();
+		});
+
+		// Register OS media transport + seek handlers ONCE (MS-03). They reuse the
+		// existing player methods / audio element — no new playback or queue logic.
+		// `details.seekOffset` / `details.seekTime` come from the user agent and are
+		// treated as untrusted: only acted on when finite, and clamped into range
+		// (T-kyf-01) — the same discipline the pure safePositionState enforces.
+		const ms = this.ms;
+		if (!ms) return;
+		ms.setActionHandler('play', () => this.audio?.play().catch(() => {}));
+		ms.setActionHandler('pause', () => this.audio?.pause());
+		ms.setActionHandler('previoustrack', () => this.prev());
+		ms.setActionHandler('nexttrack', () => this.next());
+		ms.setActionHandler('seekbackward', (details) => {
+			const offset = Number.isFinite(details.seekOffset) ? (details.seekOffset as number) : 10;
+			el.currentTime = Math.max(0, el.currentTime - offset);
+		});
+		ms.setActionHandler('seekforward', (details) => {
+			const offset = Number.isFinite(details.seekOffset) ? (details.seekOffset as number) : 10;
+			const cap = Number.isFinite(el.duration) ? el.duration : el.currentTime + offset;
+			el.currentTime = Math.min(cap, el.currentTime + offset);
+		});
+		ms.setActionHandler('seekto', (details) => {
+			if (typeof details.seekTime !== 'number' || !Number.isFinite(details.seekTime)) return;
+			if (Number.isFinite(el.duration) && el.duration > 0) {
+				this.seekFraction(details.seekTime / el.duration); // clamps [0,1] internally
+			} else {
+				el.currentTime = Math.max(0, details.seekTime);
+			}
 		});
 	}
 
@@ -135,7 +222,21 @@ class Player {
 			if (i >= 0) this.queue[i] = resolved;
 			if (!resolved.audioUrl) {
 				this.error = 'no playable audio for this track';
+				this.clearMedia(); // nothing playable — clear the OS media UI (MS-05)
 				return;
+			}
+			// Populate the OS/browser media UI from the RESOLVED track so album/cover
+			// are present (MS-01). Titles/artists go through names.dn for the active
+			// display language (returns the original under SSR/off). Guarded via `ms`.
+			const ms = this.ms;
+			if (ms) {
+				ms.metadata = new MediaMetadata({
+					title: names.dn(resolved.title),
+					artist: names.dn(resolved.artist),
+					album: resolved.album,
+					artwork: buildArtwork(resolved.cover)
+				});
+				ms.playbackState = 'playing';
 			}
 			if (this.audio) {
 				this.audio.src = resolved.audioUrl;

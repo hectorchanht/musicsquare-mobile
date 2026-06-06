@@ -35,6 +35,8 @@ const zhHans: Dict = {
 	'search.searching': '正在搜索所有来源…',
 	'search.loadingMore': '加载更多…',
 	'search.empty': '没有结果。',
+	'search.recent': '最近搜索',
+	'search.clear': '清除',
 
 	// --- settings ---
 	'settings.title': '设置 · openmusic',

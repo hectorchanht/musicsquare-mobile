@@ -120,6 +120,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-06T04:36:41.947Z
-Stopped at: Phase 8 context gathered
-Resume: `/gsd:plan-phase 8` (Last.fm Read Foundation & Metadata Enrichment)
+Last session: 2026-06-06T12:40:00.000Z
+Stopped at: Completed 08-02-PLAN.md (artist-page Last.fm bio + tags + better hero; 2/3 phase-8 plans done)
+Resume: execute 08-03-PLAN.md (album-page art + info enrichment)

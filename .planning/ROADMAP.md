@@ -186,7 +186,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 08-02-PLAN.md — Artist page: Last.fm bio snippet + tags + better hero image, always-present attribution link (wave 2)
+- [x] 08-02-PLAN.md — Artist page: Last.fm bio snippet + tags + better hero image, always-present attribution link (wave 2)
 - [ ] 08-03-PLAN.md — Album page: higher-res Last.fm cover + listeners/playcount info (wave 2)
 
 **Research flag**: Standard patterns — mirrors the existing `/api/similar` edge route; placeholder filter and merge rules fully specified in research. No `--research-phase` needed.
@@ -293,7 +293,7 @@ v1.1 dependency chain: 8 → (9, 10) read-only & auth-free first; 11 (auth) befo
 | 5. PWA + Service Worker | 0/TBD | Not started | - |
 | 6. Background Audio + MediaSession | 0/TBD | Not started | - |
 | 7. New Sources + Queue Model + Gestures | 0/TBD | Not started | - |
-| 8. Last.fm Read Foundation & Metadata Enrichment | 1/3 | In Progress|  |
+| 8. Last.fm Read Foundation & Metadata Enrichment | 2/3 | In Progress|  |
 | 9. Discovery / Hot-Picks Tab | 0/TBD | Not started | - |
 | 10. Last.fm-searchable Source | 0/TBD | Not started | - |
 | 11. Signed-call Infrastructure & Auth | 0/TBD | Not started | - |

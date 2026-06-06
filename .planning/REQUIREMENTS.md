@@ -186,9 +186,9 @@ Each v1.1 requirement maps to exactly one phase (8–13). See `.planning/ROADMAP
 | DISCO-02 | Phase 9 | Complete |
 | DISCO-03 | Phase 9 | Pending |
 | DISCO-04 | Phase 9 | Complete |
-| LFSRC-01 | Phase 10 | Pending |
-| LFSRC-02 | Phase 10 | Pending |
-| LFSRC-03 | Phase 10 | Pending |
+| LFSRC-01 | Phase 10 | Dropped / satisfied-by-pattern (backlog) [†] |
+| LFSRC-02 | Phase 10 | Complete (shipped Phase 9 as `resolveStub`) [†] |
+| LFSRC-03 | Phase 10 | Complete |
 | LFAUTH-01 | Phase 11 | Pending |
 | LFAUTH-02 | Phase 11 | Pending |
 | LFAUTH-03 | Phase 11 | Pending |
@@ -201,10 +201,12 @@ Each v1.1 requirement maps to exactly one phase (8–13). See `.planning/ROADMAP
 
 **Coverage (v1.1):**
 - v1.1 requirements: 19 total
-- Mapped to phases: 19 ✓
+- Mapped to phases: 19 ✓ (LFSRC-01 is mapped-then-deliberately-dropped per D-01, NOT an unmapped gap)
 - Unmapped: 0 ✓
 
 **Per-phase counts (v1.1):** Phase 8: 3 (ENRICH-01..03) · Phase 9: 4 (DISCO-01..04) · Phase 10: 3 (LFSRC-01..03) · Phase 11: 4 (LFAUTH-01..04) · Phase 12: 3 (SCROB-01..03) · Phase 13: 2 (LOVE-01..02)
+
+[†] **Phase 10 rescope (CONTEXT 10-CONTEXT.md D-01):** Phase 10 was narrowed to LFSRC-03 (best-match scoring) only. **LFSRC-02** shipped early in Phase 9 as `resolveStub` (`src/lib/services/discovery.ts`) — the existing CN-source `searchAll` + `dedupeBest` resolver with graceful-miss → no new work in Phase 10. **LFSRC-01** (a formal `'lastfm'` SourceId registered in both registries) is **dropped to backlog / satisfied-by-pattern**: `resolveStub` is the de-facto Last.fm resolver, so a registered `'lastfm'` source in the unified search bar adds little for the cost of widening `SourceId`/`SOURCES` — adapter-pattern parity is no longer required for v1.1 (revisit only if "search the Last.fm catalog in the unified search bar" is later wanted). **LFSRC-03**'s original wording included a duration-sanity check; that clause is **explicitly dropped (D-04)** — it would require plumbing Last.fm track duration through the discovery shape for low marginal value. LFSRC-03 as shipped = normalized artist+title scoring (`scoreMatch`) with a cover/karaoke/live/instrumental + CJK variant-keyword penalty, dedupeBest preferredSource/quality as the final tie-break.
 
 ---
 *Requirements defined: 2026-06-05*

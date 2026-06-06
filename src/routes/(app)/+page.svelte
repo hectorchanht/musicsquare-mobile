@@ -19,8 +19,8 @@
 		DISCOVERY_COUNTRIES
 	} from '$lib/services/discovery';
 	import { caaReleaseGroupCover } from '$lib/services/cover-art';
-	import { getCachedCover } from '$lib/services/cover-cache';
-	import { backfillCovers } from '$lib/services/cover-backfill';
+	import { getCachedCover, getCachedArtistCover } from '$lib/services/cover-cache';
+	import { backfillCovers, backfillArtistCovers } from '$lib/services/cover-backfill';
 	import { decodeTrack } from '$lib/services/share';
 	import { player } from '$lib/stores/player.svelte';
 	import { names } from '$lib/stores/names.svelte';
@@ -80,26 +80,32 @@
 		return `linear-gradient(145deg, hsl(${h} 55% 32%), hsl(${(h + 40) % 360} 55% 18%))`;
 	}
 
-	// FIX-A (extends nza's FIX-B): prefer a real cover for a discovery item in this EXACT order:
-	//   1. Last.fm image (item.image)              — already on the row
-	//   2. CAA-by-mbid (caaReleaseGroupCover)       — nza's MusicBrainz path
-	//   3. cached CN-source cover (getCachedCover)  — backfilled lazily, keyed by artist|title
-	//   4. null → gradient                          — never a broken/blocking image
-	// The cached lookup reads `coverVer` so Svelte 5 re-evaluates each tile's <img src> when a
+	// FIX-A (extends nza's FIX-B) + quick-260606-v7k: prefer a real cover for a discovery item
+	// in this EXACT order:
+	//   1. Last.fm image (item.image)                    — already on the row
+	//   2. CAA-by-mbid (caaReleaseGroupCover)             — nza's MusicBrainz path
+	//   3a. TRACK: cached CN/iTunes cover (getCachedCover)      — keyed by artist|title
+	//   3b. ARTIST: cached iTunes artist image (getCachedArtistCover) — keyed by artistName (v7k)
+	//   4. null → gradient                                — never a broken/blocking image
+	// The cached lookups read `coverVer` so Svelte 5 re-evaluates each tile's <img src> when a
 	// background resolve lands (coverVer is bumped in the backfill onResolved callback). Track
-	// rows pass {artist,title}; artist tiles omit them (steps 1-2 only, then gradient). Rendered
-	// as a lazy <img> over the gradient (NOT a CSS background) so a 404 degrades via onerror.
+	// rows pass {artist,title}; ARTIST tiles pass a dedicated `artistName` (NOT `artist`) so the
+	// artist-only cache key is read — never colliding with a {artist,title} track of the same
+	// name. Rendered as a lazy <img> over the gradient (NOT a CSS background) so a 404 degrades
+	// via onerror.
 	function tileCover(item: {
 		image: string | null;
 		mbid: string | null;
 		artist?: string;
 		title?: string;
+		artistName?: string;
 	}): string | null {
 		void coverVer; // reactive dependency: recompute when a backfilled cover lands
 		if (item.image) return item.image;
 		const caa = caaReleaseGroupCover(item.mbid);
 		if (caa) return caa;
 		if (item.artist && item.title) return getCachedCover(item.artist, item.title);
+		if (item.artistName) return getCachedArtistCover(item.artistName);
 		return null;
 	}
 	// Hide a cover <img> on load error so the gradient underneath shows (no broken-image icon).
@@ -111,11 +117,13 @@
 	// appear without a full refresh. A plain $state number is the cheapest reactive trigger.
 	let coverVer = $state(0);
 
-	// FIX-A: gather every TRACK row across all shelves that still shows a gradient (no Last.fm
-	// image AND no mbid) — exactly the tiles nza's CAA path could not cover. Artist tiles are
-	// excluded (they goto the artist page, not a cover-bearing track). Then fire the lazy,
-	// concurrency-capped CN-source backfill OFF the critical path (void, never awaited before
-	// paint). Cached rows are skipped inside backfillCovers, so a warm visit issues zero searches.
+	// FIX-A + quick-260606-v7k: gather every TRACK row across all shelves that still shows a
+	// gradient (no Last.fm image AND no mbid) — exactly the tiles nza's CAA path could not cover
+	// — and every top-ARTIST tile with no Last.fm image (artist art is deprecated → always null).
+	// Then fire BOTH lazy, concurrency-capped backfills OFF the critical path (void, never awaited
+	// before paint): track covers (CN-first then iTunes-fallback) and artist images (iTunes). Both
+	// skip already-cached entries, so a warm visit issues zero requests. The same coverVer++
+	// onResolved makes covers — track AND artist — appear progressively as resolves land.
 	function scheduleBackfill() {
 		const rows: { artist: string; title: string }[] = [];
 		const pushNeeding = (items: DiscoveryTrack[]) => {
@@ -126,8 +134,16 @@
 		pushNeeding(topHits);
 		for (const s of tagShelves) pushNeeding(s.tracks);
 		for (const s of countryShelves) pushNeeding(s.tracks);
-		if (!rows.length) return;
-		void backfillCovers(rows, { onResolved: () => coverVer++, max: 24 });
+		if (rows.length) {
+			void backfillCovers(rows, { onResolved: () => coverVer++, max: 24 });
+		}
+
+		// v7k: artist tiles are structurally gradient (Last.fm artist art deprecated → null).
+		// Resolve their images via the no-auth iTunes artist pass, capped + cached + post-paint.
+		const artistNames = topArtists.filter((a) => !a.image).map((a) => a.name);
+		if (artistNames.length) {
+			void backfillArtistCovers(artistNames, { onResolved: () => coverVer++, max: 12 });
+		}
 	}
 
 	// Has at least one Last.fm shelf returned anything? Drives the D-06 fallback decision.
@@ -363,9 +379,10 @@
 			<div class="subhead">{t('home.topArtists')}</div>
 			<div class="albumrow" use:dragScroll>
 				{#each topArtists as a (a.name)}
+					{@const artistCover = tileCover({ image: a.image, mbid: a.mbid, artistName: a.name })}
 					<button class="album" onclick={() => goto('/artist/' + encodeURIComponent(a.name))}>
 						<span class="al-cover round" style:background-image={fallbackCover(a.name)}>
-							{#if tileCover(a)}<img class="al-cover-img" src={tileCover(a)} loading="lazy" alt="" onerror={hideOnError} />{/if}
+							{#if artistCover}<img class="al-cover-img" src={artistCover} loading="lazy" alt="" onerror={hideOnError} />{/if}
 						</span>
 						<span class="al-name center" use:marquee>{names.dnArtist(a.name)}</span>
 					</button>

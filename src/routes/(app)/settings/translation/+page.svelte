@@ -25,8 +25,8 @@
 		{ v: 'ko', label: '한국어' }
 	];
 	const modes: { v: TranslateMode; key: string }[] = [
-		{ v: 'below', key: 'settings.optShowBelow' },
-		{ v: 'replace', key: 'settings.optReplace' }
+		{ v: 'replace', key: 'settings.optReplace' },
+		{ v: 'below', key: 'settings.optShowBelow' }
 	];
 
 	type PartKey = 'artist' | 'title' | 'lyrics' | 'lastfm';

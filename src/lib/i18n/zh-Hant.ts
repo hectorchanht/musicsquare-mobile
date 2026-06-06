@@ -35,6 +35,7 @@ const zhHant: Dict = {
 	'search.searching': '正在搜尋所有來源…',
 	'search.loadingMore': '載入更多…',
 	'search.empty': '沒有結果。',
+	'search.noMore': '沒有更多結果了。',
 	'search.recent': '最近搜尋',
 	'search.clear': '清除',
 

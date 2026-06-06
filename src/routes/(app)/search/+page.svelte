@@ -315,6 +315,8 @@
 
 		{#if hasMore}
 			<li class="sentinel" bind:this={sentinelEl}></li>
+		{:else if results.length > 0 && !loading && !loadingMore}
+			<li class="end-note">{t('search.noMore')}</li>
 		{/if}
 	</ul>
 {/if}
@@ -339,6 +341,7 @@
 	@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
 	@keyframes spin { to { transform: rotate(360deg); } }
 	.muted { color: var(--color-text-muted); font-size: 14px; }
+	.end-note { list-style: none; text-align: center; color: var(--color-text-muted); font-size: 12px; padding: 16px 0 4px; }
 	.warn { color: #ffcf66; font-size: 12px; margin: 0 0 10px; }
 
 	/* --- D-05 past-search suggestions --- */
@@ -374,9 +377,11 @@
 	.skel-wrap { display: flex; flex-direction: column; gap: 6px; list-style: none; }
 	/* Skeleton row mirrors .row sizing so placeholders line up with real rows. */
 	.skel { pointer-events: none; }
-	.skel .art { background: var(--color-surface-2); }
+	/* Lighter grey than --color-surface-2 so the placeholders are clearly visible on the dark
+	   page background during the (brief, dwell-floored) loading window. */
+	.skel .art { background: rgba(255, 255, 255, 0.11); }
 	.skel .meta { gap: 7px; }
-	.skel .bar { display: block; height: 11px; border-radius: 5px; background: var(--color-surface-2); }
+	.skel .bar { display: block; height: 11px; border-radius: 5px; background: rgba(255, 255, 255, 0.11); }
 	.skel .bar-title { width: 62%; }
 	.skel .bar-artist { width: 40%; height: 9px; }
 	.skel .art, .skel .bar {
@@ -387,11 +392,11 @@
 		background: linear-gradient(
 			90deg,
 			transparent 0%,
-			rgba(255, 255, 255, 0.08) 50%,
+			rgba(255, 255, 255, 0.22) 50%,
 			transparent 100%
 		);
 		transform: translateX(-100%);
-		animation: skel-shimmer 1.2s ease-in-out infinite;
+		animation: skel-shimmer 1.1s ease-in-out infinite;
 	}
 	@keyframes skel-shimmer {
 		100% { transform: translateX(100%); }

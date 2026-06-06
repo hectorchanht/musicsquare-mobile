@@ -34,6 +34,7 @@ const en = {
 	'search.searching': 'Searching all sources…',
 	'search.loadingMore': 'Loading more…',
 	'search.empty': 'No results.',
+	'search.noMore': 'No more results.',
 	'search.recent': 'Recent searches',
 	'search.clear': 'Clear',
 

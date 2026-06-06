@@ -36,6 +36,10 @@
 	// match / absent key resolves to the all-empty shape, so nothing extra renders.
 	let enrich = $state<EnrichResult | null>(null);
 	let enrichedFor = '';
+	// In-flight flag for the About/bio skeleton (enrich settling to its all-empty shape is
+	// indistinguishable from a no-bio result via `enrich` alone, and a failed fetch must not
+	// leave the skeleton up forever — so track the settle explicitly).
+	let enrichLoading = $state(true);
 
 	// ---- Real Last.fm top-albums (Phase 9, D-04) ----
 	// REPLACES the old searchAll-grouped-by-`track.album` approximation. A SEPARATE
@@ -44,6 +48,9 @@
 	// matches. [] on absent key / CN artist not on Last.fm → the section simply hides.
 	let albums = $state<DiscoveryAlbum[]>([]);
 	let albumsFor = '';
+	// In-flight flag for the Albums skeleton (an empty result and "still loading" are both
+	// `albums.length === 0`, so the settle is tracked explicitly).
+	let albumsLoading = $state(true);
 
 	function fallbackCover(t: Track): string {
 		const h = (t.uid.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 47) % 360;
@@ -81,9 +88,14 @@
 		if (n && enrichedFor !== n) {
 			enrichedFor = n;
 			enrich = null;
-			void enrichArtist(n).then((r) => {
-				if (enrichedFor === n) enrich = r; // race guard — discard if name changed
-			});
+			enrichLoading = true;
+			void enrichArtist(n)
+				.then((r) => {
+					if (enrichedFor === n) enrich = r; // race guard — discard if name changed
+				})
+				.finally(() => {
+					if (enrichedFor === n) enrichLoading = false;
+				});
 		}
 	});
 
@@ -94,9 +106,14 @@
 		if (n && albumsFor !== n) {
 			albumsFor = n;
 			albums = [];
-			void getArtistTopAlbums(n).then((r) => {
-				if (albumsFor === n) albums = r; // race guard — discard if name changed
-			});
+			albumsLoading = true;
+			void getArtistTopAlbums(n)
+				.then((r) => {
+					if (albumsFor === n) albums = r; // race guard — discard if name changed
+				})
+				.finally(() => {
+					if (albumsFor === n) albumsLoading = false;
+				});
 		}
 	});
 </script>
@@ -105,7 +122,13 @@
 
 <header class="hero">
 	<a class="back" href="/">{t('artist.back')}</a>
-	<div class="herocover" style:background-image={heroImg ? `url(${heroImg})` : 'linear-gradient(145deg,#3a2d63,#1a1326)'}></div>
+	{#if heroImg}
+		<div class="herocover" style:background-image={`url(${heroImg})`}></div>
+	{:else if loading || enrichLoading}
+		<div class="herocover sk" aria-hidden="true"></div>
+	{:else}
+		<div class="herocover" style:background-image="linear-gradient(145deg,#3a2d63,#1a1326)"></div>
+	{/if}
 	<h1>{names.dnArtist(name)}</h1>
 	<p class="note">{t('artist.derived', { count: songs.length })}</p>
 
@@ -115,7 +138,14 @@
 
 	<!-- Bio (D-07: English-as-is, HTML-stripped — NOT translated). Gated on
 	     BOTH bio AND bioUrl so the required attribution link is never missing (D-08). -->
-	{#if enrich?.bio && enrich?.bioUrl}
+	{#if enrichLoading}
+		<section class="bio" aria-hidden="true">
+			<span class="sk sk-h2"></span>
+			<span class="sk sk-line"></span>
+			<span class="sk sk-line"></span>
+			<span class="sk sk-line short"></span>
+		</section>
+	{:else if enrich?.bio && enrich?.bioUrl}
 		<section class="bio">
 			<h2>{t('lastfm.about')}</h2>
 			<p>{enrich.bio}</p>
@@ -124,7 +154,20 @@
 	{/if}
 </header>
 
-{#if albums.length}
+{#if albumsLoading}
+	<section>
+		<h2>{t('artist.albums')}</h2>
+		<div class="albumrow">
+			{#each Array(4) as _, i (i)}
+				<div class="album" aria-hidden="true">
+					<span class="al-cover sk"></span>
+					<span class="sk sk-albumname"></span>
+					<span class="sk sk-albumcount"></span>
+				</div>
+			{/each}
+		</div>
+	</section>
+{:else if albums.length}
 	<section>
 		<h2>{t('artist.albums')}</h2>
 		<div class="albumrow" use:dragScroll>
@@ -140,7 +183,20 @@
 {/if}
 
 {#if loading}
-	<p class="muted">{t('artist.loading', { name: names.dnArtist(name) })}</p>
+	<section>
+		<h2>{t('artist.hitSongs')}</h2>
+		<ul class="list" aria-label={t('artist.loading', { name: names.dnArtist(name) })}>
+			{#each Array(8) as _, i (i)}
+				<li>
+					<span class="row" aria-hidden="true">
+						<span class="sk sk-rank"></span>
+						<span class="art sk"></span>
+						<span class="meta"><span class="sk sk-rtitle"></span><span class="sk sk-rsub"></span></span>
+					</span>
+				</li>
+			{/each}
+		</ul>
+	</section>
 {:else}
 	<section>
 		<h2>{t('artist.hitSongs')}</h2>
@@ -205,4 +261,17 @@
 	.r-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.r-sub { font-size: 12px; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.muted { color: var(--color-text-muted); font-size: 14px; }
+
+	/* ---- loading skeletons (global .sk in app.css supplies the grey + shimmer; these size the
+	   blocks to match the real content they stand in for) ---- */
+	.bio .sk-h2 { display: block; width: 96px; height: 18px; margin-bottom: 12px; }
+	.bio .sk-line { display: block; width: 100%; height: 12px; margin-bottom: 8px; }
+	.bio .sk-line.short { width: 55%; }
+	/* album-row skeleton tiles: .al-cover sizes the square (130px), bars sit under it */
+	.sk-albumname { display: block; width: 78%; height: 12px; }
+	.sk-albumcount { display: block; width: 48%; height: 11px; }
+	/* hit-songs skeleton rows: reuse .row/.art/.meta layout, grey the rank + bars */
+	.sk-rank { width: 14px; height: 12px; flex: none; border-radius: 3px; }
+	.meta .sk-rtitle { display: block; width: 80%; height: 13px; margin-bottom: 7px; }
+	.meta .sk-rsub { display: block; width: 45%; height: 11px; }
 </style>

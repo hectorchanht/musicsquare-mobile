@@ -63,3 +63,33 @@ button { font-family: inherit; }
 	animation: none !important;
 	scroll-behavior: auto !important;
 }
+
+/* Global loading-skeleton placeholder. Add `.sk` to any element (sized to match the real
+   content it stands in for) to render a greyish block with a left-to-right shimmer sweep.
+   Greys (0.11 base / 0.22 sweep) match the search-page skeleton — visible on the dark page
+   bg. Reduce-motion (OS pref + the app setting rule above) drops the shimmer; the grey
+   block remains. */
+.sk {
+	position: relative;
+	overflow: hidden;
+	background: rgba(255, 255, 255, 0.11);
+	border-radius: 6px;
+}
+.sk::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.22) 50%, transparent 100%);
+	transform: translateX(-100%);
+	animation: sk-shimmer 1.1s ease-in-out infinite;
+}
+@keyframes sk-shimmer {
+	100% {
+		transform: translateX(100%);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.sk::after {
+		animation: none;
+	}
+}

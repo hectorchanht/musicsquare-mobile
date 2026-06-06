@@ -35,6 +35,10 @@
 	// shape, so nothing extra renders (the listeners/playcount hero is gated on presence).
 	let enrich = $state<EnrichResult | null>(null);
 	let enrichedFor = '';
+	// In-flight flag for the cover/info skeletons (album art + listeners/playcount come ONLY
+	// from Last.fm enrich; tracked explicitly so an empty result / deep-link doesn't strand the
+	// skeleton — it stays false unless the enrich effect actually fires).
+	let enrichLoading = $state(false);
 
 	// Synthetic gradient cover keyed by the stub (no source cover on a Last.fm stub).
 	function fallbackCover(seed: string): string {
@@ -96,9 +100,14 @@
 		if (n && artist && enrichedFor !== key) {
 			enrichedFor = key;
 			enrich = null;
-			void enrichAlbum(n, artist).then((r) => {
-				if (enrichedFor === key) enrich = r; // race guard — discard if key changed
-			});
+			enrichLoading = true;
+			void enrichAlbum(n, artist)
+				.then((r) => {
+					if (enrichedFor === key) enrich = r; // race guard — discard if key changed
+				})
+				.finally(() => {
+					if (enrichedFor === key) enrichLoading = false;
+				});
 		}
 	});
 
@@ -117,13 +126,21 @@
 
 <header class="hero">
 	<button class="back" aria-label={t('album.back')} onclick={() => goto(albumArtist ? '/artist/' + encodeURIComponent(albumArtist) : '/')}><ChevronLeft size={22} /></button>
-	<div class="cover" style:background-image={heroImg ? `url(${heroImg})` : 'linear-gradient(145deg,#3a2d63,#1a1326)'}></div>
+	{#if heroImg}
+		<div class="cover" style:background-image={`url(${heroImg})`}></div>
+	{:else if loading || enrichLoading}
+		<div class="cover sk" aria-hidden="true"></div>
+	{:else}
+		<div class="cover" style:background-image="linear-gradient(145deg,#3a2d63,#1a1326)"></div>
+	{/if}
 	<h1>{names.dnTitle(name)}</h1>
 	{#if albumArtist}<p class="artist">{names.dnArtist(albumArtist)}</p>{/if}
 	<p class="note">{t('album.tracklistNote', { count: tracks.length })}</p>
 
 	<!-- Last.fm album info (D-01c). Rendered only when present; degrades silently. -->
-	{#if enrich?.listeners != null || enrich?.playcount != null}
+	{#if enrichLoading}
+		<p class="info" aria-hidden="true"><span class="sk sk-info"></span></p>
+	{:else if enrich?.listeners != null || enrich?.playcount != null}
 		<p class="info">
 			{#if enrich?.listeners != null}<span>{t('lastfm.listeners')}: {numFmt.format(enrich.listeners)}</span>{/if}
 			{#if enrich?.playcount != null}<span>{t('lastfm.playcount')}: {numFmt.format(enrich.playcount)}</span>{/if}
@@ -132,7 +149,17 @@
 </header>
 
 {#if loading}
-	<p class="muted">{t('album.loading')}</p>
+	<ul class="list" aria-label={t('album.loading')}>
+		{#each Array(10) as _, i (i)}
+			<li>
+				<span class="row" aria-hidden="true">
+					<span class="sk sk-rank"></span>
+					<span class="art sk"></span>
+					<span class="meta"><span class="sk sk-rtitle"></span><span class="sk sk-rsub"></span></span>
+				</span>
+			</li>
+		{/each}
+	</ul>
 {:else if tracks.length}
 	<ul class="list">
 		{#each tracks as track, i (i)}
@@ -172,4 +199,11 @@
 	.r-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.r-sub { font-size: 12px; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.toast { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 14px); z-index: 90; background: #000; color: #fff; padding: 10px 16px; border-radius: 999px; font-size: 13px; box-shadow: var(--shadow-lg); }
+
+	/* ---- loading skeletons (global .sk in app.css supplies the grey + shimmer; these size the
+	   blocks to match the real content) ---- */
+	.info .sk-info { display: inline-block; width: 150px; height: 12px; }
+	.sk-rank { width: 14px; height: 12px; flex: none; border-radius: 3px; }
+	.meta .sk-rtitle { display: block; width: 80%; height: 13px; margin-bottom: 7px; }
+	.meta .sk-rsub { display: block; width: 45%; height: 11px; }
 </style>

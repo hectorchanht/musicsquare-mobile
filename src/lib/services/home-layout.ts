@@ -164,8 +164,18 @@ export function resolveSectionOrder(saved: string[] | undefined): HomeSectionId[
  */
 export function resolveSubset(saved: string[] | undefined, pool: string[]): string[] {
 	if (!Array.isArray(saved)) return [...pool];
-	const picked = new Set(saved);
-	const filtered = pool.filter((item) => picked.has(item));
+	// Preserve the SAVED (user) order — it drives the home shelf order, so a drag-reorder in
+	// settings must survive here. Keep only valid pool members, de-duped. Empty / all-invalid
+	// → the full pool (the "showing everything" fallback).
+	const known = new Set(pool);
+	const seen = new Set<string>();
+	const filtered: string[] = [];
+	for (const item of saved) {
+		if (known.has(item) && !seen.has(item)) {
+			seen.add(item);
+			filtered.push(item);
+		}
+	}
 	return filtered.length ? filtered : [...pool];
 }
 

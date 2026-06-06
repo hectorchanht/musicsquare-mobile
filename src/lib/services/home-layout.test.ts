@@ -103,8 +103,9 @@ describe('resolveSubset', () => {
 		expect(resolveSubset(['rock', 'bogus'], POOL)).toEqual(['rock']);
 	});
 
-	it('result order follows POOL order, not selection order', () => {
-		expect(resolveSubset(['jazz', 'pop'], POOL)).toEqual(['pop', 'jazz']);
+	it('result order follows SELECTION order (drives home shelf order), de-duped', () => {
+		expect(resolveSubset(['jazz', 'pop'], POOL)).toEqual(['jazz', 'pop']);
+		expect(resolveSubset(['pop', 'jazz', 'pop'], POOL)).toEqual(['pop', 'jazz']);
 	});
 
 	it('corrupt (non-array) selection → the full pool', () => {

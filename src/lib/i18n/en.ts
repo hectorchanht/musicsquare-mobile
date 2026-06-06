@@ -32,6 +32,7 @@ const en = {
 	'search.submitting': '…',
 	'search.someFailed': "Some sources didn't respond — showing the rest.",
 	'search.searching': 'Searching all sources…',
+	'search.loadingMore': 'Loading more…',
 	'search.empty': 'No results.',
 
 	// --- settings ---

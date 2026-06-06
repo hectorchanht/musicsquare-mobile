@@ -95,6 +95,23 @@
 	}
 
 	onDestroy(() => io?.disconnect());
+
+	// Create / tear down the IntersectionObserver whenever the sentinel mounts or
+	// changes. root:null = the viewport because the WINDOW scrolls (see reuse_note);
+	// rootMargin prefetches the next batch slightly before the true bottom.
+	$effect(() => {
+		const el = sentinelEl;
+		if (!el) return;
+		io?.disconnect();
+		io = new IntersectionObserver(
+			(entries) => {
+				if (entries[0]?.isIntersecting) loadMore();
+			},
+			{ root: null, rootMargin: '400px 0px' }
+		);
+		io.observe(el);
+		return () => io?.disconnect();
+	});
 </script>
 
 <header class="head"><h1>{t('search.title')}</h1></header>
@@ -130,6 +147,25 @@
 				</button>
 			</li>
 		{/each}
+
+		{#if loadingMore}
+			<li class="skel-wrap" aria-label={t('search.loadingMore')}>
+				<span class="vh">{t('search.loadingMore')}</span>
+				{#each Array(4) as _, i (i)}
+					<span class="row skel" aria-hidden="true">
+						<span class="art"></span>
+						<span class="meta">
+							<span class="bar bar-title"></span>
+							<span class="bar bar-artist"></span>
+						</span>
+					</span>
+				{/each}
+			</li>
+		{/if}
+
+		{#if hasMore}
+			<li class="sentinel" bind:this={sentinelEl}></li>
+		{/if}
 	</ul>
 {/if}
 
@@ -159,4 +195,41 @@
 	.meta { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 	.r-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.r-artist { font-size: 12px; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+	/* --- infinite-scroll loading state --- */
+	.sentinel { height: 1px; margin: 0; padding: 0; list-style: none; }
+	.skel-wrap { display: flex; flex-direction: column; gap: 6px; list-style: none; }
+	/* Skeleton row mirrors .row sizing so placeholders line up with real rows. */
+	.skel { pointer-events: none; }
+	.skel .art { background: var(--color-surface-2); }
+	.skel .meta { gap: 7px; }
+	.skel .bar { display: block; height: 11px; border-radius: 5px; background: var(--color-surface-2); }
+	.skel .bar-title { width: 62%; }
+	.skel .bar-artist { width: 40%; height: 9px; }
+	.skel .art, .skel .bar {
+		position: relative; overflow: hidden;
+	}
+	.skel .art::after, .skel .bar::after {
+		content: ''; position: absolute; inset: 0;
+		background: linear-gradient(
+			90deg,
+			transparent 0%,
+			rgba(255, 255, 255, 0.08) 50%,
+			transparent 100%
+		);
+		transform: translateX(-100%);
+		animation: skel-shimmer 1.2s ease-in-out infinite;
+	}
+	@keyframes skel-shimmer {
+		100% { transform: translateX(100%); }
+	}
+	/* Disable shimmer for users who prefer reduced motion. */
+	@media (prefers-reduced-motion: reduce) {
+		.skel .art::after, .skel .bar::after { animation: none; }
+	}
+	/* Visually-hidden screen-reader cue for the skeleton container. */
+	.vh {
+		position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+		overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+	}
 </style>

@@ -2,6 +2,8 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
 	resolveStub,
 	mapWithConcurrency,
+	shuffle,
+	pickRandomPage,
 	DISCOVERY_TAGS,
 	DISCOVERY_COUNTRIES
 } from './discovery';
@@ -158,6 +160,61 @@ describe('mapWithConcurrency — order-preserving capped async pool (Pitfall 11)
 		const fn = vi.fn(async (n: number) => n);
 		await expect(mapWithConcurrency([], 4, fn)).resolves.toEqual([]);
 		expect(fn).not.toHaveBeenCalled();
+	});
+});
+
+describe('shuffle / pickRandomPage variation helpers (Randomize, VX2)', () => {
+	// shuffle + pickRandomPage are the PURE Randomize variation primitives: shuffle varies
+	// tile + shelf ORDER, pickRandomPage varies which Last.fm chart/tag/geo page is fetched.
+	// Both must be deterministic in their INVARIANTS (permutation / bounded integer) even
+	// though the specific output is random — these tests assert the invariants, never a
+	// fixed output.
+
+	it('shuffle returns a NEW same-length permutation with the same multiset of elements', () => {
+		const input = [1, 2, 3, 4, 5, 6, 7, 8];
+		const out = shuffle(input);
+		expect(out).not.toBe(input); // a new array, not the same reference
+		expect(out).toHaveLength(input.length);
+		// Same multiset: sorting both yields identical arrays regardless of order.
+		expect([...out].sort((a, b) => a - b)).toEqual([...input].sort((a, b) => a - b));
+	});
+
+	it('shuffle does NOT mutate the input array (order preserved after the call)', () => {
+		const input = ['a', 'b', 'c', 'd', 'e'];
+		const snapshot = [...input];
+		shuffle(input);
+		expect(input).toEqual(snapshot); // input untouched
+	});
+
+	it('shuffle of [] → [] and [x] → [x]', () => {
+		expect(shuffle<number>([])).toEqual([]);
+		expect(shuffle(['only'])).toEqual(['only']);
+	});
+
+	it('pickRandomPage stays an integer in [1, max] across many iterations', () => {
+		const max = 5;
+		for (let i = 0; i < 200; i++) {
+			const p = pickRandomPage(max);
+			expect(Number.isInteger(p)).toBe(true);
+			expect(p).toBeGreaterThanOrEqual(1);
+			expect(p).toBeLessThanOrEqual(max);
+		}
+	});
+
+	it('pickRandomPage(1) and pickRandomPage(0) always return 1 (1-based, never 0)', () => {
+		for (let i = 0; i < 50; i++) {
+			expect(pickRandomPage(1)).toBe(1);
+			expect(pickRandomPage(0)).toBe(1);
+		}
+	});
+
+	it('pickRandomPage never returns a fraction even when given a fractional max', () => {
+		for (let i = 0; i < 100; i++) {
+			const p = pickRandomPage(4.9);
+			expect(Number.isInteger(p)).toBe(true);
+			expect(p).toBeGreaterThanOrEqual(1);
+			expect(p).toBeLessThanOrEqual(4); // floor(4.9) = 4
+		}
 	});
 });
 

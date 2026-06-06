@@ -1,33 +1,55 @@
 // cover-backfill — the LAZY, concurrency-capped cover resolver that fills the cover-cache
 // for discovery tiles that have no Last.fm image and no MusicBrainz mbid.
 //
-// quick-260606-wv8 (supersedes v7k; rvy FIX-A is the original lazy/capped scaffold). Deezer
-// is now the PRIMARY cover source — it has far stronger Western + decent CN album-cover
-// coverage and, unlike Last.fm, real artist-picture coverage. Design contract:
-//  - PRIMARY (track): deezerSongCover via the own-origin /api/deezer/search proxy (no key, no
-//    env var, edge-cached, CORS-blocked direct so proxied — T-wv8-*). A Deezer hit is used
-//    AS-IS and the CN search is NOT issued.
-//  - FALLBACK (track): only when Deezer MISSES (null) do we fall through to the EXISTING
-//    CN-source infra (searchAll → dedupeBest[0].cover) — the same resolver resolveStub / picks
-//    / similar use (NO new endpoint, NO rate limit, T-rvy-01). CAA-by-mbid stays a tileCover-
-//    level step (an <img> 404 → gradient), NOT a backfill step.
-//  - LAST.FM tier note: the user's chain is "Deezer → CN → Last.fm". The Last.fm tier is the
-//    CHEAP item.image pre-check ALREADY handled synchronously in tileCover() (+page.svelte) —
-//    it is NOT a backfill network call here. A Last.fm-imaged tile never reaches this resolver
-//    (it already has a cover), so there is deliberately no Last.fm track.getInfo backfill step.
-//  - ARTIST pass: backfillArtistCovers resolves 熱門歌手 tile images via deezerArtistCover and
-//    caches them under the ARTIST-only key (never collides with a track). Deezer carries a real
-//    artist picture (the prior fallback only had a top-album cover stand-in).
-//  - LAZY (post-paint): callers fire-and-forget this AFTER first render — it never blocks the
-//    critical path. A miss leaves the gradient (never a broken image).
-//  - CAPPED: at most CAP=3 resolves in flight via the existing mapWithConcurrency pool, and a
-//    total `max` cap (24 tracks / 12 artists) so a cold visit does not fan out over every tile
-//    at once; every Deezer call is bounded by the per-call AbortSignal.timeout inside deezer.ts
-//    + the edge cache keeps us under Deezer's ~50 req/5 s cap (Pitfall 11 / T-wv8-04 self-DoS).
-//    Already-cached items are SKIPPED so repeat visits issue zero requests.
-//  - CACHED: a non-empty resolved cover is written via setCachedCover / setCachedArtistCover; an
-//    onResolved callback lets the page bump a reactive counter so each cover appears as it lands.
-//  - NEVER throws: per-item failures degrade to null (like resolveStub / mapWithConcurrency).
+// quick-260607-0bb (supersedes wv8; rvy FIX-A is the original lazy/capped scaffold). This is the
+// 4th attempt at the "most home tiles are color blocks" symptom. The root cause of the persistence
+// was twofold: (a) a single-source (Deezer-only) miss stranded a tile as a gradient, and (b) the
+// home only ever ATTEMPTED the first ~24 tracks / ~12 artists (fixed `max`), so every other tile
+// stayed a gradient forever. This module fixes (a) by restoring a multi-tier fall-through chain and
+// (b) by lifting the default cap (the home now passes a cap = the full gathered gradient set).
+//
+// MULTI-TIER CHAINS (stop at the first SOLID — non-empty, https — cover):
+//  - TRACK: Deezer → iTunes → CN.
+//    - Tier 1 Deezer (deezerSongCover via the own-origin /api/deezer/search proxy — no key, no env
+//      var, edge-cached, CORS-blocked direct so proxied). A Deezer hit is used AS-IS; iTunes + CN
+//      are NOT issued. Deezer is tier-1 so a cold visit is mostly edge-cached Deezer (≤~50 req/5s).
+//    - Tier 2 iTunes (itunesSongCover — no-auth, CORS-open direct fetch to itunes.apple.com, soft-
+//      limited). Fires ONLY on a Deezer miss, so it runs for a minority of tiles. Restored from
+//      6c44889 (wv8 deleted it; it built + passed before).
+//    - Tier 3 CN (searchAll → dedupeBest[0].cover — the SAME resolver resolveStub / picks / similar
+//      use; NO new endpoint, NO rate limit). Fires ONLY on a Deezer+iTunes miss → deep-chain calls
+//      are rare. CAA-by-mbid stays a tileCover-level step (an <img> 404 → gradient), NOT here.
+//  - ARTIST: Deezer → iTunes.
+//    - Tier 1 deezerArtistCover (real artist picture). Tier 2 itunesArtistCover (entity=album&
+//      attribute=artistTerm → the artist's top-album cover as the artist-image proxy). Cached under
+//      the ARTIST-only key (never collides with a track of the same name).
+//  - LAST.FM tier note: the user's chain is "Deezer → iTunes → CN → Last.fm". The Last.fm tier is
+//    the CHEAP item.image pre-check ALREADY handled synchronously in tileCover() (+page.svelte) —
+//    it is NOT a backfill network call here. A Last.fm-imaged tile never reaches this resolver, so
+//    there is deliberately no Last.fm track.getInfo backfill step (the optional album.getInfo last-
+//    resort is not worth the extra call — we stop at CN).
+//
+// PER-TIER NEVER-THROW: each tier is wrapped so a throw in one tier falls through to the NEXT tier
+// (not the whole-function catch); the outer try/catch is a backstop. The whole call never rejects.
+//
+// HTTPS-ONLY GUARD (T-0bb-01): the resolved URL is rendered as an `<img src>` attribute. Only a
+// non-empty string starting with `https:` is treated as SOLID — an http/data/blank URL is a miss
+// and falls through (or → gradient). Deezer is host-allow-listed to https *.dzcdn.net by its proxy,
+// iTunes returns https mzstatic URLs, CN covers come through the existing pipeline; the guard is a
+// cheap client-side backstop. Rendered as `<img src>` ONLY (never CSS url()) → no injection surface.
+//
+// LAZY (post-paint): callers fire-and-forget this AFTER first render — it never blocks the critical
+//   path. A miss leaves the gradient (never a broken image, never a blocked first paint).
+// CAPPED (T-0bb-02 self-DoS): at most CAP=6 resolves in flight via mapWithConcurrency (NOT
+//   Promise.all over every row). Every resolver call is bounded by its own AbortSignal.timeout
+//   (inside deezer.ts / itunes-cover.ts) — do NOT add another. The total `max` cap defaults high
+//   (DEFAULT_MAX) so an unsupplied caller is not artificially throttled; the home passes an explicit
+//   cap = its full gathered gradient set. Already-cached items are SKIPPED + names de-duped, so a
+//   warm visit issues ~0 requests regardless of the high cap. Rate-limit math: Deezer first (edge-
+//   cached, ≤~50 req/5s); iTunes/CN fire ONLY on a Deezer miss, so the deep chain runs rarely.
+// CACHED: a SOLID (https) resolved cover is written via setCachedCover / setCachedArtistCover; an
+//   onResolved callback lets the page bump a reactive counter so each cover appears as it lands.
+// NEVER throws: per-item failures degrade to null (like resolveStub / mapWithConcurrency).
 import { searchAll } from '$lib/services/catalog';
 import { dedupeBest } from '$lib/services/dedupe';
 import { settings } from '$lib/stores/settings.svelte';
@@ -41,6 +63,7 @@ import {
 } from '$lib/services/cover-cache';
 import { mapWithConcurrency } from '$lib/services/discovery';
 import { deezerSongCover, deezerArtistCover } from '$lib/services/deezer';
+import { itunesSongCover, itunesArtistCover } from '$lib/services/itunes-cover';
 
 /** A cover-needing row — callers pass DiscoveryTrack rows (artist tiles are excluded). */
 export interface CoverNeed {
@@ -53,19 +76,28 @@ export interface BackfillOpts {
 	signal?: AbortSignal;
 	/** Called with (cacheKey, url) as each cover lands, so the page can re-render reactively. */
 	onResolved?: (key: string, url: string) => void;
-	/** Total cap on how many uncached items to resolve this call (default 24). */
+	/** Total cap on how many uncached items to resolve this call (default DEFAULT_MAX). */
 	max?: number;
 }
 
-const CAP = 3; // ≤3 searches in flight (reuse mapWithConcurrency — do NOT Promise.all all rows)
-const DEFAULT_MAX = 24;
+const CAP = 6; // ≤6 searches in flight (reuse mapWithConcurrency — do NOT Promise.all all rows)
+// High default so an unsupplied caller is not artificially throttled — the home passes an explicit
+// cap (= its full gathered gradient set). The CAP=6 pool + per-call timeout + skip-cached bound the
+// cost regardless; a warm visit issues ~0 requests (every tile is already cached).
+const DEFAULT_MAX = 400;
+
+/** SOLID = a non-empty https URL (the only thing safe to render as an <img src> + cache). */
+function isSolidCover(url: string | null | undefined): url is string {
+	return typeof url === 'string' && url.startsWith('https:');
+}
 
 /**
- * Lazily resolve + cache real covers (Deezer-first, then CN) for the given {artist,title} rows.
+ * Lazily resolve + cache real covers (track chain Deezer → iTunes → CN) for the given
+ * {artist,title} rows.
  *
  * Skips any row already in the cover-cache (never re-searches a cached cover), slices the
- * remaining work to `max`, then resolves it through a concurrency-capped pool. Each non-empty
- * cover is written to the cache and surfaced via `onResolved`. Best-effort: never throws.
+ * remaining work to `max`, then resolves it through a concurrency-capped pool. Each SOLID (https,
+ * non-empty) cover is written to the cache and surfaced via `onResolved`. Best-effort: never throws.
  */
 export async function backfillCovers(items: CoverNeed[], opts: BackfillOpts = {}): Promise<void> {
 	const { signal, onResolved, max = DEFAULT_MAX } = opts;
@@ -88,27 +120,48 @@ export async function backfillCovers(items: CoverNeed[], opts: BackfillOpts = {}
 	const work = remaining.slice(0, Math.max(0, max));
 	if (!work.length) return;
 
-	// (3) resolveOne: Deezer-FIRST (deezerSongCover via the own-origin proxy — Deezer is now
-	//     PRIMARY), then CN-fallback (searchAll → dedupeBest[0].cover) only on a Deezer miss
-	//     (quick-260606-wv8); cache + notify whichever resolves.
+	// Each tier resolver is wrapped so a THROW in one tier falls through to the NEXT tier (returns
+	// null on any throw); only a SOLID https result short-circuits the chain.
+	async function tier(fn: () => Promise<string | null>): Promise<string | null> {
+		try {
+			const url = await fn();
+			return isSolidCover(url) ? url : null;
+		} catch {
+			return null;
+		}
+	}
+
+	// (3) resolveOne: Deezer → (on miss) iTunes → (on miss) CN; stop at the first SOLID cover.
+	//     A non-https / empty result is treated as a miss and falls through. Cache + notify only a
+	//     SOLID https cover (quick-260607-0bb).
 	async function resolveOne(item: CoverNeed): Promise<void> {
 		if (signal?.aborted) return;
 		try {
-			// PRIMARY: Deezer cover. A hit is used as-is — CN searchAll is NOT issued.
-			let cover = await deezerSongCover(item.artist, item.title, signal);
+			// Tier 1 — Deezer (PRIMARY). A SOLID hit is used as-is; iTunes + CN are NOT issued.
+			let cover = await tier(() => deezerSongCover(item.artist, item.title, signal));
 			if (signal?.aborted) return;
-			// FALLBACK: Deezer missed → existing CN-source resolver (no new endpoint).
+
+			// Tier 2 — iTunes (fires only on a Deezer miss).
 			if (!cover) {
-				const r = await searchAll(`${item.artist} ${item.title}`, 1);
+				cover = await tier(() => itunesSongCover(item.artist, item.title, signal));
 				if (signal?.aborted) return;
-				cover = dedupeBest(r.interleaved, settings.preferredSource)[0]?.cover ?? null;
 			}
-			if (cover) {
+
+			// Tier 3 — CN (existing resolver; fires only on a Deezer+iTunes miss).
+			if (!cover) {
+				cover = await tier(async () => {
+					const r = await searchAll(`${item.artist} ${item.title}`, 1);
+					return dedupeBest(r.interleaved, settings.preferredSource)[0]?.cover ?? null;
+				});
+				if (signal?.aborted) return;
+			}
+
+			if (isSolidCover(cover)) {
 				setCachedCover(item.artist, item.title, cover);
 				onResolved?.(coverCacheKey(item.artist, item.title), cover);
 			}
 		} catch {
-			// Swallow — a miss leaves the gradient (never a broken image / never blocks).
+			// Backstop — a miss leaves the gradient (never a broken image / never blocks).
 		}
 	}
 
@@ -116,14 +169,15 @@ export async function backfillCovers(items: CoverNeed[], opts: BackfillOpts = {}
 }
 
 /**
- * Lazily resolve + cache real ARTIST cover images for the given names (quick-260606-wv8).
+ * Lazily resolve + cache real ARTIST cover images (chain Deezer → iTunes) for the given names
+ * (quick-260607-0bb).
  *
- * 熱門歌手 tiles never had a real cover source (Last.fm artist art is deprecated → null; the
- * prior fallback only returned a top-album cover). This mirrors backfillCovers but resolves via the Deezer
- * artist picture (deezerArtistCover through the own-origin proxy) and stores under the ARTIST-
- * only key: de-dupes names, skips already-cached artists, slices to `max`, then runs the
- * resolves through the same CAP=3 pool. Each non-empty image is cached + surfaced via
- * onResolved (keyed by artistCoverCacheKey). Best-effort: never throws; a miss → gradient.
+ * 熱門歌手 tiles never had a real cover source from Last.fm (artist art is deprecated → null). This
+ * mirrors backfillCovers but resolves via the Deezer artist picture, then falls back to the iTunes
+ * artist-image proxy on a miss, and stores under the ARTIST-only key: de-dupes names, skips already-
+ * cached artists, slices to `max`, then runs the resolves through the same CAP=6 pool. Each SOLID
+ * (https) image is cached + surfaced via onResolved (keyed by artistCoverCacheKey). Best-effort:
+ * per-tier never-throw, whole call never rejects; a miss → gradient.
  */
 export async function backfillArtistCovers(
 	names: string[],
@@ -148,18 +202,37 @@ export async function backfillArtistCovers(
 	const work = remaining.slice(0, Math.max(0, max));
 	if (!work.length) return;
 
-	// (3) resolveOneArtist: deezerArtistCover → cache + notify under the artist key.
+	// Per-tier never-throw + https-only guard (same as the track path).
+	async function tier(fn: () => Promise<string | null>): Promise<string | null> {
+		try {
+			const url = await fn();
+			return isSolidCover(url) ? url : null;
+		} catch {
+			return null;
+		}
+	}
+
+	// (3) resolveOneArtist: Deezer → (on miss) iTunes; stop at the first SOLID cover; cache +
+	//     notify only a SOLID https image under the artist key.
 	async function resolveOneArtist(name: string): Promise<void> {
 		if (signal?.aborted) return;
 		try {
-			const url = await deezerArtistCover(name, signal);
+			// Tier 1 — Deezer artist picture.
+			let url = await tier(() => deezerArtistCover(name, signal));
 			if (signal?.aborted) return;
-			if (url) {
+
+			// Tier 2 — iTunes artist-image proxy (fires only on a Deezer miss).
+			if (!url) {
+				url = await tier(() => itunesArtistCover(name, signal));
+				if (signal?.aborted) return;
+			}
+
+			if (isSolidCover(url)) {
 				setCachedArtistCover(name, url);
 				onResolved?.(artistCoverCacheKey(name), url);
 			}
 		} catch {
-			// Swallow — a miss leaves the artist tile's gradient.
+			// Backstop — a miss leaves the artist tile's gradient.
 		}
 	}
 

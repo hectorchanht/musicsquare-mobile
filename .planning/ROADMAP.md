@@ -215,7 +215,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 09-02-PLAN.md — Home four-shelf Last.fm discovery surface (top hits / top artists / tag rows / country rows) + resolve-on-tap + buildDiversePicks fallback (checkpoint)
+- [x] 09-02-PLAN.md — Home four-shelf Last.fm discovery surface (top hits / top artists / tag rows / country rows) + resolve-on-tap + buildDiversePicks fallback (checkpoint)
 - [ ] 09-03-PLAN.md — Artist real artist.getTopAlbums + album real album.getInfo tracklist with select-to-play via resolveStub (checkpoint)
 
 **UI hint**: yes
@@ -306,7 +306,7 @@ v1.1 dependency chain: 8 → (9, 10) read-only & auth-free first; 11 (auth) befo
 | 6. Background Audio + MediaSession | 0/TBD | Not started | - |
 | 7. New Sources + Queue Model + Gestures | 0/TBD | Not started | - |
 | 8. Last.fm Read Foundation & Metadata Enrichment | 3/3 | Complete   | 2026-06-06 |
-| 9. Discovery / Hot-Picks Tab | 1/3 | In Progress|  |
+| 9. Discovery / Hot-Picks Tab | 2/3 | In Progress|  |
 | 10. Last.fm-searchable Source | 0/TBD | Not started | - |
 | 11. Signed-call Infrastructure & Auth | 0/TBD | Not started | - |
 | 12. Scrobbling (online-only) | 0/TBD | Not started | - |

@@ -6,6 +6,7 @@
 	import { player, fmtTime } from '$lib/stores/player.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { names } from '$lib/stores/names.svelte';
+	import { overlays } from '$lib/stores/overlays.svelte';
 	import { t } from '$lib/i18n';
 	import { searchAll } from '$lib/services/catalog';
 	import { dedupeBest } from '$lib/services/dedupe';
@@ -109,6 +110,17 @@
 			goto(`/artist/${encodeURIComponent(player.current.artist)}`);
 		}
 	}
+
+	// ---- back-gesture: NowPlaying only renders while player.expanded, so mount == overlay
+	// open. The back gesture runs player.collapse() (→ unmount → cleanup dismisses); the
+	// header ChevronDown, cover drag-collapse, and openArtist all also call player.collapse(),
+	// so they route through the SAME single dismiss path (the $effect cleanup). History depth
+	// stays balanced: open pushes 1 state, cleanup's dismiss() pops it (or back-gesture's
+	// closeTop already popped it → dismiss is a no-op).
+	$effect(() => {
+		overlays.open('nowplaying', () => player.collapse());
+		return () => overlays.dismiss('nowplaying');
+	});
 
 	// ---- cover drag-down to collapse ----
 	let dragY = $state(0);

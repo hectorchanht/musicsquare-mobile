@@ -5,6 +5,8 @@
 	import { player } from '$lib/stores/player.svelte';
 	import { library } from '$lib/stores/library.svelte';
 	import { names } from '$lib/stores/names.svelte';
+	import { overlays } from '$lib/stores/overlays.svelte';
+	import { dragClose } from '$lib/actions/dragClose';
 	import { t } from '$lib/i18n';
 	import { ensureTrackDetails } from '$lib/services/catalog';
 	import { shareUrl } from '$lib/services/share';
@@ -77,11 +79,37 @@
 		if (name && track) { const pl = library.createPlaylist(name); library.addToPlaylist(pl.id, track); toast(t('toast.playlistCreated')); }
 		pickerOpen = false;
 	}
+
+	// ---- back-gesture wiring (SINGLE dismiss path) ----
+	// Each sheet registers with the overlays stack while open. The back gesture invokes
+	// the registered close handler (which only flips state false); UI close handlers
+	// (scrim/X/drag) likewise only flip state false. The $effect CLEANUP is the ONE site
+	// that calls overlays.dismiss(id) — so scrim, X, drag and back-gesture all converge on
+	// a single dismiss site and history depth stays balanced (open pushed 1 state; either
+	// the cleanup's dismiss() pops it, or closeTop() already popped it → dismiss is a no-op).
+	$effect(() => {
+		if (open && track) {
+			overlays.open('trackmenu-menu', () => onclose());
+			return () => overlays.dismiss('trackmenu-menu');
+		}
+	});
+	$effect(() => {
+		if (pickerOpen && track) {
+			overlays.open('trackmenu-picker', () => (pickerOpen = false));
+			return () => overlays.dismiss('trackmenu-picker');
+		}
+	});
+	$effect(() => {
+		if (detailTrack) {
+			overlays.open('trackmenu-detail', () => (detailTrack = null));
+			return () => overlays.dismiss('trackmenu-detail');
+		}
+	});
 </script>
 
 {#if open && track}
 	<button class="scrim" aria-label={t('menu.closeMenu')} onclick={close}></button>
-	<div class="menu" transition:fly={{ y: 240, duration: 200 }}>
+	<div class="menu" transition:fly={{ y: 240, duration: 200 }} use:dragClose={{ onclose: close }}>
 		<div class="menu-head">{names.dn(track.title)} · {names.dn(track.artist)}</div>
 		<button class="mi" onclick={playNext}><ListStart size={18} /> {t('menu.playNext')}</button>
 		<button class="mi" onclick={addQueue}><ListEnd size={18} /> {t('menu.addToQueue')}</button>
@@ -97,7 +125,7 @@
 
 {#if pickerOpen && track}
 	<button class="scrim" aria-label={t('menu.close')} onclick={() => (pickerOpen = false)}></button>
-	<div class="menu" transition:fly={{ y: 240, duration: 200 }}>
+	<div class="menu" transition:fly={{ y: 240, duration: 200 }} use:dragClose={{ onclose: () => (pickerOpen = false) }}>
 		<div class="menu-head">{t('menu.addToPlaylist')}</div>
 		{#each library.playlists as pl (pl.id)}
 			<button class="mi" onclick={() => addToPlaylist(pl.id)}><ListPlus size={18} /> {pl.name} <span class="count">{pl.tracks.length}</span></button>
@@ -108,7 +136,7 @@
 
 {#if detailTrack}
 	<button class="scrim" aria-label={t('menu.close')} onclick={() => (detailTrack = null)}></button>
-	<div class="modal" transition:fly={{ y: 240, duration: 200 }}>
+	<div class="modal" transition:fly={{ y: 240, duration: 200 }} use:dragClose={{ onclose: () => (detailTrack = null) }}>
 		<div class="menu-head row"><span>{t('menu.trackDetail')}</span><button class="x" aria-label={t('menu.close')} onclick={() => (detailTrack = null)}><X size={18} /></button></div>
 		<dl class="detail">
 			<dt>{t('menu.detailTitle')}</dt><dd>{detailTrack.title}</dd>

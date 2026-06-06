@@ -37,14 +37,14 @@ const CHART_TRACKS_PAYLOAD = JSON.stringify({
 				name: '稻香',
 				artist: { name: '周杰伦' },
 				image: [
-					{ '#text': 'https://lastfm/small.png', size: 'small' },
-					{ '#text': 'https://lastfm/extralarge.png', size: 'extralarge' }
+					{ '#text': 'https://lastfm.freetls.fastly.net/small.png', size: 'small' },
+					{ '#text': 'https://lastfm.freetls.fastly.net/extralarge.png', size: 'extralarge' }
 				]
 			},
 			{
 				name: 'Shape of You',
 				artist: { name: 'Ed Sheeran' },
-				image: [{ '#text': 'https://lastfm/ed.png', size: 'large' }]
+				image: [{ '#text': 'https://lastfm.freetls.fastly.net/ed.png', size: 'large' }]
 			}
 		]
 	}
@@ -53,8 +53,8 @@ const CHART_TRACKS_PAYLOAD = JSON.stringify({
 const CHART_ARTISTS_PAYLOAD = JSON.stringify({
 	artists: {
 		artist: [
-			{ name: '周杰伦', image: [{ '#text': 'https://lastfm/jay.png', size: 'extralarge' }] },
-			{ name: 'Taylor Swift', image: [{ '#text': 'https://lastfm/ts.png', size: 'large' }] }
+			{ name: '周杰伦', image: [{ '#text': 'https://lastfm.freetls.fastly.net/jay.png', size: 'extralarge' }] },
+			{ name: 'Taylor Swift', image: [{ '#text': 'https://lastfm.freetls.fastly.net/ts.png', size: 'large' }] }
 		]
 	}
 });
@@ -62,8 +62,8 @@ const CHART_ARTISTS_PAYLOAD = JSON.stringify({
 const TOP_ALBUMS_PAYLOAD = JSON.stringify({
 	topalbums: {
 		album: [
-			{ name: '魔杰座', image: [{ '#text': 'https://lastfm/album1.png', size: 'extralarge' }] },
-			{ name: '叶惠美', image: [{ '#text': 'https://lastfm/album2.png', size: 'large' }] }
+			{ name: '魔杰座', image: [{ '#text': 'https://lastfm.freetls.fastly.net/album1.png', size: 'extralarge' }] },
+			{ name: '叶惠美', image: [{ '#text': 'https://lastfm.freetls.fastly.net/album2.png', size: 'large' }] }
 		]
 	}
 });
@@ -105,7 +105,7 @@ describe('/api/lastfm/discovery — Last.fm key injected upstream, ABSENT from c
 		expect(parsed.items[0]).toEqual({
 			artist: '周杰伦',
 			title: '稻香',
-			image: 'https://lastfm/extralarge.png'
+			image: 'https://lastfm.freetls.fastly.net/extralarge.png'
 		});
 		expect(parsed.items[1].artist).toBe('Ed Sheeran');
 	});
@@ -213,7 +213,7 @@ describe('/api/lastfm/discovery — list reshapers per method', () => {
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const res = await GET(event as any);
 		const parsed = JSON.parse(await res.text()) as List;
-		expect(parsed.items[0]).toEqual({ name: '周杰伦', image: 'https://lastfm/jay.png' });
+		expect(parsed.items[0]).toEqual({ name: '周杰伦', image: 'https://lastfm.freetls.fastly.net/jay.png' });
 		expect(parsed.items[1].name).toBe('Taylor Swift');
 	});
 
@@ -226,7 +226,7 @@ describe('/api/lastfm/discovery — list reshapers per method', () => {
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const res = await GET(event as any);
 		const parsed = JSON.parse(await res.text()) as List;
-		expect(parsed.items[0]).toEqual({ name: '魔杰座', image: 'https://lastfm/album1.png' });
+		expect(parsed.items[0]).toEqual({ name: '魔杰座', image: 'https://lastfm.freetls.fastly.net/album1.png' });
 		expect(parsed.items).toHaveLength(2);
 	});
 
@@ -265,6 +265,54 @@ describe('/api/lastfm/discovery — list reshapers per method', () => {
 		const res = await GET(event as any);
 		const parsed = JSON.parse(await res.text()) as List;
 		expect(parsed.items[0]).toEqual({ artist: 'Nobody', title: 'No Art', image: null });
+	});
+
+	// CR-01 (security): image URLs are interpolated into CSS `background-image: url(...)`.
+	// A `)` / off-domain / non-https URL must be rejected (image null) so it can't inject a
+	// second url() layer; a clean fastly URL is kept (no over-rejection).
+	it('rejects unsafe image URLs (CSS-injection / off-domain / non-https) → image null', async () => {
+		const unsafe = [
+			'https://lastfm.freetls.fastly.net/x.png)cover.png', // CSS url() breaker
+			'https://evil.example.com/track.png', // off-domain
+			'http://lastfm.freetls.fastly.net/x.png' // not https
+		];
+		for (const bad of unsafe) {
+			vi.stubGlobal(
+				'fetch',
+				vi.fn(
+					async () =>
+						new Response(
+							JSON.stringify({
+								tracks: { track: [{ name: 'T', artist: { name: 'A' }, image: [{ '#text': bad, size: 'extralarge' }] }] }
+							}),
+							{ status: 200 }
+						)
+				)
+			);
+			const event = fakeEvent({ method: 'chart.gettoptracks' }, { JOOX_TOKEN: 'x', LASTFM_KEY: FAKE_KEY });
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const res = await GET(event as any);
+			const parsed = JSON.parse(await res.text()) as List;
+			expect(parsed.items[0].image, `should reject: ${bad}`).toBeNull();
+		}
+		// Sanity: a clean fastly URL IS kept.
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({
+							tracks: { track: [{ name: 'T', artist: { name: 'A' }, image: [{ '#text': 'https://lastfm.freetls.fastly.net/ok.png', size: 'extralarge' }] }] }
+						}),
+						{ status: 200 }
+					)
+			)
+		);
+		const okEvent = fakeEvent({ method: 'chart.gettoptracks' }, { JOOX_TOKEN: 'x', LASTFM_KEY: FAKE_KEY });
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const okRes = await GET(okEvent as any);
+		const okParsed = JSON.parse(await okRes.text()) as List;
+		expect(okParsed.items[0].image).toBe('https://lastfm.freetls.fastly.net/ok.png');
 	});
 });
 

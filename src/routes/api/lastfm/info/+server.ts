@@ -103,14 +103,36 @@ const SIZE_RANK: Record<string, number> = {
 	mega: 5
 };
 
-/** Pick the largest non-placeholder, non-empty image URL, or null. */
+/**
+ * Validate an image URL before it leaves the edge (CR-01, Phase-9 parity). The client
+ * interpolates it into a CSS `background-image: url(${image})`; an embedded `)` / quote /
+ * whitespace could inject a second `url()` layer. https:// only, last.fm / fastly host,
+ * no CSS-breaking chars. (safeLastfmUrl above is bio-only and rejects the fastly art host.)
+ */
+function safeImageUrl(raw: string | null | undefined): string | null {
+	if (!raw) return null;
+	if (/[)\s"'\\(]/.test(raw)) return null;
+	try {
+		const u = new URL(raw);
+		if (u.protocol !== 'https:') return null;
+		const host = u.hostname.toLowerCase();
+		const ok = host === 'last.fm' || host.endsWith('.last.fm') || host.endsWith('.fastly.net');
+		return ok ? u.href : null;
+	} catch {
+		return null;
+	}
+}
+
+/** Pick the largest non-placeholder, non-empty, SAFE image URL, or null. */
 function pickImage(images?: LfmImage[]): string | null {
 	if (!Array.isArray(images)) return null;
 	let best: { url: string; rank: number } | null = null;
 	for (const img of images) {
-		const url = img?.['#text']?.trim();
+		const raw = img?.['#text']?.trim();
+		if (!raw) continue;
+		if (raw.includes(GREY_STAR_HASH)) continue; // ENRICH-02: never the placeholder
+		const url = safeImageUrl(raw); // CR-01: reject CSS-injection / off-domain URLs
 		if (!url) continue;
-		if (url.includes(GREY_STAR_HASH)) continue; // ENRICH-02: never the placeholder
 		const rank = SIZE_RANK[(img.size ?? '').toLowerCase()] ?? 0;
 		if (!best || rank >= best.rank) best = { url, rank };
 	}

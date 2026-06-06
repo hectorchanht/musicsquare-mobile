@@ -51,8 +51,8 @@ const TRACK_PAYLOAD = JSON.stringify({
 		},
 		album: {
 			image: [
-				{ '#text': 'https://lastfm/small.png', size: 'small' },
-				{ '#text': 'https://lastfm/extralarge.png', size: 'extralarge' }
+				{ '#text': 'https://lastfm.freetls.fastly.net/small.png', size: 'small' },
+				{ '#text': 'https://lastfm.freetls.fastly.net/extralarge.png', size: 'extralarge' }
 			]
 		},
 		wiki: { summary: 'A great track. Second sentence here.' }
@@ -94,7 +94,7 @@ describe('/api/lastfm/info — Last.fm key injected upstream, ABSENT from client
 		// returns the clean reshaped info (tags capped at 5, album art picked)
 		const parsed = JSON.parse(body) as Info;
 		expect(parsed.tags).toEqual(['mandopop', 'pop', 'chinese', 'ballad', 'rnb']);
-		expect(parsed.image).toBe('https://lastfm/extralarge.png');
+		expect(parsed.image).toBe('https://lastfm.freetls.fastly.net/extralarge.png');
 		expect(parsed.listeners).toBe(123);
 		expect(parsed.playcount).toBe(456);
 	});
@@ -293,7 +293,7 @@ describe('/api/lastfm/info — album.getinfo ordered tracklist (D-05)', () => {
 						JSON.stringify({
 							album: {
 								tags: { tag: [{ name: 'mandopop' }] },
-								image: [{ '#text': 'https://lastfm/album.png', size: 'extralarge' }],
+								image: [{ '#text': 'https://lastfm.freetls.fastly.net/album.png', size: 'extralarge' }],
 								tracks: {
 									track: [
 										{ name: '稻香', artist: { name: '周杰伦' }, '@attr': { rank: '1' } },
@@ -320,7 +320,7 @@ describe('/api/lastfm/info — album.getinfo ordered tracklist (D-05)', () => {
 			{ artist: '周杰伦', title: '魔术先生' }
 		]);
 		// existing single-entity fields still present (no regression)
-		expect(parsed.image).toBe('https://lastfm/album.png');
+		expect(parsed.image).toBe('https://lastfm.freetls.fastly.net/album.png');
 		expect(parsed.tags).toEqual(['mandopop']);
 	});
 

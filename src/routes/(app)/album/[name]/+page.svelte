@@ -121,7 +121,7 @@
 <svelte:head><title>{t('album.title', { name })}</title></svelte:head>
 
 <header class="hero">
-	<button class="back" aria-label={t('album.back')} onclick={() => goto('/')}><ChevronLeft size={22} /></button>
+	<button class="back" aria-label={t('album.back')} onclick={() => goto(albumArtist ? '/artist/' + encodeURIComponent(albumArtist) : '/')}><ChevronLeft size={22} /></button>
 	<div class="cover" style:background-image={heroImg ? `url(${heroImg})` : 'linear-gradient(145deg,#3a2d63,#1a1326)'}></div>
 	<h1>{names.dn(name)}</h1>
 	{#if albumArtist}<p class="artist">{names.dn(albumArtist)}</p>{/if}

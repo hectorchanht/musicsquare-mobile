@@ -123,8 +123,15 @@
 	// Fetch the four Last.fm shelves (concurrency-capped), fall back to buildDiversePicks
 	// when discovery is empty, cache the displayed result, and seed the player queue.
 	// Used by Randomize + cold start + background revalidate.
-	async function refresh(seedQueue = true) {
-		loading = true;
+	//
+	// `background` (WR-02): a post-cache-hit revalidate does NOT toggle `loading`, so the
+	// Randomize button stays enabled and shows live content rather than "Loading…".
+	// `refreshGen` (WR-04): only the LATEST refresh writes state — a stale background call
+	// that finishes after a manual Randomize is discarded, so they never clobber each other.
+	let refreshGen = 0;
+	async function refresh(seedQueue = true, background = false) {
+		const gen = ++refreshGen;
+		if (!background) loading = true;
 		error = null;
 		try {
 			// Shelves 1+2 (chart) + the capped tag/country fan-out (shelves 3+4). All
@@ -139,6 +146,7 @@
 					getGeoTopTracks(c, PER_SHELF)
 				)
 			]);
+			if (gen !== refreshGen) return; // superseded by a newer refresh (WR-04)
 
 			const tags: Shelf[] = DISCOVERY_TAGS.map((label, i) => ({
 				label,
@@ -169,6 +177,7 @@
 			} else {
 				// D-06 FALLBACK: absent key / all-empty → keep the home page populated.
 				const picks = await buildDiversePicks(PICK_COUNT);
+				if (gen !== refreshGen) return; // superseded during the fallback fetch (WR-04)
 				if (picks.length) {
 					useFallback = true;
 					fallbackSongs = picks;
@@ -186,14 +195,15 @@
 						useFallback: true,
 						fallback: picks
 					});
-				} else {
+				} else if (!background) {
 					error = t('home.noResults');
 				}
 			}
 		} catch (e) {
-			error = e instanceof Error ? e.message : String(e);
+			// Background-revalidate failures stay silent — cached content remains visible.
+			if (gen === refreshGen && !background) error = e instanceof Error ? e.message : String(e);
 		} finally {
-			loading = false;
+			if (gen === refreshGen && !background) loading = false;
 		}
 	}
 
@@ -231,8 +241,9 @@
 				player.setQueue(cached.fallback);
 			}
 			loading = false;
-			// Background revalidate without re-seeding the queue (don't clobber ?play).
-			void refresh(false);
+			// Background revalidate (WR-02: keeps Randomize enabled, no "Loading…") without
+			// re-seeding the queue (don't clobber ?play).
+			void refresh(false, true);
 		} else {
 			// Cold cache: full fetch. Seed the queue unless a shared link is taking over.
 			refresh(!token);

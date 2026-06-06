@@ -120,14 +120,37 @@ const SIZE_RANK: Record<string, number> = {
 	mega: 5
 };
 
-/** Pick the largest non-placeholder, non-empty image URL, or null (Phase-8 parity). */
+/**
+ * Validate an image URL before it leaves the edge (CR-01). The client interpolates it
+ * into a CSS `background-image: url(${image})`; an embedded `)` / quote / whitespace
+ * could inject a second `url()` layer (covert tracking pixel / CSP bypass). Defense-in-
+ * depth (parity with the Phase-8 `safeLastfmUrl` bio guard): https:// only, on a
+ * last.fm / fastly host, with no CSS-breaking characters.
+ */
+function safeImageUrl(raw: string | null | undefined): string | null {
+	if (!raw) return null;
+	if (/[)\s"'\\(]/.test(raw)) return null; // CSS url() + attribute breakers
+	try {
+		const u = new URL(raw);
+		if (u.protocol !== 'https:') return null;
+		const host = u.hostname.toLowerCase();
+		const ok = host === 'last.fm' || host.endsWith('.last.fm') || host.endsWith('.fastly.net');
+		return ok ? u.href : null;
+	} catch {
+		return null;
+	}
+}
+
+/** Pick the largest non-placeholder, non-empty, SAFE image URL, or null (Phase-8 parity). */
 function pickImage(images?: LfmImage[]): string | null {
 	if (!Array.isArray(images)) return null;
 	let best: { url: string; rank: number } | null = null;
 	for (const img of images) {
-		const url = img?.['#text']?.trim();
+		const raw = img?.['#text']?.trim();
+		if (!raw) continue;
+		if (raw.includes(GREY_STAR_HASH)) continue; // never the placeholder
+		const url = safeImageUrl(raw); // CR-01: reject CSS-injection / off-domain URLs
 		if (!url) continue;
-		if (url.includes(GREY_STAR_HASH)) continue; // never the placeholder
 		const rank = SIZE_RANK[(img.size ?? '').toLowerCase()] ?? 0;
 		if (!best || rank >= best.rank) best = { url, rank };
 	}
@@ -218,7 +241,14 @@ export const GET: RequestHandler = async ({ url, platform, request }) => {
 
 	if (cache) {
 		const hit = await cache.match(cacheReq);
-		if (hit) return hit;
+		if (hit) {
+			// Re-apply CORS for THIS request's origin (WR-01). The cached entry stores a
+			// CORS-FREE body, so a cross-origin (e.g. preview vs prod) hit never receives a
+			// prior requester's Access-Control-Allow-Origin. CF Cache API's Vary support is
+			// unreliable, so we rebuild the response rather than relying on Vary: Origin.
+			const cached = (await hit.json()) as LastfmList;
+			return jsonList(cached.items ?? [], origin, ttl);
+		}
 	}
 
 	try {
@@ -228,9 +258,15 @@ export const GET: RequestHandler = async ({ url, platform, request }) => {
 		// Last.fm error (incl. code-29 rate-limit) → silent empty best-effort (T-09-04).
 		if (data?.error) return jsonList([], origin);
 		const items = reshape(method, data);
-		const out = jsonList(items, origin, ttl);
-		if (cache) await cache.put(cacheReq, out.clone());
-		return out;
+		if (cache) {
+			// Cache a CORS-FREE copy (origin re-applied per request on hit, WR-01).
+			const cached = new Response(JSON.stringify({ items } satisfies LastfmList), {
+				status: 200,
+				headers: { 'content-type': 'application/json', 'Cache-Control': `public, max-age=${ttl}` }
+			});
+			await cache.put(cacheReq, cached);
+		}
+		return jsonList(items, origin, ttl);
 	} catch {
 		// Upstream error / malformed JSON → best-effort empty (no cache write).
 		return jsonList([], origin);

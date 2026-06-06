@@ -11,11 +11,15 @@ import { makeUid, type SourceId, type Track } from '$lib/sources/types';
 
 // Mock the resolve-on-tap shim so we control settle order + timing.
 vi.mock('$lib/services/discovery', () => ({ resolveStub: vi.fn() }));
+// Mock the detail resolver so prefetchNext's pre-resolve is observable/controllable in node.
+vi.mock('$lib/services/catalog', () => ({ ensureTrackDetails: vi.fn() }));
 
 import { player } from './player.svelte';
 import { resolveStub } from '$lib/services/discovery';
+import { ensureTrackDetails } from '$lib/services/catalog';
 
 const mockResolve = vi.mocked(resolveStub);
+const mockEnsure = vi.mocked(ensureTrackDetails);
 
 function mk(source: SourceId, songid: string, artist: string, title: string): Track {
 	return {
@@ -51,8 +55,15 @@ function deferred<T>() {
 // Let queued microtasks (the await in playStub + the void play() handoff) flush.
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
+/** An unresolved search stub: detailsLoaded:false + audioUrl:null so the readiness guard does NOT short-circuit. */
+function stub(source: SourceId, songid: string, artist: string, title: string): Track {
+	return { ...mk(source, songid, artist, title), detailsLoaded: false, audioUrl: null };
+}
+
 beforeEach(() => {
 	mockResolve.mockReset();
+	mockEnsure.mockReset();
+	player.queue = [];
 	// play() touches the real <audio>/Media Session — stub it so playStub's success handoff
 	// is observable (current set) without a DOM. We assert play() is CALLED with the track.
 	vi.spyOn(player, 'play').mockImplementation(async (track: Track) => {
@@ -177,5 +188,95 @@ describe('player.playStub — optimistic resolve-on-tap (FIX-A)', () => {
 
 		expect(out).toBe(track);
 		expect(mockResolve).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe('player.prefetchNext — pre-resolve next track for gapless-ish play', () => {
+	// prefetchNext is private + fired from the real play(); drive it directly (bracket access)
+	// after seeding current + queue, so timing stays deterministic regardless of play()'s stub.
+	const prefetch = () => (player as unknown as { prefetchNext(): Promise<void> })['prefetchNext']();
+
+	it("pre-resolves the next track's details and writes resolved back into the queue", async () => {
+		const cur = mk('netease', '0', 'A', 'Now');
+		const next = stub('qq', '1', 'B', 'Next'); // unresolved — readiness guard does NOT short-circuit
+		player.queue = [cur, next];
+		player.current = cur;
+
+		const resolved: Track = { ...next, detailsLoaded: true, audioUrl: 'https://cdn/next.mp3' };
+		mockEnsure.mockResolvedValue(resolved);
+
+		await prefetch();
+		await flush();
+
+		// Called once, with the next stub and an AbortSignal.
+		expect(mockEnsure).toHaveBeenCalledTimes(1);
+		expect(mockEnsure).toHaveBeenCalledWith(next, expect.any(AbortSignal));
+		// Resolved track written back into queue[1] (so a later play() no-ops).
+		expect(player.queue[1].detailsLoaded).toBe(true);
+		expect(player.queue[1].audioUrl).toBe('https://cdn/next.mp3');
+	});
+
+	it('no-op at end of queue (no next track)', async () => {
+		const cur = mk('netease', '0', 'A', 'Now');
+		player.queue = [cur]; // current is the last entry
+		player.current = cur;
+
+		await prefetch();
+		await flush();
+
+		expect(mockEnsure).not.toHaveBeenCalled();
+	});
+
+	it('no-op when next track is already detailsLoaded (readiness guard satisfied)', async () => {
+		const cur = mk('netease', '0', 'A', 'Now');
+		const next = mk('qq', '1', 'B', 'Next'); // mk() is fully loaded (detailsLoaded:true + audioUrl)
+		player.queue = [cur, next];
+		player.current = cur;
+
+		await prefetch();
+		await flush();
+
+		expect(mockEnsure).not.toHaveBeenCalled();
+	});
+
+	it('dedupes in-flight: a second prefetchNext for the same next track does not start a second resolve', async () => {
+		const cur = mk('netease', '0', 'A', 'Now');
+		const next = stub('qq', '1', 'B', 'Next');
+		player.queue = [cur, next];
+		player.current = cur;
+
+		const d = deferred<Track>();
+		mockEnsure.mockReturnValue(d.promise); // never settles until we resolve it
+
+		void prefetch();
+		void prefetch(); // same current/queue, still in flight → must NOT start a second resolve
+
+		expect(mockEnsure).toHaveBeenCalledTimes(1);
+
+		d.resolve({ ...next, detailsLoaded: true, audioUrl: 'https://cdn/next.mp3' }); // cleanup
+		await flush();
+	});
+
+	it('discards a stale resolve when current changes mid-resolve', async () => {
+		const cur = mk('netease', '0', 'A', 'Now');
+		const next = stub('qq', '1', 'B', 'Next');
+		player.queue = [cur, next];
+		player.current = cur;
+
+		const d = deferred<Track>();
+		mockEnsure.mockReturnValue(d.promise);
+
+		void prefetch(); // captures seedUid = cur.uid
+
+		// Current changes away mid-resolve → the just-prefetched result is now stale.
+		player.current = mk('kuwo', '9', 'Z', 'Unrelated');
+
+		const resolved: Track = { ...next, detailsLoaded: true, audioUrl: 'https://cdn/stale.mp3' };
+		d.resolve(resolved);
+		await flush();
+
+		// queue[1] must NOT be overwritten — the stale resolve was discarded.
+		expect(player.queue[1]).toBe(next);
+		expect(player.queue[1].audioUrl).toBeNull();
 	});
 });

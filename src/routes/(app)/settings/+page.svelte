@@ -1,75 +1,23 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { ChevronLeft, Languages, Globe, Replace, Music, Radio, Palette, Zap, Maximize2, Trash2, RefreshCw, Info } from '@lucide/svelte';
-	import { settings, ACCENT_PRESETS, type LyricsLang, type TranslateMode, type DefaultQuality, type DefaultSource } from '$lib/stores/settings.svelte';
-	import { library } from '$lib/stores/library.svelte';
-	import { t, type AppLang, type TranslationKey } from '$lib/i18n';
+	import { ChevronLeft, ChevronRight, Globe, Languages, Music, Clock, Radio, Database, Info } from '@lucide/svelte';
+	import { settings } from '$lib/stores/settings.svelte';
+	import { t, type TranslationKey } from '$lib/i18n';
+	import type { Component } from 'svelte';
 
-	const TOP_PICKS_KEY = 'musicsquare:top-picks:v1';
-	let msg = $state('');
-	let counts = $state({ liked: 0, playlists: 0, downloads: 0 });
+	onMount(() => settings.load());
 
-	onMount(() => {
-		settings.load();
-		library.load();
-		counts = { liked: library.liked.length, playlists: library.playlists.length, downloads: library.downloads.length };
-	});
-
-	function flash(m: string) { msg = m; setTimeout(() => (msg = ''), 1800); }
-	// App-language endonyms render literally (NOT through t()).
-	const appLangs: { v: AppLang; label: string }[] = [
-		{ v: 'en', label: 'English' },
-		{ v: 'zh-Hant', label: '繁體中文' },
-		{ v: 'zh-Hans', label: '简体中文' }
+	// Group rows: order = general, translation, playback, history, lastfm, data, about.
+	const groups: { href: string; icon: Component; title: TranslationKey; desc: TranslationKey }[] = [
+		{ href: '/settings/general', icon: Globe, title: 'settings.groupGeneral', desc: 'settings.groupGeneralDesc' },
+		{ href: '/settings/translation', icon: Languages, title: 'settings.groupTranslation', desc: 'settings.groupTranslationDesc' },
+		{ href: '/settings/playback', icon: Music, title: 'settings.groupPlayback', desc: 'settings.groupPlaybackDesc' },
+		{ href: '/settings/history', icon: Clock, title: 'settings.groupHistory', desc: 'settings.groupHistoryDesc' },
+		{ href: '/settings/lastfm', icon: Radio, title: 'settings.groupLastfm', desc: 'settings.groupLastfmDesc' },
+		{ href: '/settings/data', icon: Database, title: 'settings.groupData', desc: 'settings.groupDataDesc' },
+		{ href: '/settings/about', icon: Info, title: 'settings.groupAbout', desc: 'settings.groupAboutDesc' }
 	];
-	// `off` + language endonyms are literal; only 'Off' is chrome → resolved in the template.
-	const langs: { v: LyricsLang; label: string }[] = [
-		{ v: 'off', label: 'Off' },
-		{ v: 'zh-Hant', label: '繁體中文' },
-		{ v: 'zh-Hans', label: '简体中文' },
-		{ v: 'en', label: 'English' },
-		{ v: 'ja', label: '日本語' },
-		{ v: 'ko', label: '한국어' }
-	];
-	const modes: { v: TranslateMode; key: string }[] = [
-		{ v: 'below', key: 'settings.optShowBelow' },
-		{ v: 'replace', key: 'settings.optReplace' }
-	];
-	// Quality tokens (320k/128k) are literal; Auto/Lossless are chrome.
-	const qualities: { v: DefaultQuality; key?: string; literal?: string }[] = [
-		{ v: 'auto', key: 'settings.optAuto' },
-		{ v: 'lossless', key: 'settings.optLossless' },
-		{ v: '320', literal: '320k' },
-		{ v: '128', literal: '128k' }
-	];
-	// Proper-noun source labels stay literal; only 'Auto (all)' is chrome.
-	const sources: { v: DefaultSource; key?: string; literal?: string }[] = [
-		{ v: 'auto', key: 'settings.optAutoAll' },
-		{ v: 'netease', literal: 'NetEase' },
-		{ v: 'qq', literal: 'QQ' },
-		{ v: 'kuwo', literal: 'Kuwo' },
-		{ v: 'joox', literal: 'JOOX' }
-	];
-
-	function setAppLang(v: AppLang) { settings.appLang = v; settings.save(); }
-	function setLang(v: LyricsLang) { settings.lyricsLang = v; settings.save(); }
-	function setNameLang(v: LyricsLang) { settings.nameLang = v; settings.save(); }
-	function setMode(v: TranslateMode) { settings.translateMode = v; settings.save(); }
-	function setQuality(v: DefaultQuality) { settings.defaultQuality = v; settings.save(); }
-	function setSource(v: DefaultSource) { settings.defaultSource = v; settings.save(); }
-	function setAccent(hex: string) { settings.accent = hex; settings.save(); }
-	function toggleMotion() { settings.reduceMotion = !settings.reduceMotion; settings.save(); }
-	function toggleExpand() { settings.autoExpandOnPlay = !settings.autoExpandOnPlay; settings.save(); }
-
-	function clearPicks() { try { localStorage.removeItem(TOP_PICKS_KEY); } catch { /* */ } flash(t('settings.picksCleared')); }
-	function clearLibrary() {
-		if (confirm(t('settings.clearLibraryConfirm'))) {
-			library.clearAll();
-			counts = { liked: 0, playlists: 0, downloads: 0 };
-			flash(t('settings.libraryCleared'));
-		}
-	}
 </script>
 
 <svelte:head><title>{t('settings.title')}</title></svelte:head>
@@ -79,124 +27,30 @@
 	<h1>{t('settings.heading')}</h1>
 </header>
 
-<section>
-	<h2><Globe size={15} /> {t('settings.appLanguage')}</h2>
-	<div class="chips">
-		{#each appLangs as l (l.v)}
-			<button class="chip" class:on={settings.appLang === l.v} onclick={() => setAppLang(l.v)}>{l.label}</button>
-		{/each}
-	</div>
-</section>
-
-<section>
-	<h2><Languages size={15} /> {t('settings.lyricsTranslation')}</h2>
-	<div class="chips">
-		{#each langs as l (l.v)}
-			<button class="chip" class:on={settings.lyricsLang === l.v} onclick={() => setLang(l.v)}>{l.v === 'off' ? t('settings.optOff') : l.label}</button>
-		{/each}
-	</div>
-</section>
-
-<section>
-	<h2><Languages size={15} /> {t('settings.translateNames')}</h2>
-	<div class="chips">
-		{#each langs as l (l.v)}
-			<button class="chip" class:on={settings.nameLang === l.v} onclick={() => setNameLang(l.v)}>{l.v === 'off' ? t('settings.optOff') : l.label}</button>
-		{/each}
-	</div>
-	<p class="muted">{t('settings.translateNamesNote')}</p>
-</section>
-
-<section>
-	<h2><Replace size={15} /> {t('settings.translateMode')}</h2>
-	<div class="seg" class:disabled={settings.lyricsLang === 'off'}>
-		{#each modes as m (m.v)}
-			<button class:on={settings.translateMode === m.v} disabled={settings.lyricsLang === 'off'} onclick={() => setMode(m.v)}>{t(m.key as TranslationKey)}</button>
-		{/each}
-	</div>
-	<p class="muted">{settings.lyricsLang === 'off' ? t('settings.translateModeOffNote') : t('settings.translateModeOnNote')}</p>
-</section>
-
-<section>
-	<h2><Music size={15} /> {t('settings.defaultQuality')}</h2>
-	<div class="seg">
-		{#each qualities as q (q.v)}
-			<button class:on={settings.defaultQuality === q.v} onclick={() => setQuality(q.v)}>{q.key ? t(q.key as TranslationKey) : q.literal}</button>
-		{/each}
-	</div>
-	<p class="muted">{t('settings.defaultQualityNote')}</p>
-</section>
-
-<section>
-	<h2><Radio size={15} /> {t('settings.defaultSource')}</h2>
-	<div class="chips">
-		{#each sources as s (s.v)}
-			<button class="chip" class:on={settings.defaultSource === s.v} onclick={() => setSource(s.v)}>{s.key ? t(s.key as TranslationKey) : s.literal}</button>
-		{/each}
-	</div>
-	<p class="muted">{t('settings.defaultSourceNote')}</p>
-</section>
-
-<section>
-	<h2><Palette size={15} /> {t('settings.accentColor')}</h2>
-	<div class="swatches">
-		{#each ACCENT_PRESETS as c (c)}
-			<button class="swatch" class:on={settings.accent === c} style:background={c} aria-label={c} onclick={() => setAccent(c)}></button>
-		{/each}
-	</div>
-</section>
-
-<section>
-	<h2><Zap size={15} /> {t('settings.playbackMotion')}</h2>
-	<button class="row-toggle" onclick={toggleExpand}>
-		<span><Maximize2 size={16} /> {t('settings.autoExpand')}</span>
-		<span class="sw" class:on={settings.autoExpandOnPlay}></span>
-	</button>
-	<button class="row-toggle" onclick={toggleMotion}>
-		<span><Zap size={16} /> {t('settings.reduceMotion')}</span>
-		<span class="sw" class:on={settings.reduceMotion}></span>
-	</button>
-</section>
-
-<section>
-	<h2>{t('settings.data')}</h2>
-	<p class="muted">{t('settings.dataCounts', { liked: counts.liked, playlists: counts.playlists, downloads: counts.downloads })}</p>
-	<button class="item" onclick={clearPicks}><RefreshCw size={18} /> {t('settings.clearPicks')}</button>
-	<button class="item danger" onclick={clearLibrary}><Trash2 size={18} /> {t('settings.clearLibrary')}</button>
-</section>
-
-<section>
-	<h2>{t('settings.about')}</h2>
-	<div class="item static"><Info size={18} /> {t('settings.aboutLine')}</div>
-</section>
-
-{#if msg}<p class="flash">{msg}</p>{/if}
+<ul class="groups">
+	{#each groups as g (g.href)}
+		<li>
+			<button class="item" onclick={() => goto(g.href)}>
+				<g.icon size={20} />
+				<span class="txt">
+					<span class="g-title">{t(g.title)}</span>
+					<span class="g-desc">{t(g.desc)}</span>
+				</span>
+				<ChevronRight size={18} class="chev" />
+			</button>
+		</li>
+	{/each}
+</ul>
 
 <style>
 	.head { display: flex; align-items: center; gap: 8px; padding: 14px 0 12px; }
 	.back { background: none; border: none; color: var(--color-text); cursor: pointer; display: grid; place-items: center; width: 36px; height: 36px; }
 	.head h1 { font-size: 1.4rem; margin: 0; }
-	section { margin: 18px 0; }
-	section h2 { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-muted); margin: 0 0 10px; }
-	.muted { color: var(--color-text-muted); font-size: 12px; margin: 8px 0 0; }
-	.chips { display: flex; flex-wrap: wrap; gap: 8px; }
-	.chip { background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text); padding: 8px 14px; border-radius: 999px; font-size: 13px; cursor: pointer; }
-	.chip.on { background: var(--color-primary); color: #fff; border-color: transparent; }
-	.seg { display: inline-flex; background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: 999px; padding: 3px; gap: 3px; }
-	.seg.disabled { opacity: 0.5; }
-	.seg button { background: none; border: none; color: var(--color-text-muted); padding: 7px 16px; border-radius: 999px; font-size: 13px; cursor: pointer; }
-	.seg button.on { background: var(--color-primary); color: #fff; }
-	.swatches { display: flex; gap: 12px; }
-	.swatch { width: 34px; height: 34px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
-	.swatch.on { border-color: #fff; box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px currentColor; }
-	.row-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text); padding: 13px 14px; border-radius: 12px; font-size: 14px; cursor: pointer; margin-bottom: 8px; }
-	.row-toggle span:first-child { display: inline-flex; align-items: center; gap: 10px; }
-	.sw { width: 40px; height: 22px; border-radius: 999px; background: var(--color-border); position: relative; transition: background 0.15s ease; flex: none; }
-	.sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform 0.15s ease; }
-	.sw.on { background: var(--color-primary); }
-	.sw.on::after { transform: translateX(18px); }
-	.item { width: 100%; display: flex; align-items: center; gap: 12px; background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text); padding: 14px; border-radius: 12px; font-size: 15px; cursor: pointer; text-align: left; margin-bottom: 8px; }
-	.item.static { cursor: default; color: var(--color-text-muted); font-size: 13px; }
-	.item.danger { color: #ff7a90; }
-	.flash { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--tabbar-h) + 70px); background: #000; color: #fff; padding: 10px 16px; border-radius: 999px; font-size: 13px; }
+	.groups { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+	.item { width: 100%; display: flex; align-items: center; gap: 14px; background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text); padding: 14px; border-radius: 12px; cursor: pointer; text-align: left; }
+	.item:hover { background: var(--color-surface); }
+	.txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+	.g-title { font-size: 15px; font-weight: 600; }
+	.g-desc { font-size: 12px; color: var(--color-text-muted); }
+	.item :global(.chev) { color: var(--color-text-muted); flex: none; }
 </style>

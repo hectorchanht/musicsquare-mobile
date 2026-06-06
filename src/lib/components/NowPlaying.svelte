@@ -80,18 +80,38 @@
 	}
 	$effect(() => {
 		const idx = activeLine;
+		// sheetState is a read dependency: re-anchor the active line whenever the sheet
+		// changes mode (closed/half/full) while the same line stays active.
+		const mode = sheetState;
 		if (tab !== 'lyrics' || !autoScroll || idx < 0 || !lyricsEl) return;
 		const el = lyricsEl.querySelectorAll('p')[idx] as HTMLElement | undefined;
 		// Scope the scroll to the bounded .panel container (the overflow-y:auto scroller) and
 		// move it manually — never the ancestor-walking scroll-into-view API, which yanks the
 		// sheet to full in half mode. Compute the line's offset RELATIVE TO the container via rect deltas
-		// (offsetParent-agnostic), then center it inside the panel without changing sheetState.
+		// (offsetParent-agnostic), then anchor it inside the panel without changing sheetState.
 		const container = lyricsEl.closest('.panel') as HTMLElement | null;
 		if (!el || !container) return;
 		const elRect = el.getBoundingClientRect();
 		const cRect = container.getBoundingClientRect();
 		const offsetWithin = elRect.top - cRect.top + container.scrollTop; // line top in container scroll-space
-		container.scrollTo({ top: offsetWithin - container.clientHeight / 2 + el.offsetHeight / 2, behavior: 'smooth' });
+		// Anchor depends on the sheet mode. In HALF the sheet is position:absolute;inset:0 then
+		// translated DOWN by halfOffset, so container.clientHeight spans the full viewport while only
+		// the slice between the container top and the viewport bottom is actually VISIBLE. Centering on
+		// clientHeight/2 would land below the visible fold (the reported "near the bottom" bug). So derive
+		// the anchor from the live VISIBLE band (rect intersect viewport), which self-corrects for every mode:
+		//   closed -> anchor near the visible TOP (tiny peek height, top-pin per spec)
+		//   half / full -> center within the visible band
+		const vh = typeof window !== 'undefined' ? window.innerHeight : cRect.bottom;
+		const visTop = Math.max(cRect.top, 0);
+		const visBottom = Math.min(cRect.bottom, vh);
+		const visHeight = Math.max(0, visBottom - visTop);
+		const visTopWithin = visTop - cRect.top; // visible-band top, in container-local coords
+		const TOP_PAD = 12; // breathing room when top-pinned (closed)
+		const anchorWithin =
+			mode === 'closed'
+				? visTopWithin + TOP_PAD
+				: visTopWithin + visHeight / 2 - el.offsetHeight / 2; // visible-band center
+		container.scrollTo({ top: offsetWithin - anchorWithin, behavior: 'smooth' });
 	});
 
 	// ---- lyrics translation ----

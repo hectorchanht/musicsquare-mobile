@@ -155,7 +155,7 @@ Connects the standalone aggregator to Last.fm across four cross-cutting capabili
 
 ### Phases (v1.1)
 
-- [ ] **Phase 8: Last.fm Read Foundation & Metadata Enrichment** - Edge Last.fm read proxy (`LASTFM_KEY` injected on the edge) + lazy, additive metadata enrichment (tags, bio, hi-res art) with placeholder-art filtering; establishes the reusable match-key normalization primitive
+- [x] **Phase 8: Last.fm Read Foundation & Metadata Enrichment** - Edge Last.fm read proxy (`LASTFM_KEY` injected on the edge) + lazy, additive metadata enrichment (tags, bio, hi-res art) with placeholder-art filtering; establishes the reusable match-key normalization primitive (completed 2026-06-06)
 - [ ] **Phase 9: Discovery / Hot-Picks Tab** - Auth-free Explore tab — global charts, vibe/mood tag browsing, and country/region top-lists — edge-cached to respect rate limits
 - [ ] **Phase 10: Last.fm-searchable Source** - A new "Last.fm" source whose discovered tracks resolve to playable audio via the existing CN-source resolver (best-match scoring); discovery becomes tap-to-play
 - [ ] **Phase 11: Signed-call Infrastructure & Auth** - `api_sig` signer on the edge (UTF-8/CJK-correct), Last.fm Web Auth sign-in/out, session key in an httpOnly cookie; gates all write features
@@ -187,7 +187,7 @@ Plans:
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [x] 08-02-PLAN.md — Artist page: Last.fm bio snippet + tags + better hero image, always-present attribution link (wave 2)
-- [ ] 08-03-PLAN.md — Album page: higher-res Last.fm cover + listeners/playcount info (wave 2)
+- [x] 08-03-PLAN.md — Album page: higher-res Last.fm cover + listeners/playcount info (wave 2)
 
 **Research flag**: Standard patterns — mirrors the existing `/api/similar` edge route; placeholder filter and merge rules fully specified in research. No `--research-phase` needed.
 **Security note**: Owns the enrichment-overwrite / placeholder-art pitfalls (PITFALLS Pitfall 8) — enrichment stays additive, async, and off the playback critical path. Also owns first-endpoint `platform?.env` plumbing (absent-key graceful state) and lays the UTF-8 foundation reused by Phase 11.
@@ -293,7 +293,7 @@ v1.1 dependency chain: 8 → (9, 10) read-only & auth-free first; 11 (auth) befo
 | 5. PWA + Service Worker | 0/TBD | Not started | - |
 | 6. Background Audio + MediaSession | 0/TBD | Not started | - |
 | 7. New Sources + Queue Model + Gestures | 0/TBD | Not started | - |
-| 8. Last.fm Read Foundation & Metadata Enrichment | 2/3 | In Progress|  |
+| 8. Last.fm Read Foundation & Metadata Enrichment | 3/3 | Complete   | 2026-06-06 |
 | 9. Discovery / Hot-Picks Tab | 0/TBD | Not started | - |
 | 10. Last.fm-searchable Source | 0/TBD | Not started | - |
 | 11. Signed-call Infrastructure & Auth | 0/TBD | Not started | - |

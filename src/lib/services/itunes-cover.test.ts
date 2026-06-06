@@ -81,7 +81,7 @@ describe('upgradeArtwork — 100x100bb → 600x600bb', () => {
 
 describe('itunesSongCover — entity=song resolve', () => {
 	it('fetches entity=song and returns the upgraded artworkUrl100', async () => {
-		const fetchMock = vi.fn(async () =>
+		const fetchMock = vi.fn(async (_input: string) =>
 			jsonResponse({
 				resultCount: 1,
 				results: [{ artworkUrl100: 'https://cdn.example/100x100bb.jpg' }]
@@ -92,7 +92,7 @@ describe('itunesSongCover — entity=song resolve', () => {
 		const out = await itunesSongCover('Ariana Grande', 'thank u, next');
 		expect(out).toBe('https://cdn.example/600x600bb.jpg');
 		// The requested URL is an entity=song iTunes search of `${artist} ${title}`.
-		const called = new URL(fetchMock.mock.calls[0][0] as string);
+		const called = new URL(fetchMock.mock.calls[0][0]);
 		expect(called.origin + called.pathname).toBe('https://itunes.apple.com/search');
 		expect(called.searchParams.get('entity')).toBe('song');
 		expect(called.searchParams.get('term')).toBe('Ariana Grande thank u, next');
@@ -151,7 +151,7 @@ describe('itunesSongCover — entity=song resolve', () => {
 
 describe('itunesArtistCover — artist image via album-by-artistTerm', () => {
 	it('resolves an artist image from entity=album&attribute=artistTerm top result', async () => {
-		const fetchMock = vi.fn(async () =>
+		const fetchMock = vi.fn(async (_input: string) =>
 			jsonResponse({
 				resultCount: 1,
 				results: [{ artworkUrl100: 'https://cdn.example/art/100x100bb.jpg' }]
@@ -161,7 +161,7 @@ describe('itunesArtistCover — artist image via album-by-artistTerm', () => {
 
 		const out = await itunesArtistCover('Taylor Swift');
 		expect(out).toBe('https://cdn.example/art/600x600bb.jpg');
-		const called = new URL(fetchMock.mock.calls[0][0] as string);
+		const called = new URL(fetchMock.mock.calls[0][0]);
 		expect(called.searchParams.get('entity')).toBe('album');
 		expect(called.searchParams.get('attribute')).toBe('artistTerm');
 		expect(called.searchParams.get('term')).toBe('Taylor Swift');

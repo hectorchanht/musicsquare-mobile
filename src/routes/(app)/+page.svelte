@@ -134,15 +134,23 @@
 	// appear without a full refresh. A plain $state number is the cheapest reactive trigger.
 	let coverVer = $state(0);
 
-	// quick-260606-wv8 (supersedes v7k): gather every TRACK row across all shelves that still
+	// quick-260607-0bb (supersedes wv8): gather every TRACK row across all shelves that still
 	// shows a gradient (no Last.fm image AND no mbid) — exactly the tiles nza's CAA path could
 	// not cover — and every top-ARTIST tile with no Last.fm image (artist art is deprecated →
 	// always null). Then fire BOTH lazy, concurrency-capped backfills OFF the critical path (void,
-	// never awaited before paint): track covers (Deezer-first → CN-fallback) and artist images
-	// (Deezer). Both skip already-cached entries, so a warm visit issues zero requests. The same
-	// coverVer++ onResolved makes covers — track AND artist — appear progressively as resolves land.
-	// Chain: tileCover render = Last.fm image → CAA(mbid) → cached(Deezer/CN) → gradient; BACKFILL
-	// fill = Deezer → CN (track) / Deezer (artist); Deezer is PRIMARY (wv8 supersedes v7k).
+	// never awaited before paint): track covers (Deezer → iTunes → CN) and artist images
+	// (Deezer → iTunes). Both skip already-cached entries, so a warm visit issues ~0 requests. The
+	// same coverVer++ onResolved makes covers — track AND artist — appear progressively as resolves
+	// land. Chain: tileCover render = Last.fm image → CAA(mbid) → cached(Deezer/iTunes/CN) →
+	// gradient; BACKFILL fill = Deezer → iTunes → CN (track) / Deezer → iTunes (artist).
+	//
+	// CAP LIFTED (0bb): the cap is now the FULL gathered gradient set — `max: rows.length` /
+	// `max: artistNames.length` — so EVERY rendered gradient tile (all ~270 track tiles + ~18 artist
+	// tiles in the default config) is attempted, not just a fixed first 24/12 (the wv8 cap stranded
+	// every tile past the 24th/12th as a permanent gradient — the grounded root cause of "most tiles
+	// are color blocks"). The in-flight CAP=6 pool + per-call AbortSignal.timeout + skip-cached +
+	// de-dupe keep this safe: a cold visit stays under Deezer's ~50 req/5s (Deezer is tier-1 + edge-
+	// cached; iTunes/CN fire only on a Deezer miss), and a warm visit is ~free (every tile cached).
 	function scheduleBackfill() {
 		const rows: { artist: string; title: string }[] = [];
 		const pushNeeding = (items: DiscoveryTrack[]) => {
@@ -154,14 +162,17 @@
 		for (const s of tagShelves) pushNeeding(s.tracks);
 		for (const s of countryShelves) pushNeeding(s.tracks);
 		if (rows.length) {
-			void backfillCovers(rows, { onResolved: () => coverVer++, max: 24 });
+			void backfillCovers(rows, { onResolved: () => coverVer++, max: rows.length });
 		}
 
-		// wv8: artist tiles are structurally gradient (Last.fm artist art deprecated → null).
-		// Resolve their images via the Deezer artist-picture pass, capped + cached + post-paint.
+		// 0bb: artist tiles are structurally gradient (Last.fm artist art deprecated → null).
+		// Resolve their images via Deezer → iTunes, capped (= full gathered set) + cached + post-paint.
 		const artistNames = topArtists.filter((a) => !a.image).map((a) => a.name);
 		if (artistNames.length) {
-			void backfillArtistCovers(artistNames, { onResolved: () => coverVer++, max: 12 });
+			void backfillArtistCovers(artistNames, {
+				onResolved: () => coverVer++,
+				max: artistNames.length
+			});
 		}
 	}
 

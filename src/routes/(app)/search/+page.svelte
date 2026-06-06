@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { searchAll } from '$lib/services/catalog';
 	import { dedupeBest } from '$lib/services/dedupe';
 	import { settings } from '$lib/stores/settings.svelte';
@@ -19,6 +20,16 @@
 	let someFailed = $state(false);
 	let ac: AbortController | null = null;
 
+	// Infinite-scroll pagination state.
+	let page = $state(1); // last page successfully loaded
+	let loadingMore = $state(false); // true ONLY while a NEXT-page batch is in flight
+	let hasMore = $state(false); // whether another batch might yield net-new tracks
+	let moreAc: AbortController | null = null; // separate controller for load-more requests
+
+	// Sentinel + observer (sentinel binding/observer creation live in the template/$effect).
+	let sentinelEl = $state<HTMLLIElement | null>(null);
+	let io: IntersectionObserver | null = null;
+
 	function fallbackCover(t: Track): string {
 		const h = (t.uid.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 47) % 360;
 		return `linear-gradient(145deg, hsl(${h} 55% 32%), hsl(${(h + 40) % 360} 55% 18%))`;
@@ -29,6 +40,7 @@
 		const kw = q.trim();
 		if (!kw) return;
 		ac?.abort();
+		moreAc?.abort(); // cancel any in-flight load-more from a previous query
 		ac = new AbortController();
 		loading = true;
 		searched = true;
@@ -37,12 +49,52 @@
 			const { interleaved, perSource } = await searchAll(kw, 1, {}, ac.signal);
 			results = dedupeBest(interleaved, settings.preferredSource);
 			someFailed = perSource.some((p) => p.status === 'error');
+			// Reset pagination: assume more may exist whenever page 1 returned anything;
+			// loadMore() flips hasMore off once a page stops growing.
+			page = 1;
+			hasMore = results.length > 0;
 		} catch {
 			results = [];
+			hasMore = false;
 		} finally {
 			loading = false;
 		}
 	}
+
+	async function loadMore() {
+		// Guards: no concurrent batch, no firing during initial search, past the end,
+		// or before any search has run.
+		if (loadingMore || loading || !hasMore || !searched) return;
+		const kw = q.trim(); // capture BEFORE awaiting (race guard)
+		if (!kw) return;
+		loadingMore = true;
+		const next = page + 1;
+		moreAc?.abort();
+		moreAc = new AbortController();
+		try {
+			const { interleaved } = await searchAll(kw, next, {}, moreAc.signal);
+			const merged = dedupeBest(interleaved, settings.preferredSource);
+			// Race guard: user searched something else mid-fetch — bail without touching state.
+			if (kw !== q.trim()) return;
+			if (merged.length <= results.length) {
+				// Sources exhausted: no net-new unique tracks.
+				hasMore = false;
+			} else {
+				// REPLACE with the cumulative superset (never concatenate — see pagination_mechanism).
+				results = merged;
+				page = next;
+			}
+		} catch (err) {
+			// AbortError = a newer request superseded this one: do nothing.
+			if (err instanceof DOMException && err.name === 'AbortError') return;
+			// Any other failure: stop hammering a failing source.
+			hasMore = false;
+		} finally {
+			loadingMore = false;
+		}
+	}
+
+	onDestroy(() => io?.disconnect());
 </script>
 
 <header class="head"><h1>{t('search.title')}</h1></header>

@@ -32,6 +32,9 @@ class Overlays {
 	private stack = $state<OverlayEntry[]>([]);
 	/** True while WE triggered history.back() in dismiss() — swallows the echo popstate. */
 	private popping = false;
+	/** True during an outbound navigateAway() — suppresses dismiss()'s history.back() so the
+	 *  hosts unmounting under the new route can't pop the just-navigated destination off. */
+	private navigating = false;
 	private listening = false;
 
 	/** Current open-overlay depth (reactive). */
@@ -59,6 +62,14 @@ class Overlays {
 		if (this.has(id)) this.stack = this.stack.filter((e) => e.id !== id);
 		let pushed = false;
 		if (HAS_WINDOW) {
+			// Raw history.pushState (NOT SvelteKit's shallow-routing pushState from
+			// $app/navigation). This is deliberate: a shallow-routing entry makes goto() a
+			// NO-OP while it's the current entry (SvelteKit refuses to navigate out of a
+			// shallow state), and history.go() desyncs SvelteKit's router index — both of which
+			// break the track menu's "Go to artist"/"Go to album" navigation. A raw entry is a
+			// plain Back target that goto() can cleanly replace. SvelteKit warns about raw
+			// pushState, but our usage is narrow (a dummy Back sentinel, popped via history.back
+			// on dismiss or replaced via goto on an outbound nav) and works correctly.
 			history.pushState({ gsdOverlay: id }, '');
 			pushed = true;
 		}
@@ -83,12 +94,48 @@ class Overlays {
 		if (!this.has(id)) return;
 		const entry = this.stack.find((e) => e.id === id)!;
 		this.stack = this.stack.filter((e) => e.id !== id);
-		if (entry.pushed && HAS_WINDOW) {
+		// During an outbound navigateAway() we do NOT history.back(): the destination route has
+		// just been pushed and the hosts are unmounting under it; a back() here would pop that
+		// destination right back off (the "Go to artist snaps home" over-pop). The leftover raw
+		// Back entry is harmless — backing into it lands on the origin URL with an empty stack.
+		if (entry.pushed && HAS_WINDOW && !this.navigating) {
 			this.popping = true;
 			history.back();
 			// Safety net: clear the flag even if popstate never fires (some browsers
 			// no-op history.back() at the very first entry of a fresh session).
 			setTimeout(() => (this.popping = false), 0);
+		}
+	}
+
+	/**
+	 * Perform an outbound goto() from INSIDE an overlay (the track menu's "Go to artist" /
+	 * "Go to album"). Pass a thunk that runs the SvelteKit goto(); returns its promise.
+	 *
+	 * The ordering here is load-bearing — it's the result of empirically tracing every failure
+	 * mode:
+	 *  - goto() runs FIRST, while the overlays are still OPEN. SvelteKit only navigates out of
+	 *    an overlay's raw Back entry while that entry is the live current one; closing the
+	 *    overlay first makes goto() resolve as a silent NO-OP (URL never changes).
+	 *  - `navigating` is set for the whole call so the history.back() each overlay's
+	 *    $effect-cleanup dismiss() would fire — as the destination route unmounts the hosts —
+	 *    is SUPPRESSED. Without this, that back() pops the just-pushed destination straight back
+	 *    off ("Go to artist" flashes the artist page then snaps to the origin).
+	 *  - AFTER navigation settles, any overlay still mounted (the now-playing sheet lives in the
+	 *    root layout and survives the route change) is closed and its UI reset — still with
+	 *    back() suppressed — then the flag clears.
+	 *
+	 * Leftover raw Back entries are harmless: backing into one lands on the origin URL with an
+	 * empty stack, so the popstate listener simply no-ops.
+	 */
+	async navigateAway(navigate: () => Promise<void>): Promise<void> {
+		this.navigating = true;
+		try {
+			await navigate();
+		} finally {
+			const entries = this.stack;
+			this.stack = [];
+			for (let i = entries.length - 1; i >= 0; i--) entries[i].close();
+			this.navigating = false;
 		}
 	}
 

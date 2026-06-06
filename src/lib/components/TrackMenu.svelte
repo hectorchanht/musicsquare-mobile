@@ -43,8 +43,23 @@
 	}
 	// goto* navigate away (TrackMenu unmounts) so a local toast can't render — the page change
 	// IS the feedback. like()/detail keep their on-page feedback (toast / heart toggle / sheet).
-	function gotoArtist() { if (track) { onclose(); player.collapse(); goto(`/artist/${encodeURIComponent(track.artist)}`); } }
-	function gotoAlbum() { if (track?.album) { onclose(); player.collapse(); goto(`/album/${encodeURIComponent(track.album)}`); } }
+	//
+	// overlays.navigateAway() runs the goto() while this menu (and any now-playing sheet) is
+	// still open, then closes them with history.back() suppressed. Doing onclose()/collapse()
+	// FIRST and then goto() — the obvious version — is exactly what was broken: closing the
+	// overlay makes goto() resolve as a silent NO-OP, and the dismiss's history.back() races
+	// the goto() (single overlay → back cancels goto, the menu nav "does nothing"; stacked
+	// overlays → goto lands then back over-pops, snapping the URL home). See the overlays store.
+	function gotoArtist() {
+		if (!track) return;
+		const dest = `/artist/${encodeURIComponent(track.artist)}`;
+		overlays.navigateAway(() => goto(dest));
+	}
+	function gotoAlbum() {
+		if (!track?.album) return;
+		const dest = `/album/${encodeURIComponent(track.album)}`;
+		overlays.navigateAway(() => goto(dest));
+	}
 
 	async function doDownload() {
 		if (!track) return;

@@ -29,7 +29,7 @@ Milestone: v1.1 — Last.fm Integration (Phases 8–13)
 Phase: Phase 8 — Last.fm Read Foundation & Metadata Enrichment
 Plan: — (not yet planned)
 Status: Defined — ready to plan (`/gsd:plan-phase 8`)
-Last activity: 2026-06-06 — Created v1.1 roadmap (Phases 8–13): all 19 Last.fm requirements mapped, 100% coverage
+Last activity: 2026-06-06 — Completed quick task 260606-ggv: grouped drill-in settings + local recently-played history + Last.fm placeholder
 
 ## Performance Metrics
 
@@ -99,6 +99,7 @@ None yet.
 | 260606-5vm | Rewrite README for the openmusic SvelteKit project (doc-only; reconciled removed legacy/ refs) | 2026-06-06 | bde56ea | [260606-5vm-update-readme-for-svelte-project](./quick/260606-5vm-update-readme-for-svelte-project/) |
 | 260606-5ug | Smarter Up-Next: Last.fm artist.getSimilar gen (server-side key + same-artist fallback) regen-on-fresh-play preserving manual adds, pointer-drag reorder (GripVertical, pins manual), current-track length; check clean, 67/67 tests | 2026-06-05 | be967a3 | [260606-5ug-up-next-list-auto-generated-from-similar](./quick/260606-5ug-up-next-list-auto-generated-from-similar/) |
 | 260606-6p7 | App-language selector (English/繁體中文/简体中文) + whole-app i18n: dependency-free runes t() in src/lib/i18n/, ~74 chrome strings across 12 files (toasts/menus/aria), persisted appLang + first-visit auto-detect, nameLang/lyricsLang kept independent; check clean, 78/78 tests | 2026-06-05 | 66f871c | [260606-6p7-add-app-language-selector-to-settings-i1](./quick/260606-6p7-add-app-language-selector-to-settings-i1/) |
+| 260606-ggv | Grouped drill-in settings: /settings → 7-group list (general/translation/playback/history/lastfm/data/about) each its own route; NEW local recently-played History (pure logic+test, runes store, openmusic:history:v1, recorded in player.play, cap 50/dedupe/tap-to-play); Last.fm route = disabled "coming soon" placeholder (real auth deferred to Phase 11); i18n keys in 3 locales; check clean, 89/89 tests | 2026-06-06 | fa142b2 | [260606-ggv-restructure-settings-into-grouped-drill-](./quick/260606-ggv-restructure-settings-into-grouped-drill-/) |
 
 > Note: off planned phase order (Phase-4-shaped UI pulled forward as a demo). Basic playback only; full audio engine = Phase 6, formal Mobile UI Shell = Phase 4.
 

@@ -71,6 +71,23 @@ export interface LastfmList {
 	items: DiscoveryItem[];
 }
 
+// The Cloudflare Cache API extends the standard CacheStorage with a `default` cache
+// (caches.default). The DOM lib's CacheStorage (pulled in by SvelteKit's generated
+// tsconfig) does NOT declare `default` and shadows @cloudflare/workers-types' global,
+// so we narrow through a minimal local interface for the subset we use. Absent in the
+// dev runtime (`vite dev`) — guarded with `typeof caches` before use.
+interface EdgeCache {
+	match(request: Request): Promise<Response | undefined>;
+	put(request: Request, response: Response): Promise<void>;
+}
+interface EdgeCacheStorage {
+	default?: EdgeCache;
+}
+function edgeCache(): EdgeCache | null {
+	if (typeof caches === 'undefined') return null;
+	return (caches as unknown as EdgeCacheStorage).default ?? null;
+}
+
 function jsonList(items: DiscoveryItem[], origin: string | null, ttl?: number): Response {
 	const headers: Record<string, string> = {
 		...corsHeaders(origin),
@@ -196,8 +213,7 @@ export const GET: RequestHandler = async ({ url, platform, request }) => {
 	// Cache key = the OWN-ORIGIN discovery Request (NOT the secret-bearing upstream URL —
 	// keep the key out of the cache key, T-09-05). Guarded for the dev runtime (`vite dev`
 	// has no Cache API) so local dev still returns the live shape.
-	const cacheAvailable = typeof caches !== 'undefined' && !!caches.default;
-	const cache = cacheAvailable ? caches.default : null;
+	const cache = edgeCache();
 	const cacheReq = new Request(url.toString());
 
 	if (cache) {

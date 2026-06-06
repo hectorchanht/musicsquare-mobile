@@ -33,7 +33,13 @@
 	}
 	function playNext() { if (track) { player.playNext(track); toast(t('toast.playingNext')); } close(); }
 	function addQueue() { if (track) { player.addToQueue(track); toast(t('toast.addedToQueue')); } close(); }
-	function like() { if (track) library.toggleLike(track); }
+	function like() {
+		if (!track) return;
+		library.toggleLike(track);
+		toast(library.isLiked(track.uid) ? t('menu.liked') : t('menu.like'));
+	}
+	// goto* navigate away (TrackMenu unmounts) so a local toast can't render — the page change
+	// IS the feedback. like()/detail keep their on-page feedback (toast / heart toggle / sheet).
 	function gotoArtist() { if (track) { onclose(); player.collapse(); goto(`/artist/${encodeURIComponent(track.artist)}`); } }
 	function gotoAlbum() { if (track?.album) { onclose(); player.collapse(); goto(`/album/${encodeURIComponent(track.album)}`); } }
 

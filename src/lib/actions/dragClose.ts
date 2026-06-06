@@ -32,8 +32,10 @@ export const dragClose: Action<HTMLElement, DragCloseOpts> = (node, opts) => {
 	let enabled = opts.enabled ?? true;
 
 	let dragging = false;
+	let captured = false;
 	let startY = 0;
 	let dy = 0;
+	const DRAG_START = 8; // px before a press becomes a drag (and we capture the pointer)
 	const vel = createVelocityTracker();
 	const FLICK_V = 0.5; // px/ms — a fast downward flick dismisses even when not dragged far
 
@@ -50,22 +52,32 @@ export const dragClose: Action<HTMLElement, DragCloseOpts> = (node, opts) => {
 	function down(e: PointerEvent) {
 		if (!enabled) return;
 		dragging = true;
+		captured = false;
 		startY = e.clientY;
 		dy = 0;
 		vel.reset();
 		vel.sample(e.clientY, e.timeStamp);
-		node.setPointerCapture(e.pointerId);
+		// Do NOT setPointerCapture here: capturing on pointerdown retargets the trailing click
+		// to THIS node, so a tap on a child .mi button never reaches its onclick (the menu
+		// actions "did nothing"). Capture only once an actual drag begins (in move()).
 		node.style.transition = 'none';
 	}
 	function move(e: PointerEvent) {
 		if (!dragging) return;
 		vel.sample(e.clientY, e.timeStamp);
 		dy = Math.max(0, e.clientY - startY);
-		node.style.transform = `translateY(${dy}px)`;
+		// Capture once the gesture is clearly a drag — keeps pointer events flowing past the
+		// node edge, while a tap (never reaching DRAG_START) leaves the click to the child.
+		if (!captured && dy > DRAG_START) {
+			node.setPointerCapture(e.pointerId);
+			captured = true;
+		}
+		if (captured) node.style.transform = `translateY(${dy}px)`;
 	}
 	function up() {
 		if (!dragging) return;
 		dragging = false;
+		captured = false;
 		// Dismiss on a far drag OR a fast downward flick (v > 0 = moving DOWN). The dy > 8
 		// guard keeps the tap contract intact: a tap (dy < 8, low velocity) never dismisses.
 		const v = vel.velocity();

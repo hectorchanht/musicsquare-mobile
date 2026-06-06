@@ -8,6 +8,7 @@
 	import { searchSession } from '$lib/stores/searchSession.svelte';
 	import { searchHistory } from '$lib/stores/searchHistory.svelte';
 	import { t } from '$lib/i18n';
+	import { LoaderCircle } from '@lucide/svelte';
 	import { longpress } from '$lib/actions/longpress';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import type { Track } from '$lib/sources/types';
@@ -21,6 +22,31 @@
 	let searched = $state(false);
 	let someFailed = $state(false);
 	let ac: AbortController | null = null;
+
+	// BUGFIX (search-skeleton-not-showing): the D-01 first-load and load-more skeletons
+	// were gated directly on `loading`/`loadingMore`, which on a D-04 cache HIT (or any
+	// fast settle) flip true→false within a single microtask — BEFORE the browser ever
+	// paints a frame. `await searchAll(...)` resolves a cached value via Promise.resolve(),
+	// whose continuation fires onPartial (overwriting `results`) in the NEXT MICROTASK; a
+	// paint only happens on a macrotask/animation-frame boundary, so zero paints occurred
+	// while the skeleton gate was true. The skeleton DOM was created and torn down inside a
+	// single frame and was never visible (a genuinely slow cache-miss search DID show it).
+	// Fix: hold a dedicated skeleton flag for a minimum on-screen DWELL so it always
+	// survives ≥1 paint frame, then yields to results. A slow search already exceeds the
+	// floor, so it gets ZERO added delay — D-06 progressive streaming + D-04 caching stay
+	// intact; only a near-instant cache hit now flashes the skeleton for the floor.
+	const SKELETON_MIN_MS = 280;
+	let showFirstSkeleton = $state(false); // first-load skeleton visibility (dwell-floored)
+	let showMoreSkeleton = $state(false); // load-more skeleton visibility (dwell-floored)
+
+	// Resolve after the remainder of the dwell floor (0 if the floor already elapsed). A
+	// near-instant cache hit gets the full floor; a slow search (elapsed ≥ floor) resolves
+	// immediately and adds nothing. Called in run()/loadMore() finally blocks before the
+	// skeleton flag is cleared.
+	function minDwell(startedAt: number): Promise<void> {
+		const remaining = SKELETON_MIN_MS - (Date.now() - startedAt);
+		return remaining > 0 ? new Promise((r) => setTimeout(r, remaining)) : Promise.resolve();
+	}
 
 	// D-05: focus tracking for the past-search suggestion list (idle pre-query state).
 	let inputFocused = $state(false);
@@ -59,16 +85,21 @@
 		// typo'd query the user wants to retry is still listed). De-dupe/cap are in the store.
 		searchHistory.add(kw);
 		// D-02: a NEW query resets pagination AND clears the prior result set so the
-		// D-01 first-load skeleton (gated on results.length===0) shows immediately.
+		// D-01 first-load skeleton shows immediately.
 		results = [];
 		inputFocused = false;
 		loading = true;
+		// BUGFIX: raise the dwell-floored skeleton flag and stamp the start so the finally
+		// block can guarantee a minimum visible window even on an instant cache hit.
+		showFirstSkeleton = true;
+		const startedAt = Date.now();
 		searched = true;
 		someFailed = false;
 		try {
-			// D-06: stream partials so results render as each source settles. The skeleton
-			// (results.length===0) yields to the FIRST partial. Two-layer abort guard
-			// (mirrors the loadMore race guard) drops a superseded query's partials.
+			// D-06: stream partials so results render as each source settles. The first-load
+			// skeleton (showFirstSkeleton) yields to results once the dwell floor elapses.
+			// Two-layer abort guard (mirrors the loadMore race guard) drops a superseded
+			// query's partials.
 			const { interleaved, perSource } = await searchAll(kw, 1, {}, ac.signal, (partial) => {
 				if (myAc.signal.aborted || kw !== q.trim()) return;
 				results = dedupeBest(partial.interleaved, settings.preferredSource);
@@ -90,6 +121,11 @@
 			someFailed = true;
 		} finally {
 			loading = false;
+			// BUGFIX: hold the skeleton for the remainder of the dwell floor, then clear —
+			// but only if THIS query still owns the screen (a newer run() may have raised the
+			// flag again; clearing it then would hide that newer query's skeleton).
+			await minDwell(startedAt);
+			if (myAc === ac) showFirstSkeleton = false;
 		}
 	}
 
@@ -100,9 +136,13 @@
 		const kw = q.trim(); // capture BEFORE awaiting (race guard)
 		if (!kw) return;
 		loadingMore = true;
+		// BUGFIX: dwell-floored load-more skeleton (same microtask-collapse fix as run()).
+		showMoreSkeleton = true;
+		const startedAt = Date.now();
 		const next = page + 1;
 		moreAc?.abort();
 		moreAc = new AbortController();
+		const myMoreAc = moreAc; // capture for the dwell ownership guard below
 		try {
 			const { interleaved } = await searchAll(kw, next, {}, moreAc.signal);
 			const merged = dedupeBest(interleaved, settings.preferredSource);
@@ -124,6 +164,10 @@
 			hasMore = false;
 		} finally {
 			loadingMore = false;
+			// BUGFIX: hold the load-more skeleton for the dwell floor, then clear if this
+			// batch still owns the load-more slot (a superseding request swaps moreAc).
+			await minDwell(startedAt);
+			if (myMoreAc === moreAc) showMoreSkeleton = false;
 		}
 	}
 
@@ -187,7 +231,9 @@
 			setTimeout(() => (inputFocused = false), 150);
 		}}
 	/>
-	<button type="submit" disabled={loading}>{loading ? t('search.submitting') : t('search.go')}</button>
+	<button type="submit" disabled={loading} aria-busy={loading} aria-label={t('search.go')}>
+		{#if loading}<span class="spin" aria-hidden="true"><LoaderCircle size={18} /></span>{:else}{t('search.go')}{/if}
+	</button>
 </form>
 
 <!-- D-05: tappable past-search suggestions in the idle pre-query state. -->
@@ -241,8 +287,9 @@
 	</li>
 {/snippet}
 
-{#if loading && results.length === 0}
-	<!-- D-01: first-load skeleton (gated on no results yet); yields to the first D-06 partial. -->
+{#if showFirstSkeleton}
+	<!-- D-01: first-load skeleton. Gated on a dwell-floored flag (NOT raw `loading`/empty)
+	     so a D-04 cache HIT / fast settle can't collapse it below one paint frame. -->
 	<ul class="list">
 		{@render skeletonRows(6, t('search.searching'))}
 	</ul>
@@ -262,7 +309,7 @@
 			</li>
 		{/each}
 
-		{#if loadingMore}
+		{#if showMoreSkeleton}
 			{@render skeletonRows(4, t('search.loadingMore'))}
 		{/if}
 
@@ -285,7 +332,12 @@
 	.bar button {
 		background: var(--color-primary); border: none; color: #fff; border-radius: 12px;
 		padding: 0 18px; font-weight: 700; cursor: pointer;
+		display: inline-flex; align-items: center; justify-content: center; min-width: 64px;
 	}
+	.bar button[disabled] { opacity: 0.8; cursor: default; }
+	.spin { display: inline-flex; animation: spin 0.7s linear infinite; }
+	@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+	@keyframes spin { to { transform: rotate(360deg); } }
 	.muted { color: var(--color-text-muted); font-size: 14px; }
 	.warn { color: #ffcf66; font-size: 12px; margin: 0 0 10px; }
 

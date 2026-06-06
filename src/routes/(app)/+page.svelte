@@ -377,25 +377,34 @@
 		if (tr === null && player.pendingTrack == null) toast(t('home.unplayable'));
 	}
 
-	// Long-press a discovery tile → open the track menu. The tile is an unresolved stub, so
-	// resolve it to a real Track (same searchAll+scoreMatch path as tap-to-play) first; the menu
-	// needs a Track for its play/queue/download/playlist actions. A toast gives feedback during
-	// the resolve; a miss surfaces the unplayable toast.
-	let menuLoading = false;
+	// Long-press a discovery tile → open the track menu. The tile is an unresolved stub, so the
+	// menu opens INSTANTLY with a display stub + loading skeleton (predictable, never delayed by
+	// the network — so a slow re-search can't eat the long-press), then resolveStub fills in the
+	// real Track + actions in the background. A generation guard discards a stale resolve if the
+	// user closed / reopened the menu meanwhile; a miss closes the menu + toasts.
+	let menuLoading = $state(false);
+	let menuGen = 0;
+	function stubTrack(item: DiscoveryTrack): Track {
+		return {
+			uid: '', source: 'netease', songid: '', title: item.title, artist: item.artist,
+			album: '', cover: item.image ?? null, audioUrl: null, lrc: null, lrcUrl: null,
+			detailsLoaded: false, quality: null, qualityLabel: null, keyword: '', displayIndex: 0
+		};
+	}
 	async function tileMenu(item: DiscoveryTrack) {
-		if (menuLoading) return;
+		const gen = ++menuGen;
+		menuTrack = stubTrack(item); // header shows title/artist immediately
 		menuLoading = true;
-		toast(t('home.preparing'));
-		try {
-			const tr = await resolveStub(item.artist, item.title);
-			if (tr) {
-				menuTrack = tr;
-				menuOpen = true;
-			} else {
-				toast(t('home.unplayable'));
-			}
-		} finally {
+		menuOpen = true;
+		const tr = await resolveStub(item.artist, item.title);
+		if (gen !== menuGen || !menuOpen) return; // superseded or closed while resolving
+		if (tr) {
+			menuTrack = tr;
 			menuLoading = false;
+		} else {
+			menuOpen = false;
+			menuLoading = false;
+			toast(t('home.unplayable'));
 		}
 	}
 
@@ -561,7 +570,7 @@
 	{/each}
 {/snippet}
 
-<TrackMenu track={menuTrack} open={menuOpen} onclose={() => (menuOpen = false)} />
+<TrackMenu track={menuTrack} open={menuOpen} loading={menuLoading} onclose={() => { menuOpen = false; menuLoading = false; menuGen++; }} />
 
 {#if toastMsg}<div class="toast" transition:fly={{ y: -20, duration: 180 }}>{toastMsg}</div>{/if}
 

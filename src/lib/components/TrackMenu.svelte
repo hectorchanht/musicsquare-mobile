@@ -14,7 +14,10 @@
 	import { shareUrl } from '$lib/services/share';
 	import type { Track } from '$lib/sources/types';
 
-	let { track, open, onclose }: { track: Track | null; open: boolean; onclose: () => void } = $props();
+	// `loading` = the menu opened on a discovery STUB and is still resolving the real Track
+	// (home long-press). It pops INSTANTLY with a skeleton; the action buttons render once the
+	// track resolves — so the menu never waits on the network before appearing.
+	let { track, open, loading = false, onclose }: { track: Track | null; open: boolean; loading?: boolean; onclose: () => void } = $props();
 
 	let pickerOpen = $state(false);
 	let detailTrack = $state<Track | null>(null);
@@ -135,15 +138,23 @@
 	<button class="scrim" aria-label={t('menu.closeMenu')} onclick={close}></button>
 	<div class="menu" transition:fly={{ y: 240, duration: 200 }} use:dragClose={{ onclose: close }}>
 		<div class="menu-head">{names.dnTitle(track.title)} · {names.dnArtist(track.artist)}</div>
-		<button class="mi" onclick={playNext}><ListStart size={18} /> {t('menu.playNext')}</button>
-		<button class="mi" onclick={addQueue}><ListEnd size={18} /> {t('menu.addToQueue')}</button>
-		<button class="mi" onclick={doDownload}><Download size={18} /> {t('menu.download')}</button>
-		<button class="mi" onclick={like}><Heart size={18} fill={liked ? 'currentColor' : 'none'} /> {liked ? t('menu.liked') : t('menu.like')}</button>
-		<button class="mi" onclick={() => { pickerOpen = true; }}><ListPlus size={18} /> {t('menu.addToPlaylist')}</button>
-		<button class="mi" onclick={gotoAlbum} disabled={!track.album}><Disc size={18} /> {t('menu.goToAlbum')}</button>
-		<button class="mi" onclick={gotoArtist}><User size={18} /> {t('menu.goToArtist')}</button>
-		<button class="mi" onclick={doShare}><Share2 size={18} /> {t('menu.share')}</button>
-		<button class="mi" onclick={doDetail}><Info size={18} /> {t('menu.detail')}</button>
+		{#if loading}
+			<!-- Resolving the real Track (home stub). Skeleton placeholders so the menu is
+			     visible INSTANTLY on long-press; the buttons swap in when the track resolves. -->
+			{#each Array(7) as _, i (i)}
+				<div class="mi-skel" aria-hidden="true"><span class="sk-ico"></span><span class="sk-bar" style:width={`${70 - (i % 3) * 12}%`}></span></div>
+			{/each}
+		{:else}
+			<button class="mi" onclick={playNext}><ListStart size={18} /> {t('menu.playNext')}</button>
+			<button class="mi" onclick={addQueue}><ListEnd size={18} /> {t('menu.addToQueue')}</button>
+			<button class="mi" onclick={doDownload}><Download size={18} /> {t('menu.download')}</button>
+			<button class="mi" onclick={like}><Heart size={18} fill={liked ? 'currentColor' : 'none'} /> {liked ? t('menu.liked') : t('menu.like')}</button>
+			<button class="mi" onclick={() => { pickerOpen = true; }}><ListPlus size={18} /> {t('menu.addToPlaylist')}</button>
+			<button class="mi" onclick={gotoAlbum} disabled={!track.album}><Disc size={18} /> {t('menu.goToAlbum')}</button>
+			<button class="mi" onclick={gotoArtist}><User size={18} /> {t('menu.goToArtist')}</button>
+			<button class="mi" onclick={doShare}><Share2 size={18} /> {t('menu.share')}</button>
+			<button class="mi" onclick={doDetail}><Info size={18} /> {t('menu.detail')}</button>
+		{/if}
 	</div>
 {/if}
 
@@ -187,6 +198,14 @@
 	.mi:disabled { opacity: 0.4; cursor: default; }
 	.mi.accent { color: var(--color-primary); }
 	.mi .count { margin-left: auto; font-size: 12px; color: var(--color-text-muted); }
+	/* Loading skeleton rows (home stub resolving) — same height as .mi so the menu doesn't jump. */
+	.mi-skel { display: flex; align-items: center; gap: 12px; padding: 12px; }
+	.sk-ico { width: 18px; height: 18px; border-radius: 4px; flex: none; }
+	.sk-bar { height: 12px; border-radius: 6px; }
+	.sk-ico, .sk-bar { position: relative; overflow: hidden; background: var(--color-surface); }
+	.sk-ico::after, .sk-bar::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent); transform: translateX(-100%); animation: mi-shimmer 1.1s ease-in-out infinite; }
+	@keyframes mi-shimmer { 100% { transform: translateX(100%); } }
+	@media (prefers-reduced-motion: reduce) { .sk-ico::after, .sk-bar::after { animation: none; } }
 	.detail { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; padding: 6px 12px 14px; margin: 0; }
 	.detail dt { color: var(--color-text-muted); font-size: 12px; }
 	.detail dd { margin: 0; font-size: 13px; }

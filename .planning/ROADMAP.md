@@ -148,20 +148,21 @@ Plans:
 
 ---
 
-## Milestone v1.1: Last.fm Integration
+## Milestone v1.1: Last.fm Integration (read-only) — ✅ SHIPPED 2026-06-06
 
-Connects the standalone aggregator to Last.fm across four cross-cutting capability areas — passive metadata enrichment, auth-free editorial discovery, a new Last.fm-searchable playback source, and an optional signed-in layer (auth + scrobble + loved-tracks sync). The build order is deliberately read-only-first: prove the edge Last.fm proxy and the match-key normalization primitive with enrichment (Phase 8), ship discovery and tap-to-play (Phases 9–10) with zero auth surface, then introduce the highest-risk signed-call infrastructure once (Phase 11) and layer the two write features (scrobble, loved-sync) on top (Phases 12–13). Sign-in is optional/additive throughout — every signed-out path keeps the local-first app fully working. All `LASTFM_KEY` / `LASTFM_SECRET` use and the user session key stay server-side only (JOOX_TOKEN parity).
+Connects the standalone aggregator to Last.fm across the read-only capability areas — passive metadata enrichment, auth-free editorial discovery, and a Last.fm-searchable playback source. The build order was deliberately read-only-first: prove the edge Last.fm proxy and the match-key normalization primitive with enrichment (Phase 8), then ship discovery and tap-to-play (Phases 9–10) with zero auth surface. Sign-in is optional/additive — every signed-out path keeps the local-first app fully working. All `LASTFM_KEY` use stays server-side only (JOOX_TOKEN parity).
 
-**Numbering:** Continues from the v1.0 milestone — v1.0 ended at Phase 7, so v1.1 runs Phases 8–13.
+**Status:** Shipped 2026-06-06 as the read-only scope — enrichment (8), discovery/hot-picks (9), and tap-to-play re-search resolver (10), all security-verified (33/33 threats CLOSED across 8/9/10). Phase 14 (search/data responsiveness polish) also shipped. The **write-side** — auth + scrobbling + loved-tracks sync — is **deferred to Milestone v1.2** (see below). Decision 2026-06-06: auth postponed, not needed at this stage.
+
+**Numbering:** Continues from the v1.0 milestone — v1.0 ended at Phase 7, so v1.1 ran Phases 8–10 (read-only); the write-side Phases 11–13 carry forward to v1.2.
 
 ### Phases (v1.1)
 
 - [x] **Phase 8: Last.fm Read Foundation & Metadata Enrichment** - Edge Last.fm read proxy (`LASTFM_KEY` injected on the edge) + lazy, additive metadata enrichment (tags, bio, hi-res art) with placeholder-art filtering; establishes the reusable match-key normalization primitive (completed 2026-06-06)
 - [x] **Phase 9: Discovery / Hot-Picks Tab** - Auth-free Explore tab — global charts, vibe/mood tag browsing, and country/region top-lists — edge-cached to respect rate limits (completed 2026-06-06)
-- [ ] **Phase 10: Last.fm-searchable Source** - A new "Last.fm" source whose discovered tracks resolve to playable audio via the existing CN-source resolver (best-match scoring); discovery becomes tap-to-play
-- [ ] **Phase 11: Signed-call Infrastructure & Auth** - `api_sig` signer on the edge (UTF-8/CJK-correct), Last.fm Web Auth sign-in/out, session key in an httpOnly cookie; gates all write features
-- [ ] **Phase 12: Scrobbling (online-only)** - When signed in, now-playing + exactly-once scrobble at the Last.fm threshold; a no-op and non-blocking when signed out
-- [ ] **Phase 13: Loved-Tracks Sync** - When signed in, favorite/unfavorite mirrors to Last.fm love/unlove and sign-in additively merges Last.fm loved tracks into local favorites (non-destructive)
+- [x] **Phase 10: Last.fm-searchable Source** - re-search resolver best-match scoring (`scoreMatch`: variant-keyword penalty + matchKey similarity, dedupeBest tie-break); discovery is tap-to-play (completed 2026-06-06, security-verified)
+
+> **Phases 11–13 deferred to Milestone v1.2 (Last.fm write-side).** Auth postponed by decision 2026-06-06 — not needed at this stage. Goals/criteria/security-notes retained in the v1.2 section below; phase directories not yet created.
 
 ### Phase Details (v1.1)
 
@@ -242,6 +243,20 @@ Plans:
 - [ ] 10-01-PLAN.md — Upgrade resolveStub to a scored best-match pick (scoreMatch helper: variant-keyword penalty + matchKey similarity, dedupeBest tie-break) + reconcile LFSRC traceability (D-01)
 **Research flag**: Re-search resolver path (the v1.1 scope) needs no extra research. NOTE: GD Studio `ytmusic` is OUT of v1.1 (deferred — LFSRC-FB-01). If it is ever pulled in, it warrants its own `--research-phase` feasibility spike (`s`-checksum host/version drift, 50 req/5 min cap, instance failover, Western-catalog match rate).
 **Security note**: Isolate the resolver behind `Promise.allSettled` + `AbortSignal.timeout` so a slow/empty resolve can never stall the shared fan-out or break the working 4-source experience; score matches to avoid wrong-song playback (PITFALLS Pitfall 7 / threat T-lfm-04, scoped to the deferred ytmusic path).
+
+---
+
+## Milestone v1.2: Last.fm Write-side (Deferred — Planned)
+
+The optional signed-in layer, deferred out of v1.1 on 2026-06-06 (auth not needed at this stage). Sign-in stays optional/additive: every signed-out path keeps the local-first app fully working. All `LASTFM_SECRET` use and the user session key stay edge-only (httpOnly cookie, never localStorage). Build order: signed-call infrastructure + auth once (Phase 11), then the two write features on top (scrobbling 12, loved-sync 13). **Not started — phase directories not yet created.** Resume with `/gsd:new-milestone` (or `/gsd:discuss-phase 11`) when the write-side is wanted.
+
+### Phases (v1.2)
+
+- [ ] **Phase 11: Signed-call Infrastructure & Auth** — `api_sig` edge signer (UTF-8/CJK-correct), Last.fm Web Auth sign-in/out, httpOnly-cookie session; gates all write features
+- [ ] **Phase 12: Scrobbling (online-only)** — now-playing + exactly-once scrobble at threshold when signed in; no-op + non-blocking when signed out
+- [ ] **Phase 13: Loved-Tracks Sync** — favorite mirrors to Last.fm love/unlove; sign-in additively merges loved tracks into local favorites (non-destructive)
+
+### Phase Details (v1.2)
 
 ### Phase 11: Signed-call Infrastructure & Auth
 
@@ -325,9 +340,9 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 (v1.0) → 8 → 9 → 10 → 11 → 12 → 13 (v1.1)
+v1.0: Phases 1 → 7. v1.1 (read-only, ✅ shipped 2026-06-06): 8 → 9 → 10, plus 14 (responsiveness polish). v1.2 (write-side, deferred): 11 (auth) → 12 → 13.
 
-v1.1 dependency chain: 8 → (9, 10) read-only & auth-free first; 11 (auth) before 12 & 13; Phase 8's match-key primitive feeds Phase 13's reconciliation.
+v1.2 dependency chain: 11 (auth) before 12 & 13; Phase 8's match-key primitive feeds Phase 13's reconciliation.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -340,8 +355,8 @@ v1.1 dependency chain: 8 → (9, 10) read-only & auth-free first; 11 (auth) befo
 | 7. New Sources + Queue Model + Gestures | 0/TBD | Not started | - |
 | 8. Last.fm Read Foundation & Metadata Enrichment | 3/3 | Complete   | 2026-06-06 |
 | 9. Discovery / Hot-Picks Tab | 3/3 | Complete   | 2026-06-06 |
-| 10. Last.fm-searchable Source | 0/TBD | Not started | - |
-| 11. Signed-call Infrastructure & Auth | 0/TBD | Not started | - |
-| 12. Scrobbling (online-only) | 0/TBD | Not started | - |
-| 13. Loved-Tracks Sync | 0/TBD | Not started | - |
+| 10. Last.fm-searchable Source | 1/1 | Complete   | 2026-06-06 |
+| 11. Signed-call Infrastructure & Auth | 0/TBD | Deferred → v1.2 | - |
+| 12. Scrobbling (online-only) | 0/TBD | Deferred → v1.2 | - |
+| 13. Loved-Tracks Sync | 0/TBD | Deferred → v1.2 | - |
 | 14. Search & Data Responsiveness | 2/2 | Complete    | 2026-06-06 |

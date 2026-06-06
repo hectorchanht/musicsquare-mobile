@@ -101,7 +101,7 @@
 	});
 </script>
 
-<svelte:head><title>{name} · MusicSquare</title></svelte:head>
+<svelte:head><title>{name} · openmusic</title></svelte:head>
 
 <header class="hero">
 	<a class="back" href="/">{t('artist.back')}</a>

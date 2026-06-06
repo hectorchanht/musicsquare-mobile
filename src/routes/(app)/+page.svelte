@@ -39,7 +39,7 @@
 	const FANOUT_CAP = 4; // ≤4 in-flight tag/country shelf fetches (Pitfall 11 / DISCO-04)
 	// Bumped to v2: the cache now holds the four Last.fm discovery shelves (D-01/D-02),
 	// not the flat v1 buildDiversePicks list. A stale v1 entry is simply ignored.
-	const CACHE_KEY = 'musicsquare:top-picks:v2';
+	const CACHE_KEY = 'openmusic:top-picks:v2';
 
 	// A labelled tag/country row paired with its heading.
 	type Shelf = { label: string; tracks: DiscoveryTrack[] };

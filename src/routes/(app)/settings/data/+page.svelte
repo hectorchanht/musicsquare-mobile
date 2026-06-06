@@ -6,7 +6,7 @@
 	import { library } from '$lib/stores/library.svelte';
 	import { t } from '$lib/i18n';
 
-	const TOP_PICKS_KEY = 'musicsquare:top-picks:v1';
+	const TOP_PICKS_KEY = 'openmusic:top-picks:v1';
 	let msg = $state('');
 	let counts = $state({ liked: 0, playlists: 0, downloads: 0 });
 

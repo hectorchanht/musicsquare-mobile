@@ -173,7 +173,7 @@
 </script>
 
 <svelte:head>
-	<title>MusicSquare egress spike</title>
+	<title>openmusic egress spike</title>
 	<meta name="referrer" content="no-referrer" />
 </svelte:head>
 

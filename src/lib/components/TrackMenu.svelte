@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { fly } from 'svelte/transition';
 	import { goto } from '$app/navigation';
 	import { ListStart, ListEnd, Download, Heart, ListPlus, Disc, User, Share2, Info, X, Plus } from '@lucide/svelte';
@@ -88,21 +89,24 @@
 	// a single dismiss site and history depth stays balanced (open pushed 1 state; either
 	// the cleanup's dismiss() pops it, or closeTop() already popped it → dismiss is a no-op).
 	$effect(() => {
+		// untrack the overlays calls: open/dismiss read the $state overlay stack internally,
+		// so without untrack this effect would re-run (cleanup+reopen, churning history) whenever
+		// ANOTHER overlay (picker/detail/nowplaying) pushes or pops. Deps stay: open + track.
 		if (open && track) {
-			overlays.open('trackmenu-menu', () => onclose());
-			return () => overlays.dismiss('trackmenu-menu');
+			untrack(() => overlays.open("trackmenu-menu", () => onclose()));
+			return () => untrack(() => overlays.dismiss("trackmenu-menu"));
 		}
 	});
 	$effect(() => {
 		if (pickerOpen && track) {
-			overlays.open('trackmenu-picker', () => (pickerOpen = false));
-			return () => overlays.dismiss('trackmenu-picker');
+			untrack(() => overlays.open("trackmenu-picker", () => (pickerOpen = false)));
+			return () => untrack(() => overlays.dismiss("trackmenu-picker"));
 		}
 	});
 	$effect(() => {
 		if (detailTrack) {
-			overlays.open('trackmenu-detail', () => (detailTrack = null));
-			return () => overlays.dismiss('trackmenu-detail');
+			untrack(() => overlays.open("trackmenu-detail", () => (detailTrack = null)));
+			return () => untrack(() => overlays.dismiss("trackmenu-detail"));
 		}
 	});
 </script>

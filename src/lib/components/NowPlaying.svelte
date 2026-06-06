@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { fly } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import { goto } from '$app/navigation';
@@ -243,8 +244,12 @@
 	// stays balanced: open pushes 1 state, cleanup's dismiss() pops it (or back-gesture's
 	// closeTop already popped it → dismiss is a no-op).
 	$effect(() => {
-		overlays.open('nowplaying', () => player.collapse());
-		return () => overlays.dismiss('nowplaying');
+		// untrack: overlays.open/dismiss READ the $state overlay stack internally (isTop/has).
+		// Without untrack this effect would capture that stack as a dependency and RE-RUN
+		// (cleanup-dismiss then re-open, churning history) every time ANY other overlay (e.g.
+		// the track menu) pushes/pops — desyncing history depth so the menu can't be dismissed.
+		untrack(() => overlays.open('nowplaying', () => player.collapse()));
+		return () => untrack(() => overlays.dismiss('nowplaying'));
 	});
 
 	// ---- cover drag-down to collapse ----

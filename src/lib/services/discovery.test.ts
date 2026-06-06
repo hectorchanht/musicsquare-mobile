@@ -98,15 +98,18 @@ describe('resolveStub — scored best-match pick (LFSRC-03 / D-02)', () => {
 		expect(out?.uid).toBe(clean.uid);
 	});
 
-	it('falls back to dedupeBest order (preferredSource/quality) among equal-scored candidates', async () => {
-		// Two clean same-song candidates → equal scoreMatch. The stable max keeps the earlier
-		// dedupeBest position, so dedupeBest's quality/preferredSource ranking is the tie-break.
-		const first = mk('netease', 'first', '周杰伦', { title: '稻香' });
-		const second = mk('qq', 'second', '周杰伦', { title: '稻香' });
+	it('falls back to dedupeBest order among equal-scored candidates (WR-01: strict stable max, ≥2 survive)', async () => {
+		// Two DISTINCT, equally-(zero-)scored candidates with DIFFERENT normalized keys so
+		// BOTH survive dedupeBest (the prior version used identical 稻香/稻香 which dedupeBest
+		// collapsed to one, so the ≥2-candidate stable-max never ran). Both are unrelated to
+		// the query → similarity 0, penalty 0 → equal score. The strict `s > bestScore` max
+		// keeps the EARLIER dedupeBest position → `first` wins the tie.
+		const first = mk('netease', 'first', 'Alpha', { title: 'Aaa' });
+		const second = mk('qq', 'second', 'Beta', { title: 'Bbb' });
 		vi.spyOn(catalog, 'searchAll').mockResolvedValue(result([first, second]));
 
 		const out = await resolveStub('周杰伦', '稻香');
-		expect(out?.uid).toBe(first.uid);
+		expect(out?.uid).toBe(first.uid); // tie → first-wins (not last-wins)
 	});
 
 	it('still returns null on zero results and never throws (posture preserved)', async () => {

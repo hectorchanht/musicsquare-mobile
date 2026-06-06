@@ -30,6 +30,7 @@ export const VARIANT_KEYWORDS: string[] = [
 	'instrumental',
 	'remix',
 	'sped up',
+	'speed up',
 	'slowed',
 	'8d',
 	'tribute',
@@ -46,6 +47,7 @@ export const VARIANT_KEYWORDS: string[] = [
 	'伴奏',
 	'纯音乐',
 	'純音樂',
+	'加速版',
 	'live版',
 	'现场版',
 	'現場版',
@@ -99,23 +101,50 @@ function similarity(query: { artist: string; title: string }, candidate: Track):
 	return score;
 }
 
+/** Escape a string for safe literal use inside a RegExp. */
+function escapeRegExp(s: string): string {
+	return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
- * Variant penalty (D-02a): scan the candidate TITLE (lowercased) for any VARIANT_KEYWORDS
- * term that is NOT also present in the query string (artist+title, lowercased). The
- * "query asked for it" terms are excluded, so a user who tapped a "Live" track is not
- * penalized for getting the live take. Returns a non-negative penalty.
+ * Precomputed keyword testers. Latin/ASCII keywords match on WORD BOUNDARIES (CR-01) so
+ * `live` does NOT fire inside `Olive`/`Relive` and `cover` does NOT fire inside `Discover`.
+ * CJK keywords have no word separators, so they match as a substring (safe — low false-
+ * positive risk for CJK). `\b` (ASCII word boundary) still fires at a latin↔CJK seam, so
+ * `\blive\b` correctly matches inside `live版`.
+ */
+const ASCII_ONLY = /^[\x00-\x7f]+$/;
+const KW_TESTERS: { kw: string; re: RegExp | null }[] = VARIANT_KEYWORDS.map((kw) => ({
+	kw,
+	re: ASCII_ONLY.test(kw) ? new RegExp(`\\b${escapeRegExp(kw)}\\b`, 'i') : null
+}));
+function kwHit(text: string, t: { kw: string; re: RegExp | null }): boolean {
+	return t.re ? t.re.test(text) : text.includes(t.kw);
+}
+
+/**
+ * Variant penalty (D-02a): scan the candidate TITLE for VARIANT_KEYWORDS terms NOT present
+ * in the query TITLE (WR-02 — title only, so a band literally named "Live" no longer
+ * suppresses the live-penalty for every candidate). Word-boundary match for latin (CR-01).
+ * Paired keywords are de-duped so `live`⊂`live版` counts ONCE, not twice (CR-02). Non-negative.
  */
 function variantPenalty(query: { artist: string; title: string }, candidate: Track): number {
 	const title = (candidate.title || '').toLowerCase();
-	const queryStr = `${query.artist || ''} ${query.title || ''}`.toLowerCase();
+	const qTitle = (query.title || '').toLowerCase(); // WR-02: query TITLE only, not artist
 
-	let penalty = 0;
-	for (const kw of VARIANT_KEYWORDS) {
-		if (!title.includes(kw)) continue;
-		if (queryStr.includes(kw)) continue; // query asked for this variant — do not penalize
-		penalty += VARIANT_WEIGHT;
+	// Keywords present in the candidate title that the query did NOT ask for.
+	const matched: string[] = [];
+	for (const t of KW_TESTERS) {
+		if (!kwHit(title, t)) continue;
+		if (kwHit(qTitle, t)) continue; // query asked for this variant — do not penalize
+		matched.push(t.kw);
 	}
-	return penalty;
+	// CR-02: drop a matched keyword that is a substring of ANOTHER matched keyword
+	// (e.g. `live` when `live版` also matched) so the same variant token counts once.
+	const deduped = matched.filter(
+		(kw) => !matched.some((other) => other !== kw && other.includes(kw))
+	);
+	return deduped.length * VARIANT_WEIGHT;
 }
 
 /**

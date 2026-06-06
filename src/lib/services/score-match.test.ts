@@ -111,6 +111,58 @@ describe('VARIANT_KEYWORDS — exported editable list', () => {
 	});
 });
 
+describe('scoreMatch — review regressions (CR-01/CR-02/WR-02/IN-01/IN-02)', () => {
+	it('CR-01: a clean title containing a keyword as a SUBSTRING is not penalized (Olive ⊅ live)', () => {
+		// 'live' must not fire inside 'Olive'; 'cover' must not fire inside 'Discover'.
+		// An exact-match clean title scores the same whether or not it embeds a keyword substring.
+		const olive = scoreMatch({ artist: 'X', title: 'Olive' }, mk('netease', 'o', 'X', { title: 'Olive' }));
+		const apple = scoreMatch({ artist: 'X', title: 'Apple' }, mk('netease', 'a', 'X', { title: 'Apple' }));
+		const discover = scoreMatch({ artist: 'X', title: 'Discover' }, mk('qq', 'd', 'X', { title: 'Discover' }));
+		expect(olive).toBe(apple); // both exact, both un-penalized
+		expect(discover).toBe(apple);
+	});
+
+	it('CR-01: the keyword as a real WORD is still penalized', () => {
+		const query = { artist: 'X', title: 'Song' };
+		const clean = mk('netease', 'c', 'X', { title: 'Song' });
+		const live = mk('qq', 'l', 'X', { title: 'Song (Live)' });
+		expect(scoreMatch(query, clean)).toBeGreaterThan(scoreMatch(query, live));
+	});
+
+	it('CR-02: a paired keyword (live ⊂ live版) counts ONCE, not twice', () => {
+		const query = { artist: 'X', title: 'Song' };
+		const onePair = mk('netease', 'p', 'X', { title: 'Song live版' }); // matched live+live版 → dedup → 1×
+		const twoDistinct = mk('qq', 't', 'X', { title: 'Song live remix' }); // live+remix → 2×
+		// One de-duped variant must be penalized LESS than two genuinely distinct variants.
+		expect(scoreMatch(query, onePair)).toBeGreaterThan(scoreMatch(query, twoDistinct));
+	});
+
+	it('WR-02: an artist literally named "Live" does NOT suppress the live penalty', () => {
+		const query = { artist: 'Live', title: 'Song' }; // band "Live", clean title
+		const clean = mk('netease', 'c', 'Live', { title: 'Song' });
+		const liveTake = mk('qq', 'l', 'Live', { title: 'Song (Live)' });
+		// The exception keys off the query TITLE only — a live recording is still down-ranked.
+		expect(scoreMatch(query, clean)).toBeGreaterThan(scoreMatch(query, liveTake));
+	});
+
+	it('IN-01: "speed up" is penalized (not only "sped up")', () => {
+		const query = { artist: 'X', title: 'Song' };
+		const clean = mk('netease', 'c', 'X', { title: 'Song' });
+		const speedUp = mk('qq', 's', 'X', { title: 'Song (speed up)' });
+		expect(scoreMatch(query, clean)).toBeGreaterThan(scoreMatch(query, speedUp));
+	});
+
+	it('IN-02: empty query / all-variant candidate still returns a finite number', () => {
+		const empty = scoreMatch({ artist: '', title: '' }, mk('netease', 'e', '', { title: '' }));
+		expect(Number.isFinite(empty)).toBe(true);
+		const allVariant = scoreMatch(
+			{ artist: 'X', title: 'Song' },
+			mk('qq', 'v', 'Z', { title: 'Karaoke Cover (Live)' })
+		);
+		expect(Number.isFinite(allVariant)).toBe(true); // negative is fine; NaN/null is not
+	});
+});
+
 describe('scoreMatch — determinism + numeric safety', () => {
 	it('returns the same number for the same inputs and never NaN/null', () => {
 		const query = { artist: '周杰伦', title: '稻香' };

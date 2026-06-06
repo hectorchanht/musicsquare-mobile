@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { coverCacheKey, getCachedCover, setCachedCover } from './cover-cache';
+import {
+	coverCacheKey,
+	getCachedCover,
+	setCachedCover,
+	artistCoverCacheKey,
+	getCachedArtistCover,
+	setCachedArtistCover
+} from './cover-cache';
 import { matchKey } from './match-key';
 
 // cover-cache is the pure localStorage-backed store of lazily-resolved CN-source covers
@@ -99,5 +106,82 @@ describe('cover-cache — pure localStorage cover store (FIX-A)', () => {
 		});
 		expect(getCachedCover('A', 'B')).toBeNull();
 		expect(() => setCachedCover('A', 'B', 'https://x')).not.toThrow();
+	});
+});
+
+describe('cover-cache — artist-only cover key (quick-260606-v7k)', () => {
+	let store: MemStorage;
+	const originalLocalStorage = (globalThis as { localStorage?: Storage }).localStorage;
+
+	beforeEach(() => {
+		store = new MemStorage();
+		Object.defineProperty(globalThis, 'localStorage', {
+			value: store,
+			configurable: true,
+			writable: true
+		});
+	});
+	afterEach(() => {
+		Object.defineProperty(globalThis, 'localStorage', {
+			value: originalLocalStorage,
+			configurable: true,
+			writable: true
+		});
+	});
+
+	it('artistCoverCacheKey is the pinned `artist:` + matchKey(name, "") form', () => {
+		// Pinned so it can NEVER silently change shape / collide with the track key.
+		expect(artistCoverCacheKey('Drake')).toBe('artist:' + matchKey('Drake', ''));
+	});
+
+	it('the artist key is provably DISTINCT from the track key for the same name', () => {
+		// 'Drake' the ARTIST must never collide with a 'Drake'|'<title>' track row.
+		expect(artistCoverCacheKey('Drake')).not.toBe(coverCacheKey('Drake', 'Drake'));
+		expect(artistCoverCacheKey('Drake')).not.toBe(coverCacheKey('Drake', ''));
+	});
+
+	it('set → get round-trips an artist cover URL', () => {
+		setCachedArtistCover('Taylor Swift', 'https://cdn.example/ts.jpg');
+		expect(getCachedArtistCover('Taylor Swift')).toBe('https://cdn.example/ts.jpg');
+	});
+
+	it('get returns null for an unknown artist', () => {
+		expect(getCachedArtistCover('Nobody')).toBeNull();
+	});
+
+	it('folds case/whitespace via the matchKey identity', () => {
+		setCachedArtistCover('Lady Gaga', 'https://cdn.example/lg.jpg');
+		expect(getCachedArtistCover('  lady   gaga ')).toBe('https://cdn.example/lg.jpg');
+	});
+
+	it('an artist cover does NOT leak into the track lookup for the same name', () => {
+		setCachedArtistCover('Drake', 'https://cdn.example/artist.jpg');
+		// The track getter (artist+title) must NOT return the artist cover.
+		expect(getCachedCover('Drake', 'Drake')).toBeNull();
+		expect(getCachedArtistCover('Drake')).toBe('https://cdn.example/artist.jpg');
+	});
+
+	it('artist + track entries coexist in the same flat record', () => {
+		setCachedArtistCover('Drake', 'https://cdn.example/artist.jpg');
+		setCachedCover('Drake', 'Hotline Bling', 'https://cdn.example/track.jpg');
+		expect(getCachedArtistCover('Drake')).toBe('https://cdn.example/artist.jpg');
+		expect(getCachedCover('Drake', 'Hotline Bling')).toBe('https://cdn.example/track.jpg');
+	});
+
+	it('setCachedArtistCover with an empty / whitespace url is a no-op', () => {
+		setCachedArtistCover('A', '');
+		expect(getCachedArtistCover('A')).toBeNull();
+		setCachedArtistCover('A', '   ');
+		expect(getCachedArtistCover('A')).toBeNull();
+	});
+
+	it('returns null gracefully when storage is unavailable (no throw)', () => {
+		Object.defineProperty(globalThis, 'localStorage', {
+			value: undefined,
+			configurable: true,
+			writable: true
+		});
+		expect(getCachedArtistCover('A')).toBeNull();
+		expect(() => setCachedArtistCover('A', 'https://x')).not.toThrow();
 	});
 });

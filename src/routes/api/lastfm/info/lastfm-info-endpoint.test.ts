@@ -32,6 +32,7 @@ type Info = {
 	image: string | null;
 	listeners: number | null;
 	playcount: number | null;
+	tracks?: { artist: string; title: string }[];
 };
 
 const TRACK_PAYLOAD = JSON.stringify({
@@ -276,6 +277,116 @@ describe('/api/lastfm/info — Last.fm key injected upstream, ABSENT from client
 			expect(parsed.bioUrl, `href should be rejected: ${href}`).toBeNull();
 			expect(parsed.bio).toContain('Real bio text here'); // bio body still surfaced
 		}
+	});
+});
+
+// Task 2 (Phase 9, D-04/D-05): album.getinfo additionally surfaces an ORDERED tracklist
+// (LastfmInfo.tracks) — the tracks the Phase-8 reshaper dropped. Single-entity getInfo
+// (track/artist) leaves tracks undefined so the existing 5-field contract is unchanged.
+describe('/api/lastfm/info — album.getinfo ordered tracklist (D-05)', () => {
+	it('reshapes album.tracks.track[] into an ordered { artist, title }[] preserving order', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({
+							album: {
+								tags: { tag: [{ name: 'mandopop' }] },
+								image: [{ '#text': 'https://lastfm/album.png', size: 'extralarge' }],
+								tracks: {
+									track: [
+										{ name: '稻香', artist: { name: '周杰伦' }, '@attr': { rank: '1' } },
+										{ name: '说好的幸福呢', artist: { name: '周杰伦' }, '@attr': { rank: '2' } },
+										{ name: '魔术先生', artist: { name: '周杰伦' }, '@attr': { rank: '3' } }
+									]
+								}
+							}
+						}),
+						{ status: 200 }
+					)
+			)
+		);
+		const event = fakeEvent(
+			{ method: 'album.getinfo', artist: '周杰伦', album: '魔杰座' },
+			{ JOOX_TOKEN: 'x', LASTFM_KEY: FAKE_KEY }
+		);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const res = await GET(event as any);
+		const parsed = JSON.parse(await res.text()) as Info;
+		expect(parsed.tracks).toEqual([
+			{ artist: '周杰伦', title: '稻香' },
+			{ artist: '周杰伦', title: '说好的幸福呢' },
+			{ artist: '周杰伦', title: '魔术先生' }
+		]);
+		// existing single-entity fields still present (no regression)
+		expect(parsed.image).toBe('https://lastfm/album.png');
+		expect(parsed.tags).toEqual(['mandopop']);
+	});
+
+	it('handles a one-track album returned as a single object (array-or-single quirk)', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({
+							album: {
+								tracks: { track: { name: 'Solo', artist: { name: 'Mono' }, '@attr': { rank: '1' } } }
+							}
+						}),
+						{ status: 200 }
+					)
+			)
+		);
+		const event = fakeEvent(
+			{ method: 'album.getinfo', artist: 'Mono', album: 'One' },
+			{ JOOX_TOKEN: 'x', LASTFM_KEY: FAKE_KEY }
+		);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const res = await GET(event as any);
+		const parsed = JSON.parse(await res.text()) as Info;
+		expect(parsed.tracks).toEqual([{ artist: 'Mono', title: 'Solo' }]);
+	});
+
+	it('album.getinfo with no tracks block → tracks undefined (EMPTY deep-equal still holds)', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(JSON.stringify({ album: { name: 'Bare' } }), { status: 200 }))
+		);
+		const event = fakeEvent(
+			{ method: 'album.getinfo', artist: 'X', album: 'Bare' },
+			{ JOOX_TOKEN: 'x', LASTFM_KEY: FAKE_KEY }
+		);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const res = await GET(event as any);
+		const parsed = JSON.parse(await res.text()) as Info;
+		expect(parsed.tracks).toBeUndefined();
+		// the rest deep-equals the all-empty single-entity shape (no array leakage)
+		expect(parsed).toEqual({
+			tags: [],
+			bio: null,
+			bioUrl: null,
+			image: null,
+			listeners: null,
+			playcount: null
+		});
+	});
+
+	it('track.getinfo leaves tracks undefined (single-entity contract unchanged)', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(TRACK_PAYLOAD, { status: 200 }))
+		);
+		const event = fakeEvent(
+			{ method: 'track.getinfo', artist: '周杰伦', track: '稻香' },
+			{ JOOX_TOKEN: 'x', LASTFM_KEY: FAKE_KEY }
+		);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const res = await GET(event as any);
+		const parsed = JSON.parse(await res.text()) as Info;
+		expect(parsed.tracks).toBeUndefined();
+		expect(parsed.tags).toEqual(['mandopop', 'pop', 'chinese', 'ballad', 'rnb']);
 	});
 });
 

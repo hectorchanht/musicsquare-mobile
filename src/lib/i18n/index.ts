@@ -12,16 +12,55 @@
 import en from './en';
 import zhHant from './zh-Hant';
 import zhHans from './zh-Hans';
+import es from './es';
+import fr from './fr';
+import de from './de';
+import pt from './pt';
+import it from './it';
+import ru from './ru';
+import tr from './tr';
+import ar from './ar';
+import hi from './hi';
+import id from './id';
+import vi from './vi';
+import th from './th';
 import { settings } from '$lib/stores/settings.svelte';
 
-export type AppLang = 'en' | 'zh-Hant' | 'zh-Hans';
+export type AppLang =
+	| 'en'
+	| 'zh-Hant'
+	| 'zh-Hans'
+	| 'es'
+	| 'fr'
+	| 'de'
+	| 'pt'
+	| 'it'
+	| 'ru'
+	| 'tr'
+	| 'ar'
+	| 'hi'
+	| 'id'
+	| 'vi'
+	| 'th';
 export type TranslationKey = keyof typeof en;
 export type Dict = Record<TranslationKey, string>;
 
 export const dicts: Record<AppLang, Dict> = {
 	en,
 	'zh-Hant': zhHant,
-	'zh-Hans': zhHans
+	'zh-Hans': zhHans,
+	es,
+	fr,
+	de,
+	pt,
+	it,
+	ru,
+	tr,
+	ar,
+	hi,
+	id,
+	vi,
+	th
 };
 
 /** Replace `{token}` occurrences with params[token]; leave unknown tokens intact. Pure. */
@@ -53,6 +92,10 @@ export function detectAppLang(navLang?: string): AppLang {
 		if (l.includes('tw') || l.includes('hant') || l.includes('hk') || l.includes('mo')) return 'zh-Hant';
 		return 'zh-Hans';
 	}
+	// Match the 2-letter prefix against the supported world locales (pt-BR → pt, etc.).
+	const two = l.slice(0, 2);
+	const supported: AppLang[] = ['es', 'fr', 'de', 'pt', 'it', 'ru', 'tr', 'ar', 'hi', 'id', 'vi', 'th'];
+	if ((supported as string[]).includes(two)) return two as AppLang;
 	return 'en';
 }
 

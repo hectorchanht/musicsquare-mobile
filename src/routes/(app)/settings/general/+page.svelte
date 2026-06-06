@@ -11,7 +11,19 @@
 	const appLangs: { v: AppLang; label: string }[] = [
 		{ v: 'en', label: 'English' },
 		{ v: 'zh-Hant', label: '繁體中文' },
-		{ v: 'zh-Hans', label: '简体中文' }
+		{ v: 'zh-Hans', label: '简体中文' },
+		{ v: 'es', label: 'Español' },
+		{ v: 'fr', label: 'Français' },
+		{ v: 'de', label: 'Deutsch' },
+		{ v: 'pt', label: 'Português' },
+		{ v: 'it', label: 'Italiano' },
+		{ v: 'ru', label: 'Русский' },
+		{ v: 'tr', label: 'Türkçe' },
+		{ v: 'ar', label: 'العربية' },
+		{ v: 'hi', label: 'हिन्दी' },
+		{ v: 'id', label: 'Bahasa Indonesia' },
+		{ v: 'vi', label: 'Tiếng Việt' },
+		{ v: 'th', label: 'ไทย' }
 	];
 
 	function setAppLang(v: AppLang) { settings.appLang = v; settings.save(); }

@@ -7,9 +7,9 @@
 	let audioEl: HTMLAudioElement;
 
 	const SITE = 'https://openmusic.pages.dev';
-	const TITLE = 'openmusic — stream music from every source';
+	const TITLE = 'openmusic — music streaming for earth';
 	const DESC =
-		'Search and stream music aggregated from NetEase, QQ, Kuwo and JOOX. Synced lyrics, translation, playlists, library — a fast mobile-first web player.';
+		'Search and stream music for world. Synced lyrics, translation, playlists, library — a fast mobile-first web player.';
 	const canonical = $derived(`${SITE}${page.url.pathname}`);
 
 	// The single app-wide <audio> lives at the ROOT layout so it is mounted ONCE

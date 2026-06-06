@@ -12,12 +12,25 @@ export type DefaultSource = 'auto' | SourceId;
 const KEY = 'openmusic:settings:v1';
 const DEFAULT_ACCENT = '#7c5cff';
 
+/** Source-language tags usable in a per-part skip whitelist (LyricsLang minus 'off'). */
+export type SourceLang = 'zh-Hant' | 'zh-Hans' | 'en' | 'ja' | 'ko';
+
 class Settings {
-	/** UI-chrome language (separate from lyricsLang/nameLang content translation). */
+	/** UI-chrome language (separate from content translation; stays en/zh-Hant/zh-Hans). */
 	appLang = $state<AppLang>('en');
+	/** Per-part CONTENT translation targets (independent; reuse LyricsLang incl. ja/ko). */
 	lyricsLang = $state<LyricsLang>('off');
-	/** Translate displayed song titles + artist names to this language (separate from lyrics). */
-	nameLang = $state<LyricsLang>('off');
+	/** Translate displayed ARTIST names to this language. */
+	artistLang = $state<LyricsLang>('off');
+	/** Translate displayed SONG/ALBUM titles to this language. */
+	titleLang = $state<LyricsLang>('off');
+	/** Translate Last.fm info (tags) to this language. */
+	lastfmLang = $state<LyricsLang>('off');
+	/** Per-part skip whitelists: a text whose detected source ∈ list renders untouched. */
+	artistSkip = $state<SourceLang[]>([]);
+	titleSkip = $state<SourceLang[]>([]);
+	lyricsSkip = $state<SourceLang[]>([]);
+	lastfmSkip = $state<SourceLang[]>([]);
 	translateMode = $state<TranslateMode>('below');
 	defaultQuality = $state<DefaultQuality>('auto');
 	defaultSource = $state<DefaultSource>('auto');
@@ -42,7 +55,16 @@ class Settings {
 				// the browser; otherwise the saved choice always wins. (browser-guarded above.)
 				this.appLang = (v.appLang as AppLang) ?? detectAppLang(navigator.language);
 				this.lyricsLang = (v.lyricsLang as LyricsLang) ?? 'off';
-				this.nameLang = (v.nameLang as LyricsLang) ?? 'off';
+				// Non-destructive migration: a saved `nameLang` mirrors into BOTH new
+				// per-part targets. New `artistLang`/`titleLang` win when present.
+				const savedNameLang = (v as { nameLang?: LyricsLang }).nameLang;
+				this.artistLang = (v.artistLang as LyricsLang) ?? savedNameLang ?? 'off';
+				this.titleLang = (v.titleLang as LyricsLang) ?? savedNameLang ?? 'off';
+				this.lastfmLang = (v.lastfmLang as LyricsLang) ?? 'off';
+				this.artistSkip = Array.isArray(v.artistSkip) ? (v.artistSkip as SourceLang[]) : [];
+				this.titleSkip = Array.isArray(v.titleSkip) ? (v.titleSkip as SourceLang[]) : [];
+				this.lyricsSkip = Array.isArray(v.lyricsSkip) ? (v.lyricsSkip as SourceLang[]) : [];
+				this.lastfmSkip = Array.isArray(v.lastfmSkip) ? (v.lastfmSkip as SourceLang[]) : [];
 				this.translateMode = (v.translateMode as TranslateMode) ?? 'below';
 				this.defaultQuality = (v.defaultQuality as DefaultQuality) ?? 'auto';
 				this.defaultSource = (v.defaultSource as DefaultSource) ?? 'auto';
@@ -67,7 +89,15 @@ class Settings {
 				JSON.stringify({
 					appLang: this.appLang,
 					lyricsLang: this.lyricsLang,
-					nameLang: this.nameLang,
+					// `nameLang` is now a read-only migration source (load() still reads it),
+					// so we stop writing it; the per-part fields below supersede it.
+					artistLang: this.artistLang,
+					titleLang: this.titleLang,
+					lastfmLang: this.lastfmLang,
+					artistSkip: this.artistSkip,
+					titleSkip: this.titleSkip,
+					lyricsSkip: this.lyricsSkip,
+					lastfmSkip: this.lastfmSkip,
 					translateMode: this.translateMode,
 					defaultQuality: this.defaultQuality,
 					defaultSource: this.defaultSource,

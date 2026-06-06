@@ -93,14 +93,18 @@
 		return `linear-gradient(145deg, hsl(${h} 55% 32%), hsl(${(h + 40) % 360} 55% 18%))`;
 	}
 
-	// FIX-A (extends nza's FIX-B) + quick-260606-v7k: prefer a real cover for a discovery item
-	// in this EXACT order:
-	//   1. Last.fm image (item.image)                    — already on the row
+	// quick-260606-wv8 (supersedes v7k; extends nza's FIX-B / rvy's FIX-A): prefer a real cover
+	// for a discovery item in this EXACT render order (the cheap, synchronous pre-checks):
+	//   1. Last.fm image (item.image)                    — already on the row (the "Last.fm" tier
+	//                                                       of the Deezer → CN → Last.fm chain,
+	//                                                       satisfied here, NOT as a backfill call)
 	//   2. CAA-by-mbid (caaReleaseGroupCover)             — nza's MusicBrainz path
-	//   3a. TRACK: cached CN/iTunes cover (getCachedCover)      — keyed by artist|title
-	//   3b. ARTIST: cached iTunes artist image (getCachedArtistCover) — keyed by artistName (v7k)
+	//   3a. TRACK: cached cover (getCachedCover)          — Deezer/CN backfill, keyed by artist|title
+	//   3b. ARTIST: cached artist image (getCachedArtistCover) — Deezer backfill, keyed by artistName
 	//   4. null → gradient                                — never a broken/blocking image
-	// The cached lookups read `coverVer` so Svelte 5 re-evaluates each tile's <img src> when a
+	// What changed in wv8 is the BACKFILL that fills tiers 3a/3b (Deezer-first → CN for tracks,
+	// Deezer for artists); the tileCover render order itself is UNCHANGED. The
+	// cached lookups read `coverVer` so Svelte 5 re-evaluates each tile's <img src> when a
 	// background resolve lands (coverVer is bumped in the backfill onResolved callback). Track
 	// rows pass {artist,title}; ARTIST tiles pass a dedicated `artistName` (NOT `artist`) so the
 	// artist-only cache key is read — never colliding with a {artist,title} track of the same
@@ -130,13 +134,15 @@
 	// appear without a full refresh. A plain $state number is the cheapest reactive trigger.
 	let coverVer = $state(0);
 
-	// FIX-A + quick-260606-v7k: gather every TRACK row across all shelves that still shows a
-	// gradient (no Last.fm image AND no mbid) — exactly the tiles nza's CAA path could not cover
-	// — and every top-ARTIST tile with no Last.fm image (artist art is deprecated → always null).
-	// Then fire BOTH lazy, concurrency-capped backfills OFF the critical path (void, never awaited
-	// before paint): track covers (CN-first then iTunes-fallback) and artist images (iTunes). Both
-	// skip already-cached entries, so a warm visit issues zero requests. The same coverVer++
-	// onResolved makes covers — track AND artist — appear progressively as resolves land.
+	// quick-260606-wv8 (supersedes v7k): gather every TRACK row across all shelves that still
+	// shows a gradient (no Last.fm image AND no mbid) — exactly the tiles nza's CAA path could
+	// not cover — and every top-ARTIST tile with no Last.fm image (artist art is deprecated →
+	// always null). Then fire BOTH lazy, concurrency-capped backfills OFF the critical path (void,
+	// never awaited before paint): track covers (Deezer-first → CN-fallback) and artist images
+	// (Deezer). Both skip already-cached entries, so a warm visit issues zero requests. The same
+	// coverVer++ onResolved makes covers — track AND artist — appear progressively as resolves land.
+	// Chain: tileCover render = Last.fm image → CAA(mbid) → cached(Deezer/CN) → gradient; BACKFILL
+	// fill = Deezer → CN (track) / Deezer (artist); Deezer is PRIMARY (wv8 supersedes v7k).
 	function scheduleBackfill() {
 		const rows: { artist: string; title: string }[] = [];
 		const pushNeeding = (items: DiscoveryTrack[]) => {
@@ -151,8 +157,8 @@
 			void backfillCovers(rows, { onResolved: () => coverVer++, max: 24 });
 		}
 
-		// v7k: artist tiles are structurally gradient (Last.fm artist art deprecated → null).
-		// Resolve their images via the no-auth iTunes artist pass, capped + cached + post-paint.
+		// wv8: artist tiles are structurally gradient (Last.fm artist art deprecated → null).
+		// Resolve their images via the Deezer artist-picture pass, capped + cached + post-paint.
 		const artistNames = topArtists.filter((a) => !a.image).map((a) => a.name);
 		if (artistNames.length) {
 			void backfillArtistCovers(artistNames, { onResolved: () => coverVer++, max: 12 });

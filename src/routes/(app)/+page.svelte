@@ -19,11 +19,15 @@
 		DISCOVERY_COUNTRIES
 	} from '$lib/services/discovery';
 	import { caaReleaseGroupCover } from '$lib/services/cover-art';
+	import { getCachedCover } from '$lib/services/cover-cache';
+	import { backfillCovers } from '$lib/services/cover-backfill';
 	import { decodeTrack } from '$lib/services/share';
 	import { player } from '$lib/stores/player.svelte';
 	import { names } from '$lib/stores/names.svelte';
 	import { t } from '$lib/i18n';
 	import { longpress } from '$lib/actions/longpress';
+	import { dragScroll } from '$lib/actions/dragScroll';
+	import { marquee } from '$lib/actions/marquee';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import type { Track } from '$lib/sources/types';
 
@@ -76,16 +80,54 @@
 		return `linear-gradient(145deg, hsl(${h} 55% 32%), hsl(${(h + 40) % 360} 55% 18%))`;
 	}
 
-	// FIX-B: prefer a real cover for a discovery item — the Last.fm image if any, else a
-	// client-built Cover Art Archive URL from the item's MusicBrainz mbid. Rendered as a
-	// lazy <img> layered over the gradient (NOT a CSS background) so a 404/no-art degrades
-	// to the gradient via onerror; null → no <img> (gradient only). Off the critical path.
-	function tileCover(item: { image: string | null; mbid: string | null }): string | null {
-		return item.image ?? caaReleaseGroupCover(item.mbid);
+	// FIX-A (extends nza's FIX-B): prefer a real cover for a discovery item in this EXACT order:
+	//   1. Last.fm image (item.image)              — already on the row
+	//   2. CAA-by-mbid (caaReleaseGroupCover)       — nza's MusicBrainz path
+	//   3. cached CN-source cover (getCachedCover)  — backfilled lazily, keyed by artist|title
+	//   4. null → gradient                          — never a broken/blocking image
+	// The cached lookup reads `coverVer` so Svelte 5 re-evaluates each tile's <img src> when a
+	// background resolve lands (coverVer is bumped in the backfill onResolved callback). Track
+	// rows pass {artist,title}; artist tiles omit them (steps 1-2 only, then gradient). Rendered
+	// as a lazy <img> over the gradient (NOT a CSS background) so a 404 degrades via onerror.
+	function tileCover(item: {
+		image: string | null;
+		mbid: string | null;
+		artist?: string;
+		title?: string;
+	}): string | null {
+		void coverVer; // reactive dependency: recompute when a backfilled cover lands
+		if (item.image) return item.image;
+		const caa = caaReleaseGroupCover(item.mbid);
+		if (caa) return caa;
+		if (item.artist && item.title) return getCachedCover(item.artist, item.title);
+		return null;
 	}
 	// Hide a cover <img> on load error so the gradient underneath shows (no broken-image icon).
 	function hideOnError(e: Event) {
 		(e.currentTarget as HTMLImageElement).style.display = 'none';
+	}
+
+	// FIX-A: bumped in backfillCovers' onResolved so tileCover() recomputes and resolved covers
+	// appear without a full refresh. A plain $state number is the cheapest reactive trigger.
+	let coverVer = $state(0);
+
+	// FIX-A: gather every TRACK row across all shelves that still shows a gradient (no Last.fm
+	// image AND no mbid) — exactly the tiles nza's CAA path could not cover. Artist tiles are
+	// excluded (they goto the artist page, not a cover-bearing track). Then fire the lazy,
+	// concurrency-capped CN-source backfill OFF the critical path (void, never awaited before
+	// paint). Cached rows are skipped inside backfillCovers, so a warm visit issues zero searches.
+	function scheduleBackfill() {
+		const rows: { artist: string; title: string }[] = [];
+		const pushNeeding = (items: DiscoveryTrack[]) => {
+			for (const it of items) {
+				if (!it.image && !it.mbid) rows.push({ artist: it.artist, title: it.title });
+			}
+		};
+		pushNeeding(topHits);
+		for (const s of tagShelves) pushNeeding(s.tracks);
+		for (const s of countryShelves) pushNeeding(s.tracks);
+		if (!rows.length) return;
+		void backfillCovers(rows, { onResolved: () => coverVer++, max: 24 });
 	}
 
 	// Has at least one Last.fm shelf returned anything? Drives the D-06 fallback decision.
@@ -186,6 +228,7 @@
 					useFallback: false,
 					fallback: []
 				});
+				scheduleBackfill(); // FIX-A: fill gradients with real CN covers, post-paint, capped
 			} else {
 				// D-06 FALLBACK: absent key / all-empty → keep the home page populated.
 				const picks = await buildDiversePicks(PICK_COUNT);
@@ -252,6 +295,7 @@
 				player.setQueue(cached.fallback);
 			}
 			loading = false;
+			scheduleBackfill(); // FIX-A: backfill covers for the just-applied cached shelves
 			// Background revalidate (WR-02: keeps Randomize enabled, no "Loading…") without
 			// re-seeding the queue (don't clobber ?play).
 			void refresh(false, true);
@@ -302,14 +346,14 @@
 		<!-- PRIMARY: the four Last.fm discovery shelves (D-01/D-02). -->
 		{#if topHits.length}
 			<div class="subhead">{t('home.topHits')}</div>
-			<div class="albumrow">
-				{#each topHits as item (item.artist + ' ' + item.title)}
+			<div class="albumrow" use:dragScroll>
+				{#each topHits as item (item.artist + ' ' + item.title)}
 					<button class="album" onclick={() => playStub(item)}>
 						<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
 							{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
 						</span>
-						<span class="al-name">{names.dnTitle(item.title)}</span>
-						<span class="al-count">{names.dnArtist(item.artist)}</span>
+						<span class="al-name" use:marquee>{names.dnTitle(item.title)}</span>
+						<span class="al-count" use:marquee>{names.dnArtist(item.artist)}</span>
 					</button>
 				{/each}
 			</div>
@@ -317,13 +361,13 @@
 
 		{#if topArtists.length}
 			<div class="subhead">{t('home.topArtists')}</div>
-			<div class="albumrow">
+			<div class="albumrow" use:dragScroll>
 				{#each topArtists as a (a.name)}
 					<button class="album" onclick={() => goto('/artist/' + encodeURIComponent(a.name))}>
 						<span class="al-cover round" style:background-image={fallbackCover(a.name)}>
 							{#if tileCover(a)}<img class="al-cover-img" src={tileCover(a)} loading="lazy" alt="" onerror={hideOnError} />{/if}
 						</span>
-						<span class="al-name center">{names.dnArtist(a.name)}</span>
+						<span class="al-name center" use:marquee>{names.dnArtist(a.name)}</span>
 					</button>
 				{/each}
 			</div>
@@ -331,14 +375,14 @@
 
 		{#each tagShelves as shelf (shelf.label)}
 			<div class="subhead">{t('home.tagShelf', { tag: shelf.label })}</div>
-			<div class="albumrow">
-				{#each shelf.tracks as item (item.artist + ' ' + item.title)}
+			<div class="albumrow" use:dragScroll>
+				{#each shelf.tracks as item (item.artist + ' ' + item.title)}
 					<button class="album" onclick={() => playStub(item)}>
 						<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
 							{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
 						</span>
-						<span class="al-name">{names.dnTitle(item.title)}</span>
-						<span class="al-count">{names.dnArtist(item.artist)}</span>
+						<span class="al-name" use:marquee>{names.dnTitle(item.title)}</span>
+						<span class="al-count" use:marquee>{names.dnArtist(item.artist)}</span>
 					</button>
 				{/each}
 			</div>
@@ -346,14 +390,14 @@
 
 		{#each countryShelves as shelf (shelf.label)}
 			<div class="subhead">{t('home.countryShelf', { country: shelf.label })}</div>
-			<div class="albumrow">
-				{#each shelf.tracks as item (item.artist + ' ' + item.title)}
+			<div class="albumrow" use:dragScroll>
+				{#each shelf.tracks as item (item.artist + ' ' + item.title)}
 					<button class="album" onclick={() => playStub(item)}>
 						<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
 							{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
 						</span>
-						<span class="al-name">{names.dnTitle(item.title)}</span>
-						<span class="al-count">{names.dnArtist(item.artist)}</span>
+						<span class="al-name" use:marquee>{names.dnTitle(item.title)}</span>
+						<span class="al-count" use:marquee>{names.dnArtist(item.artist)}</span>
 					</button>
 				{/each}
 			</div>
@@ -398,6 +442,27 @@
 	.al-name { font-size: 12px; font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.al-name.center { text-align: center; }
 	.al-count { font-size: 11px; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	/* FIX-C: marquee-bounce a truncated label. use:marquee adds .marquee-on and sets
+	   --marquee-dx (the exact overflow distance) ONLY when the text overflows AND the user
+	   has not requested reduced motion. The box keeps overflow:hidden + nowrap; we animate
+	   text-indent (which scrolls inline text WITHIN the clip box, respecting it) from 0 to
+	   -dx and back (alternate = bounce), dropping the ellipsis while scrolling. Non-overflow
+	   labels never get the class → the static ellipsis above stays. The @media gate is
+	   defense-in-depth alongside the action's own prefers-reduced-motion check. */
+	@media (prefers-reduced-motion: no-preference) {
+		/* .marquee-on is toggled at runtime by use:marquee, so it is not in the static markup;
+		   :global() on that part keeps the .al-name/.al-count scope while telling svelte-check
+		   the runtime class is intentional (no false "unused selector"). */
+		.al-name:global(.marquee-on),
+		.al-count:global(.marquee-on) {
+			text-overflow: clip;
+			animation: marquee-bounce 5s ease-in-out infinite alternate;
+		}
+	}
+	@keyframes marquee-bounce {
+		0%, 15% { text-indent: 0; }
+		85%, 100% { text-indent: calc(-1 * var(--marquee-dx, 0px)); }
+	}
 	/* Fallback grid (D-06). */
 	.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 	.tile {

@@ -12,6 +12,8 @@
 	import { names } from '$lib/stores/names.svelte';
 	import { t } from '$lib/i18n';
 	import { longpress } from '$lib/actions/longpress';
+	import { dragScroll } from '$lib/actions/dragScroll';
+	import { marquee } from '$lib/actions/marquee';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import TagChips from '$lib/components/TagChips.svelte';
 	import { enrichArtist, getArtistTopAlbums, type EnrichResult, type DiscoveryAlbum } from '$lib/services/lastfm';
@@ -125,12 +127,12 @@
 {#if albums.length}
 	<section>
 		<h2>{t('artist.albums')}</h2>
-		<div class="albumrow">
+		<div class="albumrow" use:dragScroll>
 			{#each albums as al (al.name)}
 				<button class="album" onclick={() => goto('/album/' + encodeURIComponent(al.name) + '?artist=' + encodeURIComponent(name))}>
 					<span class="al-cover" style:background-image={al.image ? `url(${al.image})` : fallbackCoverSeed(al.name)}></span>
-					<span class="al-name">{names.dnTitle(al.name)}</span>
-					<span class="al-count">{t('artist.albumLabel')}</span>
+					<span class="al-name" use:marquee>{names.dnTitle(al.name)}</span>
+					<span class="al-count" use:marquee>{t('artist.albumLabel')}</span>
 				</button>
 			{/each}
 		</div>
@@ -177,7 +179,23 @@
 	.album { flex: 0 0 130px; background: none; border: none; padding: 0; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 4px; }
 	.al-cover { width: 130px; height: 130px; border-radius: 10px; background-size: cover; background-position: center; }
 	.al-name { font-size: 12px; font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-	.al-count { font-size: 11px; color: var(--color-text-muted); }
+	.al-count { font-size: 11px; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	/* FIX-C: marquee-bounce a truncated label (self-contained per-file; mirrors home page).
+	   use:marquee adds .marquee-on + --marquee-dx only when overflowing AND not reduced-motion;
+	   we animate text-indent within the clipped box (bounce via alternate), dropping ellipsis. */
+	@media (prefers-reduced-motion: no-preference) {
+		/* .marquee-on is added at runtime by use:marquee; :global() on that part keeps the
+		   .al-name/.al-count scope while silencing svelte-check's "unused selector" false-positive. */
+		.al-name:global(.marquee-on),
+		.al-count:global(.marquee-on) {
+			text-overflow: clip;
+			animation: marquee-bounce 5s ease-in-out infinite alternate;
+		}
+	}
+	@keyframes marquee-bounce {
+		0%, 15% { text-indent: 0; }
+		85%, 100% { text-indent: calc(-1 * var(--marquee-dx, 0px)); }
+	}
 	.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 	.row { width: 100%; text-align: left; background: none; border: none; padding: 6px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 12px; }
 	.row:hover { background: var(--color-surface); }

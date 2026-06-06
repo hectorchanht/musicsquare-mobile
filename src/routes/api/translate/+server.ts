@@ -10,7 +10,19 @@ const LANG_MAP: Record<string, string> = {
 	'zh-Hans': 'zh-CN',
 	en: 'en',
 	ja: 'ja',
-	ko: 'ko'
+	ko: 'ko',
+	es: 'es',
+	fr: 'fr',
+	de: 'de',
+	pt: 'pt',
+	ru: 'ru',
+	ar: 'ar',
+	hi: 'hi',
+	id: 'id',
+	it: 'it',
+	vi: 'vi',
+	th: 'th',
+	tr: 'tr'
 };
 
 const SENTINEL = '\n';

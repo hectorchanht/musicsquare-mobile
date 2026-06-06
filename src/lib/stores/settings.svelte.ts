@@ -13,7 +13,25 @@ import {
 	type HomeLandingTab
 } from '$lib/services/home-layout';
 
-export type LyricsLang = 'off' | 'zh-Hant' | 'zh-Hans' | 'en' | 'ja' | 'ko';
+export type LyricsLang =
+	| 'off'
+	| 'zh-Hant'
+	| 'zh-Hans'
+	| 'en'
+	| 'ja'
+	| 'ko'
+	| 'es'
+	| 'fr'
+	| 'de'
+	| 'pt'
+	| 'ru'
+	| 'ar'
+	| 'hi'
+	| 'id'
+	| 'it'
+	| 'vi'
+	| 'th'
+	| 'tr';
 export type TranslateMode = 'replace' | 'below';
 export type DefaultQuality = 'auto' | 'lossless' | '320' | '128';
 export type DefaultSource = 'auto' | SourceId;

@@ -55,9 +55,9 @@
 			<button class="np-open" aria-label={t('nowbar.openNowPlaying')} disabled={resolving} onclick={() => player.expand()}>
 				<span class="np-art" style:background-image={np?.cover ? `url(${np.cover})` : cover(np)}></span>
 				<span class="np-meta">
-					<span class="np-title">{names.dn(np?.title ?? '')}</span>
+					<span class="np-title">{names.dnTitle(np?.title ?? '')}</span>
 					<span class="np-artist">
-						{names.dn(np?.artist ?? '')}
+						{names.dnArtist(np?.artist ?? '')}
 						{#if player.loading}· {t('common.loading')}{:else if player.error}· <span class="err">{player.error}</span>{/if}
 					</span>
 				</span>

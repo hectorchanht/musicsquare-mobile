@@ -108,14 +108,6 @@ class Names {
 	dnLastfm(text: string): string {
 		return this.resolve(text, settings.lastfmLang, settings.lastfmSkip);
 	}
-
-	/**
-	 * @deprecated Back-compat shim during the dn→dnArtist/dnTitle migration sweep.
-	 * Routes to the TITLE part. Removed once all call sites are swept (Task 3).
-	 */
-	dn(text: string): string {
-		return this.dnTitle(text);
-	}
 }
 
 export const names = new Names();

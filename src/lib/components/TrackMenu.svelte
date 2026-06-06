@@ -110,7 +110,7 @@
 {#if open && track}
 	<button class="scrim" aria-label={t('menu.closeMenu')} onclick={close}></button>
 	<div class="menu" transition:fly={{ y: 240, duration: 200 }} use:dragClose={{ onclose: close }}>
-		<div class="menu-head">{names.dn(track.title)} · {names.dn(track.artist)}</div>
+		<div class="menu-head">{names.dnTitle(track.title)} · {names.dnArtist(track.artist)}</div>
 		<button class="mi" onclick={playNext}><ListStart size={18} /> {t('menu.playNext')}</button>
 		<button class="mi" onclick={addQueue}><ListEnd size={18} /> {t('menu.addToQueue')}</button>
 		<button class="mi" onclick={doDownload}><Download size={18} /> {t('menu.download')}</button>

@@ -118,8 +118,8 @@
 <header class="hero">
 	<button class="back" aria-label={t('album.back')} onclick={() => goto(albumArtist ? '/artist/' + encodeURIComponent(albumArtist) : '/')}><ChevronLeft size={22} /></button>
 	<div class="cover" style:background-image={heroImg ? `url(${heroImg})` : 'linear-gradient(145deg,#3a2d63,#1a1326)'}></div>
-	<h1>{names.dn(name)}</h1>
-	{#if albumArtist}<p class="artist">{names.dn(albumArtist)}</p>{/if}
+	<h1>{names.dnTitle(name)}</h1>
+	{#if albumArtist}<p class="artist">{names.dnArtist(albumArtist)}</p>{/if}
 	<p class="note">{t('album.tracklistNote', { count: tracks.length })}</p>
 
 	<!-- Last.fm album info (D-01c). Rendered only when present; degrades silently. -->
@@ -140,7 +140,7 @@
 				<button class="row" onclick={() => playStub(track)}>
 					<span class="rank">{i + 1}</span>
 					<span class="art" style:background-image={fallbackCover(track.artist + track.title)}></span>
-					<span class="meta"><span class="r-title">{names.dn(track.title)}</span><span class="r-sub">{names.dn(track.artist)}</span></span>
+					<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
 					<Play size={16} />
 				</button>
 			</li>
@@ -149,7 +149,7 @@
 {:else if !albumArtist}
 	<p class="muted">{t('album.openFromArtist')}</p>
 {:else}
-	<p class="muted">{t('album.noTracks', { name: names.dn(name) })}</p>
+	<p class="muted">{t('album.noTracks', { name: names.dnTitle(name) })}</p>
 {/if}
 
 {#if toastMsg}<div class="toast" transition:fly={{ y: 20, duration: 180 }}>{toastMsg}</div>{/if}

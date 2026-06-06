@@ -42,7 +42,7 @@
 			<li>
 				<button class="row" use:longpress onlongpress={() => openMenu(track)} onclick={() => playEntry(track)}>
 					<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track.uid)}></span>
-					<span class="meta"><span class="r-title">{names.dn(track.title)}</span><span class="r-sub">{names.dn(track.artist)}</span></span>
+					<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
 					<Play size={16} />
 				</button>
 			</li>

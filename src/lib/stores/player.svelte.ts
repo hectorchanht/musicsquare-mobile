@@ -317,13 +317,13 @@ class Player {
 				return;
 			}
 			// Populate the OS/browser media UI from the RESOLVED track so album/cover
-			// are present (MS-01). Titles/artists go through names.dn for the active
-			// display language (returns the original under SSR/off). Guarded via `ms`.
+			// are present (MS-01). Titles/artists go through the per-part name resolvers
+			// for the active display language (returns the original under SSR/off). Guarded via `ms`.
 			const ms = this.ms;
 			if (ms) {
 				ms.metadata = new MediaMetadata({
-					title: names.dn(resolved.title),
-					artist: names.dn(resolved.artist),
+					title: names.dnTitle(resolved.title),
+					artist: names.dnArtist(resolved.artist),
 					album: resolved.album,
 					artwork: buildArtwork(resolved.cover)
 				});

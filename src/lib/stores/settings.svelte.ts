@@ -3,6 +3,14 @@
 import { browser } from '$app/environment';
 import type { SourceId } from '$lib/sources/types';
 import { detectAppLang, type AppLang } from '$lib/i18n';
+import {
+	DEFAULT_SECTION_ORDER,
+	clampShelfSize,
+	SHELF_DEFAULT,
+	type HomeDensity,
+	type HomeLandingTab
+} from '$lib/services/home-layout';
+import { DISCOVERY_TAGS, DISCOVERY_COUNTRIES } from '$lib/services/discovery';
 
 export type LyricsLang = 'off' | 'zh-Hant' | 'zh-Hans' | 'en' | 'ja' | 'ko';
 export type TranslateMode = 'replace' | 'below';
@@ -40,6 +48,29 @@ class Settings {
 	accent = $state(DEFAULT_ACCENT);
 	reduceMotion = $state(false);
 	autoExpandOnPlay = $state(false);
+
+	// --- home layout (quick-260606-w87) ---------------------------------------------
+	// Every default here reproduces TODAY's home exactly, so a returning user with a v1
+	// blob that has none of these fields loads with no visible change (non-destructive).
+	/** Render order of the four discovery section groups (resolved via resolveSectionOrder). */
+	homeSectionOrder = $state<string[]>([...DEFAULT_SECTION_ORDER]);
+	/** Section ids the user has hidden (intersected with the known set at render). */
+	homeHidden = $state<string[]>([]);
+	/** Selected GENRE-tag subset; default = the full pool (everything, like today). */
+	homeTags = $state<string[]>([...DISCOVERY_TAGS]);
+	/** Selected COUNTRY subset; default = the full pool. */
+	homeCountries = $state<string[]>([...DISCOVERY_COUNTRIES]);
+	/** Tiles per shelf (clamped to [6,24]; default 18 = today). */
+	homeShelfSize = $state<number>(SHELF_DEFAULT);
+	/** Which tab the app opens on at `/`. */
+	homeLandingTab = $state<HomeLandingTab>('home');
+	/** Home tile density. */
+	homeDensity = $state<HomeDensity>('comfortable');
+	/** Show the search pill on home (default TRUE = today). */
+	homeShowSearchPill = $state<boolean>(true);
+	/** Show the Randomize button on home (default TRUE = today). */
+	homeShowRandomize = $state<boolean>(true);
+
 	private loaded = false;
 
 	/** Preferred source for dedupe tie-break (undefined = no preference). */
@@ -74,6 +105,28 @@ class Settings {
 				this.accent = (v.accent as string) ?? DEFAULT_ACCENT;
 				this.reduceMotion = !!v.reduceMotion;
 				this.autoExpandOnPlay = !!v.autoExpandOnPlay;
+				// --- home layout (w87) — every default reproduces today's home -----------
+				// Arrays use an Array.isArray guard → fall back to the today-equivalent
+				// default (full order / nothing hidden / full tag+country pool). The pure
+				// resolvers (resolveSectionOrder/resolveSubset) do the corrupt-VALUE
+				// cleanup at render time; here we only guard the TYPE.
+				this.homeSectionOrder = Array.isArray(v.homeSectionOrder)
+					? (v.homeSectionOrder as string[])
+					: [...DEFAULT_SECTION_ORDER];
+				this.homeHidden = Array.isArray(v.homeHidden) ? (v.homeHidden as string[]) : [];
+				this.homeTags = Array.isArray(v.homeTags) ? (v.homeTags as string[]) : [...DISCOVERY_TAGS];
+				this.homeCountries = Array.isArray(v.homeCountries)
+					? (v.homeCountries as string[])
+					: [...DISCOVERY_COUNTRIES];
+				// Shelf size is clamped to [6,24] on load (T-w87-01): a poisoned 999/"x"/
+				// negative becomes a safe value, never breaking the fan-out / page size.
+				this.homeShelfSize = clampShelfSize(v.homeShelfSize);
+				this.homeLandingTab = (v.homeLandingTab as HomeLandingTab) ?? 'home';
+				this.homeDensity = (v.homeDensity as HomeDensity) ?? 'comfortable';
+				// Booleans default TRUE via nullish-coalescing — NOT `!!v.x`, which would flip
+				// an ABSENT field to false and HIDE the chrome for a returning user (regression).
+				this.homeShowSearchPill = v.homeShowSearchPill ?? true;
+				this.homeShowRandomize = v.homeShowRandomize ?? true;
 			} else {
 				// Truly first visit (nothing saved yet): auto-detect UI language once.
 				this.appLang = detectAppLang(navigator.language);
@@ -106,7 +159,17 @@ class Settings {
 					defaultSource: this.defaultSource,
 					accent: this.accent,
 					reduceMotion: this.reduceMotion,
-					autoExpandOnPlay: this.autoExpandOnPlay
+					autoExpandOnPlay: this.autoExpandOnPlay,
+					// --- home layout (w87) ---
+					homeSectionOrder: this.homeSectionOrder,
+					homeHidden: this.homeHidden,
+					homeTags: this.homeTags,
+					homeCountries: this.homeCountries,
+					homeShelfSize: this.homeShelfSize,
+					homeLandingTab: this.homeLandingTab,
+					homeDensity: this.homeDensity,
+					homeShowSearchPill: this.homeShowSearchPill,
+					homeShowRandomize: this.homeShowRandomize
 				})
 			);
 		} catch {

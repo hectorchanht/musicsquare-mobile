@@ -45,6 +45,8 @@ class Settings {
 	// source ladders (QQ/JOOX/Kuwo) read this via pickByQualityPref; higher tiers
 	// remain user-selectable.
 	defaultQuality = $state<DefaultQuality>('128');
+	/** Quality used when DOWNLOADING (re-resolved at this tier); favours quality over speed. */
+	downloadQuality = $state<DefaultQuality>('lossless');
 	defaultSource = $state<DefaultSource>('auto');
 	accent = $state(DEFAULT_ACCENT);
 	reduceMotion = $state(false);
@@ -102,6 +104,7 @@ class Settings {
 				this.lastfmSkip = Array.isArray(v.lastfmSkip) ? (v.lastfmSkip as SourceLang[]) : [];
 				this.translateMode = (v.translateMode as TranslateMode) ?? 'below';
 				this.defaultQuality = (v.defaultQuality as DefaultQuality) ?? '128';
+				this.downloadQuality = (v.downloadQuality as DefaultQuality) ?? 'lossless';
 				this.defaultSource = (v.defaultSource as DefaultSource) ?? 'auto';
 				this.accent = (v.accent as string) ?? DEFAULT_ACCENT;
 				this.reduceMotion = !!v.reduceMotion;
@@ -157,6 +160,7 @@ class Settings {
 					lastfmSkip: this.lastfmSkip,
 					translateMode: this.translateMode,
 					defaultQuality: this.defaultQuality,
+					downloadQuality: this.downloadQuality,
 					defaultSource: this.defaultSource,
 					accent: this.accent,
 					reduceMotion: this.reduceMotion,

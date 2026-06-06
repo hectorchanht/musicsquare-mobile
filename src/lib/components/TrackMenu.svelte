@@ -5,6 +5,7 @@
 	import { ListStart, ListEnd, Download, Heart, ListPlus, Disc, User, Share2, Info, X, Plus } from '@lucide/svelte';
 	import { player } from '$lib/stores/player.svelte';
 	import { library } from '$lib/stores/library.svelte';
+	import { settings } from '$lib/stores/settings.svelte';
 	import { names } from '$lib/stores/names.svelte';
 	import { overlays } from '$lib/stores/overlays.svelte';
 	import { dragClose } from '$lib/actions/dragClose';
@@ -40,7 +41,20 @@
 		if (!track) return;
 		onclose();
 		toast(t('toast.preparingDownload'));
-		const r = await ensureTrackDetails(track).catch(() => track);
+		// Re-resolve at the user's DOWNLOAD quality (separate from the streaming default). The
+		// source resolvers read settings.defaultQuality at resolve time, so temporarily swap it
+		// and force a fresh resolve (clear cached details on a COPY — the queue track is left
+		// untouched), then restore. settings is not persisted here, so the swap is transient.
+		const prevQuality = settings.defaultQuality;
+		let r: Track = track;
+		try {
+			settings.defaultQuality = settings.downloadQuality;
+			r = await ensureTrackDetails({ ...track, detailsLoaded: false, audioUrl: null, lrc: null }).catch(
+				() => track
+			);
+		} finally {
+			settings.defaultQuality = prevQuality;
+		}
 		library.addDownload(r);
 		if (!r.audioUrl) return toast(t('toast.noAudio'));
 		// Web sandbox: saved file can't be replayed offline — Downloads references + re-streams.

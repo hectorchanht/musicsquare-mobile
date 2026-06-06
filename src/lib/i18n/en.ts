@@ -57,6 +57,8 @@ const en = {
 	'settings.translateModeOnNote': 'Translation uses an online service; quality varies.',
 	'settings.defaultQuality': 'Default song quality',
 	'settings.defaultQualityNote': "Best-effort — sources don't all expose bitrate; biases selection where known.",
+	'settings.downloadQuality': 'Download quality',
+	'settings.downloadQualityNote': 'Quality requested when downloading a track (re-resolved at this tier).',
 	'settings.defaultSource': 'Default music source',
 	'settings.defaultSourceNote': 'Preferred source wins when the same song appears on several.',
 	'settings.accentColor': 'Accent color',

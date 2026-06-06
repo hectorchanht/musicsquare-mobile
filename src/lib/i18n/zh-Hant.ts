@@ -58,6 +58,8 @@ const zhHant: Dict = {
 	'settings.translateModeOnNote': '翻譯使用線上服務，品質可能有差異。',
 	'settings.defaultQuality': '預設音質',
 	'settings.defaultQualityNote': '盡力而為 — 並非所有來源都提供位元率；在已知時會優先選擇。',
+	'settings.downloadQuality': '下載音質',
+	'settings.downloadQualityNote': '下載歌曲時要求的音質（會以此音質重新解析）。',
 	'settings.defaultSource': '預設音樂來源',
 	'settings.defaultSourceNote': '當同一首歌出現在多個來源時，優先採用偏好來源。',
 	'settings.accentColor': '主題色',

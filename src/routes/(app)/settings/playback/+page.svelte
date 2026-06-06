@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { ChevronLeft, Music, Radio, Zap, Maximize2 } from '@lucide/svelte';
+	import { ChevronLeft, Music, Radio, Zap, Maximize2, Download } from '@lucide/svelte';
 	import { settings, type DefaultQuality, type DefaultSource } from '$lib/stores/settings.svelte';
 	import { t, type TranslationKey } from '$lib/i18n';
 
@@ -24,6 +24,7 @@
 	];
 
 	function setQuality(v: DefaultQuality) { settings.defaultQuality = v; settings.save(); }
+	function setDownloadQuality(v: DefaultQuality) { settings.downloadQuality = v; settings.save(); }
 	function setSource(v: DefaultSource) { settings.defaultSource = v; settings.save(); }
 	function toggleExpand() { settings.autoExpandOnPlay = !settings.autoExpandOnPlay; settings.save(); }
 </script>
@@ -43,6 +44,16 @@
 		{/each}
 	</div>
 	<p class="muted">{t('settings.defaultQualityNote')}</p>
+</section>
+
+<section>
+	<h2><Download size={15} /> {t('settings.downloadQuality')}</h2>
+	<div class="seg">
+		{#each qualities as q (q.v)}
+			<button class:on={settings.downloadQuality === q.v} onclick={() => setDownloadQuality(q.v)}>{q.key ? t(q.key as TranslationKey) : q.literal}</button>
+		{/each}
+	</div>
+	<p class="muted">{t('settings.downloadQualityNote')}</p>
 </section>
 
 <section>

@@ -8,6 +8,7 @@ import { buildDiversePicks } from '$lib/services/picks';
 import { buildSimilarQueue } from '$lib/services/similar';
 import { dedupeBest } from '$lib/services/dedupe';
 import { settings } from '$lib/stores/settings.svelte';
+import { history } from '$lib/stores/history.svelte';
 import type { Track } from '$lib/sources/types';
 
 /** mm:ss, NaN/Infinity-safe (avoids the "NaN:NaN" bug before metadata loads). */
@@ -122,6 +123,9 @@ class Player {
 		this.current = track;
 		this.currentTime = 0;
 		this.duration = 0;
+		// One-way edge: record the play BEFORE resolution so it lands even if audio
+		// resolution later errors. history imports nothing back (no circular dep).
+		history.record(track);
 		if (settings.autoExpandOnPlay) this.expanded = true;
 		try {
 			const resolved = await ensureTrackDetails(track);

@@ -100,7 +100,7 @@ describe('toEntry (serialize whitelist)', () => {
 			lrcUrl: 'https://cdn/x.lrc',
 			detailsLoaded: true
 		});
-		const e = toEntry(track) as Record<string, unknown>;
+		const e = toEntry(track) as unknown as Record<string, unknown>;
 		// kept whitelist fields
 		expect(e).toEqual({
 			uid: 'joox:j1',

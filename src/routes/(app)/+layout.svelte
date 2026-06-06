@@ -58,7 +58,7 @@
 					<span class="np-title">{names.dnTitle(np?.title ?? '')}</span>
 					<span class="np-artist">
 						{names.dnArtist(np?.artist ?? '')}
-						{#if player.loading}· {t('common.loading')}{:else if player.error}· <span class="err">{player.error}</span>{/if}
+						{#if player.error}· <span class="err">{player.error}</span>{/if}
 					</span>
 				</span>
 			</button>

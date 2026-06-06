@@ -15,6 +15,8 @@
 	} from '$lib/services/lastfm';
 	import {
 		mapWithConcurrency,
+		shuffle,
+		pickRandomPage,
 		DISCOVERY_TAGS,
 		DISCOVERY_COUNTRIES
 	} from '$lib/services/discovery';
@@ -190,6 +192,13 @@
 		fallbackSongs = c.fallback ?? [];
 	}
 
+	// Randomize page bound (VX2): how many Last.fm chart/tag/geo pages to draw from. Kept
+	// SMALL so a randomly-picked page still has data on these high-traffic methods — going
+	// deeper risks empty pages (→ a blank shelf). The fan-out WIDTH is unchanged (one
+	// request per existing shelf, FANOUT_CAP in flight); only WHICH page each shelf fetches
+	// varies, and each (method+params+page) stays edge-cached (T-vx2-03 — no new fan-out).
+	const RANDOM_PAGE_BOUND = 5;
+
 	// Fetch the four Last.fm shelves (concurrency-capped), fall back to buildDiversePicks
 	// when discovery is empty, cache the displayed result, and seed the player queue.
 	// Used by Randomize + cold start + background revalidate.
@@ -198,34 +207,60 @@
 	// Randomize button stays enabled and shows live content rather than "Loading…".
 	// `refreshGen` (WR-04): only the LATEST refresh writes state — a stale background call
 	// that finishes after a manual Randomize is discarded, so they never clobber each other.
+	// `randomize` (VX2): the 隨機推薦 button passes true to genuinely VARY the surface — each
+	// chart/tag/geo call draws a fresh random page AND the shelf order + within-shelf tile
+	// order + topHits/topArtists are shuffled, so consecutive presses look different even
+	// when an overlapping page comes back. A NON-randomize (cold/background) call passes the
+	// default page 1 → identical request + edge cache key as before, AND no shuffle, so the
+	// cache-friendly fast path is untouched. Randomize never reads loadCache(); it always
+	// FETCHES and OVERWRITES the cache below with the freshly-shuffled arrangement.
 	let refreshGen = 0;
-	async function refresh(seedQueue = true, background = false) {
+	async function refresh(seedQueue = true, background = false, randomize = false) {
 		const gen = ++refreshGen;
 		if (!background) loading = true;
 		error = null;
 		try {
 			// Shelves 1+2 (chart) + the capped tag/country fan-out (shelves 3+4). All
 			// builders never throw (→ [] on failure / absent key), so this never rejects.
-			const [hits, artists, tagRows, countryRows] = await Promise.all([
-				getChartTopTracks(PER_SHELF),
+			// On a randomize press, draw a fresh random page PER call so different shelves
+			// pull from different pages; on a normal call pass page 1 (cache-friendly).
+			const pg = () => (randomize ? pickRandomPage(RANDOM_PAGE_BOUND) : 1);
+			const [rawHits, rawArtists, tagRows, countryRows] = await Promise.all([
+				getChartTopTracks(PER_SHELF, pg()),
 				getChartTopArtists(PER_SHELF),
 				mapWithConcurrency(DISCOVERY_TAGS, FANOUT_CAP, (tag) =>
-					getTagTopTracks(tag, PER_SHELF)
+					getTagTopTracks(tag, PER_SHELF, pg())
 				),
 				mapWithConcurrency(DISCOVERY_COUNTRIES, FANOUT_CAP, (c) =>
-					getGeoTopTracks(c, PER_SHELF)
+					getGeoTopTracks(c, PER_SHELF, pg())
 				)
 			]);
 			if (gen !== refreshGen) return; // superseded by a newer refresh (WR-04)
 
-			const tags: Shelf[] = DISCOVERY_TAGS.map((label, i) => ({
+			// On randomize, shuffle the chart shelves' tile order so even an overlapping page
+			// renders visibly differently. (Non-randomize leaves them in Last.fm rank order.)
+			const hits = randomize ? shuffle(rawHits) : rawHits;
+			const artists = randomize ? shuffle(rawArtists) : rawArtists;
+
+			// Build the tag/country shelves; on randomize also shuffle the tile order WITHIN
+			// each shelf. The tag/country LISTS stay the fixed DISCOVERY_* constants — only
+			// ORDER varies (the upcoming user-config task owns making the lists configurable).
+			let tags: Shelf[] = DISCOVERY_TAGS.map((label, i) => ({
 				label,
-				tracks: tagRows[i] ?? []
+				tracks: randomize ? shuffle(tagRows[i] ?? []) : (tagRows[i] ?? [])
 			})).filter((s) => s.tracks.length);
-			const countries: Shelf[] = DISCOVERY_COUNTRIES.map((label, i) => ({
+			let countries: Shelf[] = DISCOVERY_COUNTRIES.map((label, i) => ({
 				label,
-				tracks: countryRows[i] ?? []
+				tracks: randomize ? shuffle(countryRows[i] ?? []) : (countryRows[i] ?? [])
 			})).filter((s) => s.tracks.length);
+
+			// On randomize, also shuffle the ORDER of the shelves themselves (which tag/country
+			// shelf appears first) — done on the local vars BEFORE assignment + saveCache so the
+			// persisted cache and the rendered UI carry the identical shuffled arrangement.
+			if (randomize) {
+				tags = shuffle(tags);
+				countries = shuffle(countries);
+			}
 
 			if (hasAnyDiscovery(hits, artists, tags, countries)) {
 				// PRIMARY: the Last.fm discovery surface (D-01/D-02).
@@ -334,7 +369,7 @@
 <section class="section">
 	<div class="head">
 		<h2>{t('home.topPicks')}</h2>
-		<button class="more" onclick={() => refresh(true)} disabled={loading}><RotateCw size={13} /> {loading ? t('home.loadingPicks') : t('home.randomize')}</button>
+		<button class="more" onclick={() => refresh(true, false, true)} disabled={loading}><RotateCw size={13} /> {loading ? t('home.loadingPicks') : t('home.randomize')}</button>
 	</div>
 
 	{#if loading && !useFallback && !topHits.length && !topArtists.length && !tagShelves.length && !countryShelves.length && !fallbackSongs.length}

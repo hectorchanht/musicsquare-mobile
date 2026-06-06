@@ -46,6 +46,9 @@ created: 2026-06-06
 | D-03 `settings.defaultQuality` defaults to `'128'` | 1 | D-03 | — | unit | `pnpm test` (settings test) | ❌ W0 | ⬜ pending |
 | D-02 `searchSession` store/restore/reset | 0/1 | D-02 | Client-only writes (browser guard) — no SSR module-state leak | unit | `pnpm test src/lib/stores/searchSession.svelte.test.ts` | ❌ W0 | ⬜ pending |
 | D-01 skeleton on `loading && results.length===0` | 1 | D-01 | — | manual / boolean unit | — (component) | n/a | ⬜ pending |
+| D-06 `searchAll` `onPartial` emits growing deduped sets as staggered mock adapters settle | 1 | D-06 | onPartial suppressed after `sig.aborted` (no stale partials) | unit | `pnpm test src/lib/services/catalog.test.ts` | ✅ extend | ⬜ pending |
+| D-06 abort: new query mid-stream drops in-flight partials | 1 | D-06 | Race guard `kw !== q.trim()` + `sig.aborted` | unit | `pnpm test src/lib/services/catalog.test.ts` | ✅ extend | ⬜ pending |
+| D-05 `recordQuery` — prepend, case-insensitive de-dupe, cap 12, most-recent-first, ignore empty | 0/1 | D-05 | localStorage writes browser-guarded (no SSR leak) | unit | `pnpm test src/lib/search/search-history-logic.test.ts` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -58,6 +61,8 @@ created: 2026-06-06
 - [ ] Extract `pickByQualityPref()` pure helper so D-03 quality selection is unit-testable without mocking fetch
 - [ ] Extend `src/lib/services/catalog.test.ts` — cache prevents re-fan-out + page-keyed correctness; cache must be clearable so existing 3 fan-out spy tests don't see stale spies
 - [ ] Update `qq.test.ts:130-131`, `kuwo.test.ts:102-103`, `joox.test.ts:168-169,203` — currently assert `quality==='lossless'`; pass explicit `'lossless'` pref OR assert new `'128'` default tier
+- [ ] `src/lib/search/search-history-logic.test.ts` — D-05 pure `recordQuery`/`parseSearchHistory` (cap 12, case-insensitive de-dupe, order, ignore empty, bad-JSON → [])
+- [ ] Extend `src/lib/services/catalog.test.ts` — D-06 progressive emit: staggered mock adapters → `onPartial` called with monotonically-growing deduped sets; aborted signal suppresses further `onPartial`; existing blocking fan-out tests stay green (callback omitted = unchanged behavior)
 
 ---
 

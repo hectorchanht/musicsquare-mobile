@@ -386,3 +386,207 @@ export async function searchAll(keyword, page = 1, prefs = {}, signal?) {
 
 **Research date:** 2026-06-06
 **Valid until:** ~2026-07-06 (stable internal codebase; the only volatility is the external upstream bitrate-param contracts in the Assumptions Log)
+
+---
+
+## Incremental Research — D-05 & D-06 (added 2026-06-06)
+
+**Scope:** Two newly-locked decisions only. D-01..D-04 above are unchanged. All findings verified against current `src/` (file:line cited). Confidence HIGH — no external deps, all in-codebase patterns.
+
+### User Constraints (new locked decisions, from CONTEXT.md)
+- **D-05 — Past searches as suggestions.** Persist recent queries (localStorage, mirror library/settings convention); surface as tappable suggestions when input focused/empty; tapping re-runs the query (benefits from D-04 cache); cap N, de-dupe, most-recent-first, provide clear-all.
+- **D-06 — Progressive / streaming results.** Render results incrementally as each source settles instead of blocking on all. Preserve `dedupeBest` correctness across the accumulating set; stay compatible with cumulative-superset pagination (D-02) and TTL cache (D-04); first-load skeleton (D-01) shows until the FIRST partial, then is replaced. Mechanism is Claude's discretion; keep `searchAll(kw, page)` callers working.
+
+---
+
+### D-06 — Progressive / streaming search results
+
+**Confirmed blocking behavior (the thing to change):** `searchAll` (`catalog.ts:24-50`) does `const settled = await Promise.allSettled(adapters.map(a => a.search(...)))` (`catalog.ts:33`) — it BLOCKS until **every** adapter settles, builds `perSource`, then returns `{ perSource, interleaved: interleave(perSource) }`. `interleave` (`catalog.ts:57-78`) is the round-robin + uid-dedupe pass over the full settled set. Note: the page-shown dedupe is **`dedupeBest`** (`src/lib/services/dedupe.ts:48`, cross-source title+artist collapse) applied IN THE PAGE after `searchAll` (`search/+page.svelte:50,76`); `interleave`'s internal `seen` Map only dedupes by exact `uid` (`catalog.ts:62`). Two distinct dedupe layers — both matter for streaming.
+
+#### Recommended mechanism: optional `onPartial` callback (option a) — NON-BREAKING
+
+Add an **optional final parameter** to `searchAll`. Chosen over (b) AsyncIterable and (c) a parallel `searchAllStreaming`:
+
+- **(b) AsyncIterable / ReadableStream** — would force every call site to change consumption style (`for await`), breaks `picks.ts`/`similar.ts`/`discovery.ts` which destructure `{ interleaved }` from a single awaited value. Higher blast radius, no win here (we don't need backpressure).
+- **(c) parallel `searchAllStreaming`** — duplicates the fan-out + interleave + (new D-04) cache logic in two functions that must stay in sync. Rejected as a maintenance hazard.
+- **(a) optional callback** — `searchAll` still returns the SAME `Promise<SearchResult>` (final superset) for all existing callers; only the search page passes the new arg. Zero changes to `picks.ts`/`similar.ts`/`discovery.ts`/`NowPlaying`/`artist`/`spike`. Mirrors the codebase's additive-optional-param convention (`signal?` was itself added as a trailing optional, `catalog.ts:28`).
+
+**Recommended exact signature:**
+```typescript
+// src/lib/services/catalog.ts — additive change to searchAll
+export interface PartialSearchResult {
+  /** Sources that have settled SO FAR this call (ok or error). */
+  perSource: SettledSourceResult[];
+  /** dedupe-by-uid + round-robin interleave over ALL sources settled so far. */
+  interleaved: Track[];
+  /** number of adapters still pending (0 on the final emit). */
+  pending: number;
+}
+
+export async function searchAll(
+  keyword: string,
+  page = 1,
+  prefs: Partial<Record<SourceId, boolean>> = {},
+  signal?: AbortSignal,
+  onPartial?: (partial: PartialSearchResult) => void   // NEW, optional, trailing
+): Promise<SearchResult> { ... }
+```
+The returned `SearchResult` is unchanged (final merged superset) — callers that ignore `onPartial` behave EXACTLY as today.
+
+#### Streaming implementation: accumulate raw → re-interleave → emit (NOT incremental merge)
+
+Replace the single `await Promise.allSettled(...)` with per-adapter `.then`/`.catch` that each push into a running `perSource` accumulator and re-run `interleave` over the **whole accumulated set** every time a source lands. Re-running `interleave` (it already builds a fresh `seen` Map each call, `catalog.ts:62`) is the simplest correctness-preserving strategy — uid-dedupe and registry-order round-robin both stay correct as sources accumulate, with no special incremental-merge bookkeeping. Cost is trivial (≤4 sources, ≤~120 tracks).
+
+```typescript
+const adapters = getEnabledAdapters(prefs);
+const sig = signal ?? new AbortController().signal;
+const acc: SettledSourceResult[] = [];           // grows as sources settle
+let pending = adapters.length;
+
+await Promise.all(adapters.map((a) =>
+  a.search(keyword, page, sig)
+    .then((tracks) => acc.push({ source: a.id, status: 'ok', tracks }))
+    .catch((reason) => acc.push({
+      source: a.id, status: 'error', tracks: [],
+      error: reason instanceof Error ? reason.message : String(reason)
+    }))
+    .finally(() => {
+      pending--;
+      if (sig.aborted) return;                    // ABORT GUARD — see below
+      onPartial?.({ perSource: [...acc], interleaved: interleave(acc), pending });
+    })
+));
+// final return = same shape as today (use acc, which now holds all sources)
+return { perSource: acc, interleaved: interleave(acc) };
+```
+`Promise.all` over `.catch`-guarded promises never rejects (each settles), preserving the DATA-03 "one failure isolated" contract that `Promise.allSettled` gave. `interleave(acc)` over a partial `acc` is correct because `interleave` reads `Object.keys(SOURCES)` order and simply skips sources not yet present (`catalog.ts:67-69`).
+
+**Dedupe interaction (page side):** the page must re-run `dedupeBest(interleaved, settings.preferredSource)` on EACH `onPartial` (not once at the end) — because `dedupeBest` collapses same-song-across-sources by title+artist and picks best quality, and that winner can change as a higher-quality source arrives. Concretely, in `onPartial` the page does `results = dedupeBest(partial.interleaved, settings.preferredSource)`. Cheap (O(n), `dedupe.ts:48-67`). Do NOT try to incrementally patch `results` — re-derive from the accumulated `interleaved` each emit (matches the existing "REPLACE not concatenate" pagination rule, `search/+page.svelte:83`).
+
+#### AbortSignal correctness (the main landmine)
+
+A new query calls `ac.abort()` then creates a fresh `ac` (`search/+page.svelte:42-44`). Stale partials from the OLD query must never reach `results`. Two layers of defense, BOTH required:
+1. **In `searchAll`:** the `if (sig.aborted) return;` guard inside `.finally` (above) suppresses `onPartial` for an aborted call.
+2. **In the page `onPartial` handler:** capture the query at call time and bail if it changed — mirror the EXISTING `loadMore` race guard `if (kw !== q.trim()) return;` (`search/+page.svelte:78`). Also key the handler to the current `ac` (e.g. capture `const myAc = ac;` and `if (myAc.signal.aborted) return;`) so a partial from a superseded controller is dropped even if `q` text happens to match.
+
+Adapters already thread `sig` into their fetches (`a.search(keyword, page, sig)`, unchanged), so an aborted source rejects with `AbortError` and lands in the `.catch` as a (suppressed) error — no stale network write.
+
+#### Interaction with D-04 cache, D-02 state, D-01 skeleton (coherence)
+
+- **D-04 TTL cache:** cache the **final merged superset** (the resolved `SearchResult`) per `(normQuery|enabledSources|page)` exactly as D-04 already specifies — do NOT cache partials. On a cache HIT, `searchAll` returns the final value instantly and should fire `onPartial` ONCE with the full set (`pending: 0`) so the page's streaming handler still works uniformly (or the page may skip streaming on a synchronous hit — either is fine; firing once is simpler and keeps one code path). Partials are a cold-fetch-only UX; a warm cache is already instant.
+- **D-02 session store:** store only the FINAL `results` (and `page`/`hasMore`) in `searchSession`, written when the search completes (or on each partial — writing the latest deduped set on every partial is harmless and keeps restore fresh if the user navigates mid-stream). The streaming itself is page-local transient behavior; the session store holds the settled result set, consistent with D-02's "restore the live result set" intent.
+- **D-01 skeleton:** show skeleton while `loading && results.length === 0`. The FIRST `onPartial` sets `results` to a non-empty array → skeleton disappears, real rows appear, and subsequent partials top-up the list. This is exactly the D-01 guard already recommended (`14-RESEARCH.md` D-01 code example) — no change needed; streaming just makes `results` non-empty sooner. Keep `loading = true` until the final promise resolves so the submit button stays disabled, but the skeleton is gated on `results.length === 0`, so it yields to the first partial.
+
+#### Back-compat — who calls `searchAll`
+
+| Caller | Call | Pass `onPartial`? | Action |
+|--------|------|-------------------|--------|
+| `search/+page.svelte:49` (`run`) | `searchAll(kw, 1, {}, ac.signal)` | YES | add `onPartial` arg → progressive render |
+| `search/+page.svelte:75` (`loadMore`) | `searchAll(kw, next, moreAc.signal)` | optional | load-more can stay blocking (skeleton already covers it); streaming page N is a nice-to-have, not required |
+| `similar.ts:57,70` | `searchAll(n, 1)` | NO | unchanged — wants final set only |
+| `picks.ts:30` | `searchAll(a, 1)` | NO | unchanged |
+| `discovery.ts:25` | `searchAll(\`${artist} ${title}\`, 1)` | NO | unchanged — single best hit |
+| `NowPlaying.svelte:166`, `artist/[name]:68` | `searchAll(t.artist, 1)` | NO | unchanged |
+| `spike/+page.svelte:115` | diagnostic | NO | unchanged |
+
+The optional callback makes D-06 fully **non-breaking** — only the search page opts in. No call-site migration required.
+
+#### Testability (node-only Vitest)
+
+Unit-test progressive emission with adapters that resolve at staggered times and assert `onPartial` is called with monotonically-growing deduped sets:
+```typescript
+// src/lib/services/catalog.test.ts — NEW test, must coexist with the 3 existing fan-out tests
+const defer = () => { let r!: (v: Track[]) => void; const p = new Promise<Track[]>(x => r = x); return { p, r }; };
+const n = defer(), q = defer();
+vi.spyOn(SOURCES.netease, 'search').mockReturnValue(n.p);
+vi.spyOn(SOURCES.qq, 'search').mockReturnValue(q.p);
+// kuwo/joox resolve []
+const partials: PartialSearchResult[] = [];
+const done = searchAll('x', 1, ALL, undefined, (pt) => partials.push(pt));
+n.r([mk('netease','n1')]);  await Promise.resolve();   // first source lands
+q.r([mk('qq','q1')]);       await Promise.resolve();   // second lands
+await done;
+// assert partials grew: partials.at(-1)!.interleaved.length >= partials[0].interleaved.length
+// assert final pending === 0 and contains both uids
+```
+**Critical:** the 3 existing `catalog.test.ts` fan-out tests (`catalog.test.ts:39,62,78`) call `searchAll('x', 1, ALL)` with NO `onPartial` and assert the final `{ perSource, interleaved }`. The streaming refactor MUST keep that return shape identical (verified: `acc` ends holding all sources, `interleave(acc)` == old `interleave(perSource)`, `perSource` order is registry order because adapters are mapped in `getEnabledAdapters` order — but note: with per-`.then` accumulation, `acc` ORDER becomes settle-order, NOT registry order). **Landmine:** `catalog.test.ts` does not assert `perSource` order today, but `interleave` reads `r.source` into a Map keyed by source id (`catalog.ts:59-60`), so `interleave` output is registry-ordered regardless of `acc` order — SAFE. If any test ever asserts `perSource[i].source`, sort `acc` by registry order before the final return to preserve it.
+
+---
+
+### D-05 — Search-history suggestions
+
+#### Persistence convention (confirmed)
+Three existing stores establish the exact pattern to mirror: `library` (`library.svelte.ts:7` key `openmusic:library:v1`), `settings` (`settings.svelte.ts:12` key `openmusic:settings:v1`), and `history` (play-history) (`history.svelte.ts` + pure `history/history-logic.ts`, key `openmusic:history:v1`). All: versioned `openmusic:<feature>:v1` key, `browser`-guarded `load()`/`save()` (`import { browser } from '$app/environment'`), a private `loaded` flag for once-only hydration, `try/catch` swallow on corrupt/quota.
+
+**NAMING-COLLISION WARNING for the planner:** a store named `history` ALREADY EXISTS and means **recently-PLAYED tracks** (`HISTORY_KEY = 'openmusic:history:v1'`, `history/history-logic.ts:14`). D-05 is **recently-SEARCHED queries** — a different concern. Do NOT reuse/extend the play-history store. Name the new one `searchHistory` with key `openmusic:search-history:v1` to avoid both a code-symbol clash and a localStorage-key clash.
+
+#### Recommended store shape — mirror the history pure-logic split
+The play-history feature splits a pure node-testable logic module (`history/history-logic.ts`) from a thin runes wrapper (`stores/history.svelte.ts`). Mirror that EXACTLY (it makes D-05 unit-testable under the node-only Vitest, see Validation additions):
+
+```typescript
+// src/lib/search/search-history-logic.ts  — PURE, no runes/$state/$app
+export const SEARCH_HISTORY_CAP = 12;
+export const SEARCH_HISTORY_KEY = 'openmusic:search-history:v1';
+export interface SearchHistoryEntry { query: string; ts: number; }
+
+/** Prepend a query, drop case-insensitive duplicate, cap, most-recent-first. Pure. */
+export function recordQuery(list: SearchHistoryEntry[], query: string, cap = SEARCH_HISTORY_CAP): SearchHistoryEntry[] {
+  const q = query.trim();
+  if (!q) return list;                                   // never record empty (see pitfall)
+  const norm = q.toLowerCase();
+  const without = list.filter((e) => e.query.toLowerCase() !== norm);   // de-dupe (re-search → top)
+  return [{ query: q, ts: Date.now() }, ...without].slice(0, cap);
+}
+export function parseSearchHistory(raw: string | null): SearchHistoryEntry[] {
+  if (raw == null) return [];
+  try { const v = JSON.parse(raw); return Array.isArray(v) ? (v as SearchHistoryEntry[]) : []; }
+  catch { return []; }
+}
+```
+```typescript
+// src/lib/stores/searchHistory.svelte.ts — thin runes wrapper (mirror history.svelte.ts:16-54)
+import { browser } from '$app/environment';
+import { SEARCH_HISTORY_KEY, parseSearchHistory, recordQuery, type SearchHistoryEntry } from '$lib/search/search-history-logic';
+class SearchHistory {
+  entries = $state<SearchHistoryEntry[]>([]);
+  private loaded = false;
+  load()  { if (this.loaded || !browser) return; this.loaded = true; try { this.entries = parseSearchHistory(localStorage.getItem(SEARCH_HISTORY_KEY)); } catch {} }
+  add(q: string) { this.entries = recordQuery(this.entries, q); this.save(); }
+  clear() { this.entries = []; this.save(); }
+  private save() { if (!browser) return; try { localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(this.entries)); } catch {} }
+}
+export const searchHistory = new SearchHistory();
+```
+Cap N: **12** (discretion — fits a mobile suggestion list without scrolling; the play-history cap is 50 but search suggestions want a shorter list). Store `{query, ts}` (ts enables future "clear older than" / display, costs nothing now).
+
+#### Where/when to surface + how tapping re-runs
+- **Record:** call `searchHistory.add(kw)` inside `run()` AFTER a successful non-empty search — record the user-intent query, not load-more. Place it where `searched = true` is set (`search/+page.svelte:46`), but only on success (or unconditionally on submit of a non-empty trimmed `kw` — discretion; recording on submit is simpler and matches "past searches" even if a query returned nothing). Recommend: record on submit of non-empty `kw` (so a typo'd query the user wants to retry is still listed).
+- **Surface:** show suggestions when the input is **focused AND `q.trim()` is empty AND `!searched`** (or `results.length === 0`) — i.e. the pre-query idle state. Render BELOW the search bar (`search/+page.svelte:127`, right after the `<form class="bar">`), in the same branch region as the `{#if loading}…{:else if searched && results.length===0}…` block. Add a focus-tracked `let inputFocused = $state(false)` bound via `onfocus`/`onblur` on the existing `<input bind:value={q}>` (`search/+page.svelte:120-125`). Suggestion list reuses `.list`/`.row` styles already defined (`search/+page.svelte:188-197`).
+- **Tap re-runs:** a suggestion button sets `q = entry.query` then calls the SAME `run()` entrypoint (`search/+page.svelte:38`). Because `run()` calls `searchAll`, a repeated query hits the **D-04 TTL cache** → instant — this is exactly the "same query will be faster" ask (CONTEXT D-05). Add a clear-all control (small "Clear" button) calling `searchHistory.clear()`.
+- **Hydrate:** call `searchHistory.load()` in the search page `onMount` (mirror how sub-routes call `history.load()`), or in the app layout alongside the other store loads.
+
+#### Pitfalls
+1. **SSR module-state / localStorage guard.** The runes singleton is module-level (shared across SSR requests on the Cloudflare worker). NEVER read/write `localStorage` outside the `browser` guard — `load()`/`save()` early-return when `!browser` (mirror `history.svelte.ts:23,45`, `settings.svelte.ts:48`). Reads during SSR return the empty default `entries=[]` (harmless). Same SSR-leak class flagged for D-02 in the main research.
+2. **Don't record empty/whitespace or duplicate queries.** `recordQuery` early-returns on empty `q.trim()` and filters a case-insensitive existing match (so "Jay"/"jay " collapse and move to top). Verified pure-testable.
+3. **searchHistory (D-05) vs searchSession (D-02) vs history (play) — three DISTINCT stores.** searchHistory = persisted list of past QUERY STRINGS, survives reloads, drives suggestions. searchSession (D-02) = in-memory live RESULT SET for the current session, restores instantly on tab return, NOT persisted, NOT cross-reload. history (existing) = persisted recently-PLAYED tracks. Keep them separate — do not fold search history into the session store or the play-history store.
+
+---
+
+### Validation additions (extend 14-VALIDATION.md)
+
+| Item | Behavior | Test Type | Command | File |
+|------|----------|-----------|---------|------|
+| D-06 | `searchAll` with `onPartial` emits growing deduped sets as staggered adapters settle; final `pending===0`; final return shape unchanged | unit | `pnpm test src/lib/services/catalog.test.ts` | ✅ extend (deferred-promise mocks; existing 3 fan-out tests MUST stay green) |
+| D-06 | aborted call (signal aborted mid-fetch) does NOT fire `onPartial` after abort | unit | `pnpm test src/lib/services/catalog.test.ts` | ✅ extend |
+| D-06 | page re-runs `dedupeBest` per partial (winner can change as higher-quality source arrives) | unit / boolean | covered by dedupe tests + manual | n/a (component) |
+| D-05 | `recordQuery` de-dupes case-insensitively, caps at N, most-recent-first, ignores empty | unit | `pnpm test src/lib/search/search-history-logic.test.ts` | ❌ Wave 0 |
+| D-05 | `parseSearchHistory` returns [] on null/corrupt/non-array | unit | `pnpm test src/lib/search/search-history-logic.test.ts` | ❌ Wave 0 |
+| D-05 | `searchHistory` store add/clear/load round-trips; SSR (`!browser`) writes nothing | unit | `pnpm test src/lib/stores/searchHistory.svelte.test.ts` | ❌ Wave 0 |
+| D-05 | tapping a suggestion sets `q` and re-runs `run()` (cache-hit instant) | manual / component | — | n/a |
+
+**Wave 0 gaps (D-05/D-06):**
+- [ ] `src/lib/search/search-history-logic.test.ts` — pure recordQuery/parse coverage
+- [ ] `src/lib/stores/searchHistory.svelte.test.ts` — runes wrapper round-trip + SSR guard
+- [ ] Extend `src/lib/services/catalog.test.ts` — staggered-emit + abort-suppression tests; verify the existing 3 fan-out tests stay green (final return shape unchanged)
+
+**Landmine:** the streaming refactor changes `searchAll` internals from `Promise.allSettled` to per-`.then` accumulation. The existing `catalog.test.ts` tests don't assert `perSource` ORDER (only membership + interleaved output), and `interleave` is registry-ordered by source-id Map regardless of accumulation order — so they stay green. If a future test asserts `perSource[i].source`, sort `acc` by registry order before the final return.

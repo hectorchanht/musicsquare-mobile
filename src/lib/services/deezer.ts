@@ -20,12 +20,51 @@
 //    slow/hung response can never pile up against the CAP=3 + total-max backfill pool.
 
 const PROXY_PATH = '/api/deezer/search';
+const CHART_PATH = '/api/deezer/chart';
 const FETCH_TIMEOUT_MS = 6000;
 
 /** The proxy's client-facing reshape (mirrors the +server.ts DeezerCover interface). */
 interface DeezerCover {
 	cover: string | null;
 	artistPicture: string | null;
+}
+
+/** Chart item shapes (mirror the /api/deezer/chart +server.ts reshape + lastfm Discovery* shapes). */
+export interface DeezerChartTrack {
+	artist: string;
+	title: string;
+	image: string | null;
+	mbid: null;
+}
+export interface DeezerChartArtist {
+	name: string;
+	image: string | null;
+	mbid: null;
+}
+export interface DeezerChartResult {
+	tracks: DeezerChartTrack[];
+	artists: DeezerChartArtist[];
+}
+
+const EMPTY_CHART: DeezerChartResult = { tracks: [], artists: [] };
+
+/**
+ * Fetch the Deezer top-tracks + top-artists chart through the OWN-ORIGIN proxy. Each item
+ * carries its cover/picture NATIVELY (no per-tile backfill), so this is the PRIMARY home
+ * top-hits + top-artists source. Never throws: any non-ok / abort / timeout / malformed JSON
+ * returns { tracks: [], artists: [] } so the caller falls back to the Last.fm chart.
+ */
+export async function deezerChart(limit = 18, signal?: AbortSignal): Promise<DeezerChartResult> {
+	if (signal?.aborted) return EMPTY_CHART;
+	try {
+		const url = `${CHART_PATH}?${new URLSearchParams({ limit: String(limit) }).toString()}`;
+		const res = await fetch(url, { signal: combinedSignal(signal) });
+		if (!res.ok) return EMPTY_CHART;
+		const data = (await res.json()) as Partial<DeezerChartResult>;
+		return { tracks: data.tracks ?? [], artists: data.artists ?? [] };
+	} catch {
+		return EMPTY_CHART;
+	}
 }
 
 /**

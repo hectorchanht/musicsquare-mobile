@@ -26,7 +26,7 @@
 		clampShelfSize
 	} from '$lib/services/home-layout';
 	import { settings } from '$lib/stores/settings.svelte';
-	import { caaReleaseGroupCover } from '$lib/services/cover-art';
+	import { deezerChart } from '$lib/services/deezer';
 	import { getCachedCover, getCachedArtistCover } from '$lib/services/cover-cache';
 	import { backfillCovers, backfillArtistCovers } from '$lib/services/cover-backfill';
 	import { decodeTrack } from '$lib/services/share';
@@ -119,8 +119,10 @@
 	}): string | null {
 		void coverVer; // reactive dependency: recompute when a backfilled cover lands
 		if (item.image) return item.image;
-		const caa = caaReleaseGroupCover(item.mbid);
-		if (caa) return caa;
+		// NOTE: the CAA-by-mbid tier was REMOVED here — coverartarchive.org image loads are
+		// blocked by the browser's Opaque Response Blocking (net::ERR_BLOCKED_BY_ORB), so a CAA
+		// URL always renders broken AND shadowed the working Deezer/CN backfilled cover for any
+		// item that carried an mbid (the runtime root cause of "most tiles are color blocks").
 		if (item.artist && item.title) return getCachedCover(item.artist, item.title);
 		if (item.artistName) return getCachedArtistCover(item.artistName);
 		return null;
@@ -155,7 +157,7 @@
 		const rows: { artist: string; title: string }[] = [];
 		const pushNeeding = (items: DiscoveryTrack[]) => {
 			for (const it of items) {
-				if (!it.image && !it.mbid) rows.push({ artist: it.artist, title: it.title });
+				if (!it.image) rows.push({ artist: it.artist, title: it.title });
 			}
 		};
 		pushNeeding(topHits);
@@ -261,9 +263,13 @@
 			// On a randomize press, draw a fresh random page PER call so different shelves
 			// pull from different pages; on a normal call pass page 1 (cache-friendly).
 			const pg = () => (randomize ? pickRandomPage(RANDOM_PAGE_BOUND) : 1);
-			const [rawHits, rawArtists, tagRows, countryRows] = await Promise.all([
-				getChartTopTracks(perShelf, pg()),
-				getChartTopArtists(perShelf),
+			// TOP-HITS + TOP-ARTISTS source from the Deezer /chart: covers + artist pictures are
+			// EMBEDDED, so ONE request yields a fully-covered shelf and the per-tile cover backfill
+			// is demoted to a rare backup (user: "less requests, backfill as backup not norm").
+			// Tag/country shelves stay Last.fm (their imageless tiles are the backup backfill's job).
+			const dzChart = await deezerChart(perShelf);
+			if (gen !== refreshGen) return;
+			const [tagRows, countryRows] = await Promise.all([
 				mapWithConcurrency(tagPool, FANOUT_CAP, (tag) =>
 					getTagTopTracks(tag, perShelf, pg())
 				),
@@ -272,6 +278,15 @@
 				)
 			]);
 			if (gen !== refreshGen) return; // superseded by a newer refresh (WR-04)
+
+			// Deezer PRIMARY; fall back to the Last.fm chart PER SOURCE only when Deezer is empty.
+			const rawHits = dzChart.tracks.length
+				? dzChart.tracks
+				: await getChartTopTracks(perShelf, pg());
+			const rawArtists = dzChart.artists.length
+				? dzChart.artists
+				: await getChartTopArtists(perShelf);
+			if (gen !== refreshGen) return;
 
 			// On randomize, shuffle the chart shelves' tile order so even an overlapping page
 			// renders visibly differently. (Non-randomize leaves them in Last.fm rank order.)

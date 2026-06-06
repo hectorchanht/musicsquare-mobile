@@ -33,8 +33,18 @@ UX/playback responsiveness polish for the search + data layer (NOT part of the v
 - Key by normalized query + source (+ page where applicable). Reasonable default TTL (e.g. minutes-to-hours; pick per data volatility). In-memory at minimum; persisted cache (localStorage/IDB) is allowed if it fits existing patterns.
 - Must integrate with the existing `catalog.ts` / `searchAll` path and the discovery services without breaking dedupe or the cumulative-superset pagination contract.
 
+### D-05 — Past searches as suggestions (search history)
+- Persist recent search queries and surface them as tappable SUGGESTIONS on the search page (e.g. when the input is focused/empty, before a query runs).
+- Tapping a suggestion re-runs that query. Combined with D-04 cache, a repeated query returns instantly (cached) — explicitly the "same query will be faster" ask.
+- Persist history (localStorage, mirroring the existing library/settings persistence convention); cap the list (e.g. last N), de-dupe, most-recent-first. Provide a way to clear (at minimum clear-all).
+
+### D-06 — Progressive / streaming search results
+- Render results incrementally: as soon as ANY source returns, show those rows; append more as each remaining source resolves — instead of blocking on all sources (current `searchAll` likely awaits all via Promise.all before render).
+- Must preserve dedupe (`dedupeBest`) correctness as results stream in, and stay compatible with the cumulative-superset pagination (D-02 state) and the TTL cache (D-04). The first-load skeleton (D-01) shows until the FIRST partial arrives, then is replaced/topped-up.
+- Approach is Claude's discretion per research: `searchAll` gains an `onPartial`/callback or returns an async-iterable, OR the page orchestrates per-source calls and merges on arrival. Keep the existing `searchAll(kw, page)` callers working (back-compat or migrate all call sites consistently).
+
 ### Claude's Discretion
-- Exact store shape/file name, cache implementation (in-memory Map vs persisted), exact TTL values per method, scroll-restore mechanics, and which concrete bitrate tier per source maps to 128–160 kbps. Research should determine these.
+- Exact store shape/file names (searchSession + searchHistory), cache implementation (in-memory Map vs persisted), TTL values per method, scroll-restore mechanics, which concrete bitrate tier per source maps to 128–160 kbps, the streaming mechanism (callback vs async-iterable vs page-orchestrated merge), and the suggestions UI placement/styling. Research determines these.
 </decisions>
 
 <specifics>

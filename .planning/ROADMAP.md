@@ -194,7 +194,8 @@ Plans:
 
 ### Phase 9: Discovery / Hot-Picks Tab
 
-**Goal**: A signed-out user can open an Explore tab in the existing bottom-nav shell and browse Last.fm-powered discovery — global leaderboards, vibe/mood/genre tags, and country/region charts — with responses edge-cached so repeated browsing never trips Last.fm rate limits.
+**Goal**: A signed-out user can browse Last.fm-powered discovery — global leaderboards, vibe/mood/genre tags, and country/region charts — with responses edge-cached so repeated browsing never trips Last.fm rate limits.
+**Surface note (CONTEXT D-01 supersedes the original "Explore tab" wording):** discovery lives on the HOME landing page's Top-picks area as four shelves (Last.fm PRIMARY, `buildDiversePicks` FALLBACK per D-06) — NO new bottom-nav tab. The scope-expansion D-04/D-05 (artist `artist.getTopAlbums` → album `album.getInfo` real tracklist → select-to-play) is folded in; discovery items are tap-to-play via the existing `searchAll`+`dedupeBest` resolver (D-03), so Phase 10's formal `lastfm` SourceId is NOT a prerequisite here.
 **Mode:** mvp
 **Depends on**: Phase 8 (Last.fm read proxy + source registration)
 **Requirements**: DISCO-01, DISCO-02, DISCO-03, DISCO-04
@@ -205,7 +206,18 @@ Plans:
   3. User can browse country / region charts for a curated set of countries
   4. Explore is a tab in the existing bottom-nav shell and is fully usable while signed out; opening and re-opening it repeatedly stays fast and does not produce rate-limit (code 29) failures, because discovery responses are edge-cached
 
-**Plans**: TBD
+**Plans**: 3 plans (2 waves)
+Plans:
+
+**Wave 1**
+
+- [ ] 09-01-PLAN.md — Edge /api/lastfm/discovery list proxy (chart/tag/geo/getTopAlbums) + Cache API TTLs + album-tracklist on /api/lastfm/info + discovery list builders + resolveStub transform
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 09-02-PLAN.md — Home four-shelf Last.fm discovery surface (top hits / top artists / tag rows / country rows) + resolve-on-tap + buildDiversePicks fallback (checkpoint)
+- [ ] 09-03-PLAN.md — Artist real artist.getTopAlbums + album real album.getInfo tracklist with select-to-play via resolveStub (checkpoint)
+
 **UI hint**: yes
 **Research flag**: Standard SvelteKit `+page.ts` SSR `load` + Cloudflare Cache API TTL caching. No `--research-phase` needed.
 **Security note**: Discovery is public, key-only data — mark it `Cache-Control: public` with sensible TTLs; reserve `private, no-store` for any user-keyed data (none in this phase). Cap fan-out concurrency (3–5 in flight) and reuse `fetchWithRetry` to stay under rate limits (PITFALLS Pitfall 11).
@@ -294,7 +306,7 @@ v1.1 dependency chain: 8 → (9, 10) read-only & auth-free first; 11 (auth) befo
 | 6. Background Audio + MediaSession | 0/TBD | Not started | - |
 | 7. New Sources + Queue Model + Gestures | 0/TBD | Not started | - |
 | 8. Last.fm Read Foundation & Metadata Enrichment | 3/3 | Complete   | 2026-06-06 |
-| 9. Discovery / Hot-Picks Tab | 0/TBD | Not started | - |
+| 9. Discovery / Hot-Picks Tab | 0/3 | Planned | - |
 | 10. Last.fm-searchable Source | 0/TBD | Not started | - |
 | 11. Signed-call Infrastructure & Auth | 0/TBD | Not started | - |
 | 12. Scrobbling (online-only) | 0/TBD | Not started | - |

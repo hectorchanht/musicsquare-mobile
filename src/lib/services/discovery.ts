@@ -88,6 +88,44 @@ export const DISCOVERY_COUNTRIES: string[] = [
 	'South Korea'
 ];
 
+// ---- Randomize variation primitives (VX2) ----------------------------------------
+// Two PURE helpers used by the home page's 隨機推薦 / Randomize button to genuinely VARY
+// the discovery surface on every press WITHOUT touching the never-throws builders, the
+// caching robustness, or the edge security boundary:
+//   - shuffle()        varies tile order (within each shelf) AND shelf order.
+//   - pickRandomPage() varies WHICH Last.fm chart/tag/geo page is fetched.
+// Neither pulls in a dependency and neither adds seeding — they use the same plain
+// Math.random Fisher-Yates as picks.ts `sample()` (the established pattern in this repo).
+
+/**
+ * Return a NEW array that is a uniformly-shuffled permutation of `arr` (copy-then-
+ * Fisher-Yates — identical algorithm to picks.ts `sample()` but keeping the FULL
+ * permutation instead of slicing). MUST NOT mutate the input. `[]` → `[]`, `[x]` → `[x]`.
+ * Used to reshuffle within-shelf tile order AND the order of the tag/country shelves so
+ * Randomize is visibly different even when a fetched page returns overlapping tracks.
+ */
+export function shuffle<T>(arr: T[]): T[] {
+	const a = [...arr];
+	for (let i = a.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[a[i], a[j]] = [a[j], a[i]];
+	}
+	return a;
+}
+
+/**
+ * Return a random INTEGER page in `[1, max]` inclusive (Last.fm pages are 1-based).
+ * `max <= 1` (or fractional/zero/negative) → always 1. Never 0, never > max, never a
+ * fraction. Feeds the optional `page` arg on the discovery builders so Randomize fetches
+ * a different chart/tag/geo page each press. SECURITY (T-vx2-01): the result is a BOUNDED
+ * positive integer, so the value the client sends to /api/lastfm/discovery?page= is never
+ * an attacker-controlled string — the edge already encodeURIComponent's it.
+ */
+export function pickRandomPage(max: number): number {
+	const m = Math.max(1, Math.floor(max) || 1);
+	return Math.floor(Math.random() * m) + 1;
+}
+
 /**
  * Map `items` through `fn` with at most `limit` calls in flight at once (a small async
  * pool), preserving input order in the returned array (per Pitfall 11 — the home tag +

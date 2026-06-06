@@ -186,12 +186,22 @@ async function fetchList<T>(params: Record<string, string>): Promise<LastfmList<
 	}
 }
 
-/** Global trending songs (DISCO-01 — Top hits shelf). */
-export async function getChartTopTracks(limit = 30): Promise<DiscoveryTrack[]> {
-	const data = await fetchList<DiscoveryTrack>({
+/**
+ * Global trending songs (DISCO-01 — Top hits shelf).
+ *
+ * Optional `page` (VX2 / Randomize): pages are 1-based. The `page` key is added to the
+ * request ONLY when `page > 1`, so a default/cold/background call (`page` omitted or `1`)
+ * produces the EXACT same request — and therefore the exact same edge cache key (charts-1h)
+ * — as before this change. The edge already reads + encodeURIComponent's `page`
+ * (discovery/+server.ts lines 239/249); no edge change. Never throws (→ [] on failure).
+ */
+export async function getChartTopTracks(limit = 30, page = 1): Promise<DiscoveryTrack[]> {
+	const params: Record<string, string> = {
 		method: 'chart.gettoptracks',
 		limit: String(limit)
-	});
+	};
+	if (page > 1) params.page = String(page);
+	const data = await fetchList<DiscoveryTrack>(params);
 	return data.items ?? [];
 }
 
@@ -204,26 +214,36 @@ export async function getChartTopArtists(limit = 30): Promise<DiscoveryArtist[]>
 	return data.items ?? [];
 }
 
-/** Top tracks for a genre/mood tag (DISCO-02 — per-tag shelf). */
-export async function getTagTopTracks(tag: string, limit = 30): Promise<DiscoveryTrack[]> {
-	const data = await fetchList<DiscoveryTrack>({
+/**
+ * Top tracks for a genre/mood tag (DISCO-02 — per-tag shelf). Optional `page` (VX2):
+ * threaded ONLY when `page > 1` so a default/cold call keeps the existing request + the
+ * tags-6h edge cache key. Never throws (→ [] on failure).
+ */
+export async function getTagTopTracks(tag: string, limit = 30, page = 1): Promise<DiscoveryTrack[]> {
+	const params: Record<string, string> = {
 		method: 'tag.gettoptracks',
 		tag,
 		limit: String(limit)
-	});
+	};
+	if (page > 1) params.page = String(page);
+	const data = await fetchList<DiscoveryTrack>(params);
 	return data.items ?? [];
 }
 
 /**
  * Top tracks for a country (DISCO-03 — per-country shelf). NOTE: `country` is the
  * ISO 3166-1 NAME (e.g. `United States`), NOT the code (e.g. `US`) — per FEATURES.md.
+ * Optional `page` (VX2): threaded ONLY when `page > 1` so a default/cold call keeps the
+ * existing request + edge cache key. Never throws (→ [] on failure).
  */
-export async function getGeoTopTracks(country: string, limit = 30): Promise<DiscoveryTrack[]> {
-	const data = await fetchList<DiscoveryTrack>({
+export async function getGeoTopTracks(country: string, limit = 30, page = 1): Promise<DiscoveryTrack[]> {
+	const params: Record<string, string> = {
 		method: 'geo.gettoptracks',
 		country,
 		limit: String(limit)
-	});
+	};
+	if (page > 1) params.page = String(page);
+	const data = await fetchList<DiscoveryTrack>(params);
 	return data.items ?? [];
 }
 

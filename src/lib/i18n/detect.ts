@@ -75,6 +75,16 @@ export function shouldTranslate(text: string, target: string, whitelist: readonl
 	if (target === 'off') return false;
 	const src = detectLang(text);
 	if (whitelist.includes(src)) return false;
-	if (src === target) return false;
+	if (src === target) {
+		// zh-Hant/zh-Hans detection rides a small disambiguation char-set, so a src===target
+		// match does NOT prove the text is already in the target script. Common simplified chars
+		// outside the set (e.g. 陈 in 陈奕迅) misdetect as the zh-Hant default and were wrongly
+		// skipped, leaving simplified text on screen. For a CHINESE target we therefore fall
+		// through and let /api/translate normalize the script — a no-op when already correct,
+		// cached by the names store — guaranteeing simplified↔traditional always converts. For
+		// en/ja/ko an exact match still skips the round-trip. Opt out per part via the skip
+		// whitelist (e.g. add zh-Hant to leave Traditional untouched).
+		if (target !== 'zh-Hant' && target !== 'zh-Hans') return false;
+	}
 	return true;
 }

@@ -67,9 +67,23 @@ describe('shouldTranslate', () => {
 		expect(shouldTranslate('简体', 'zh-Hant', ['zh-Hans'])).toBe(false);
 	});
 
-	it('returns false when the detected source already equals the target', () => {
-		expect(shouldTranslate('繁體', 'zh-Hant', [])).toBe(false);
+	it('skips an exact src===target match ONLY for non-Chinese targets (reliable detection)', () => {
 		expect(shouldTranslate('Hello', 'en', [])).toBe(false);
+		expect(shouldTranslate('こんにちは', 'ja', [])).toBe(false);
+	});
+
+	it('still translates Han for a Chinese target even when detection says src===target', () => {
+		// zh detection is unreliable on a small char-set: 繁體 detects as zh-Hant but we still
+		// route it through the converter (no-op when already correct) so misdetected simplified
+		// never gets stranded. Opt out by adding the script to the whitelist.
+		expect(shouldTranslate('繁體', 'zh-Hant', [])).toBe(true);
+		expect(shouldTranslate('繁體', 'zh-Hant', ['zh-Hant'])).toBe(false); // whitelist opt-out
+	});
+
+	it('translates simplified Han that misdetects as zh-Hant (陈奕迅 regression)', () => {
+		// 陈/奕/迅 are NOT in the SIMP_ONLY disambiguation set → detectLang defaults to zh-Hant.
+		// Pre-fix this matched the target and was skipped, leaving 陈奕迅 (simplified) on screen.
+		expect(shouldTranslate('陈奕迅', 'zh-Hant', ['en'])).toBe(true);
 	});
 
 	it('returns true otherwise', () => {

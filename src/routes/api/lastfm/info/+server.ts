@@ -34,6 +34,13 @@ export interface LastfmInfo {
 	image: string | null;
 	listeners: number | null;
 	playcount: number | null;
+	/**
+	 * Ordered album tracklist (Phase 9, D-05) — populated ONLY for album.getinfo when
+	 * the entity carries album.tracks.track[]. Left undefined for track/artist.getinfo
+	 * and for albums with no tracks block, so the single-entity contract + EMPTY
+	 * deep-equal are unaffected.
+	 */
+	tracks?: { artist: string; title: string }[];
 }
 
 const EMPTY: LastfmInfo = {
@@ -67,6 +74,13 @@ interface LfmWiki {
 	summary?: string;
 	content?: string;
 }
+interface LfmAlbumTrack {
+	name?: string;
+	artist?: { name?: string } | string;
+}
+interface LfmTrackBlock {
+	track?: LfmAlbumTrack[] | LfmAlbumTrack;
+}
 interface LfmEntity {
 	listeners?: string | number;
 	playcount?: string | number;
@@ -77,6 +91,8 @@ interface LfmEntity {
 	album?: { image?: LfmImage[] };
 	bio?: LfmWiki;
 	wiki?: LfmWiki;
+	/** album.getinfo only — the ordered tracklist (D-05). */
+	tracks?: LfmTrackBlock;
 }
 
 const SIZE_RANK: Record<string, number> = {
@@ -170,6 +186,22 @@ function toNumber(v: string | number | undefined): number | null {
 	return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * Ordered album tracklist (D-05). Returns undefined (not []) when there is no tracks
+ * block so album misses / track+artist getInfo keep the bare single-entity shape and
+ * the existing EMPTY deep-equal assertions still hold. Handles Last.fm's array-or-single
+ * quirk the same way pickTags does (a one-track album may return a single object).
+ */
+function pickTracks(block?: LfmTrackBlock): { artist: string; title: string }[] | undefined {
+	if (!block?.track) return undefined;
+	const arr = Array.isArray(block.track) ? block.track : [block.track];
+	return arr.map((t) => {
+		const artist =
+			typeof t.artist === 'string' ? t.artist : t.artist?.name ?? '';
+		return { artist: (artist ?? '').trim(), title: (t.name ?? '').trim() };
+	});
+}
+
 /** Reshape one getInfo entity (track/artist/album) into the clean LastfmInfo shape. */
 function reshape(entity: LfmEntity): LastfmInfo {
 	const { bio, bioUrl } = pickBio(entity.bio ?? entity.wiki);
@@ -178,7 +210,12 @@ function reshape(entity: LfmEntity): LastfmInfo {
 	const tags = pickTags(entity.toptags ?? entity.tags);
 	const listeners = toNumber(entity.listeners ?? entity.stats?.listeners);
 	const playcount = toNumber(entity.playcount ?? entity.stats?.playcount);
-	return { tags, bio, bioUrl, image, listeners, playcount };
+	const info: LastfmInfo = { tags, bio, bioUrl, image, listeners, playcount };
+	// album.getinfo only: surface the ordered tracklist (D-05). Undefined otherwise so
+	// the single-entity getInfo contract + EMPTY deep-equal are unchanged.
+	const tracks = pickTracks(entity.tracks);
+	if (tracks) info.tracks = tracks;
+	return info;
 }
 
 export const GET: RequestHandler = async ({ url, platform, request }) => {

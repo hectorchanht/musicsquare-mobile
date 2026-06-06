@@ -12,6 +12,7 @@
 import type { SourceAdapter, Track } from './types';
 import { makeUid } from './types';
 import { inferQualityFromUrl } from '../services/lrc';
+import { settings } from '$lib/stores/settings.svelte';
 
 // Kuwo search row shape from the kw-api endpoint (fields we read).
 interface KuwoSearchItem {
@@ -92,8 +93,14 @@ export const kuwo: SourceAdapter = {
 	},
 
 	async resolve(track: Track, signal: AbortSignal): Promise<Track> {
-		// level=zp lossless + inline lyric (legacy:2399).
-		const url = `/api/kuwo/detail?id=${encodeURIComponent(track.songid)}&type=song&level=zp&format=json`;
+		// D-03: `zp` = 臻品/lossless (legacy:2399). When the user pref is the 128–160k
+		// band, request a lower level token (`128k`) instead. The proxy forwards any
+		// `level` (`searchParams.get('level') || 'zp'`), so NO proxy edit is needed.
+		// BEST-EFFORT (A1): the cenguigui kw-api's non-`zp` token is undocumented in-repo;
+		// if the upstream ignores/rejects `128k`, Kuwo stays at whatever tier it returns
+		// (acceptable per the honest defaultQualityNote).
+		const level = settings.defaultQuality === '128' ? '128k' : 'zp';
+		const url = `/api/kuwo/detail?id=${encodeURIComponent(track.songid)}&type=song&level=${encodeURIComponent(level)}&format=json`;
 
 		const res = await fetch(url, { signal });
 		const j = (await res.json()) as KuwoDetailResponse | null;

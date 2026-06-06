@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { qq } from './qq';
 import type { Track } from './types';
+import { settings } from '$lib/stores/settings.svelte';
 import searchFixture from './__fixtures__/qq.search.json';
 import detailFixture from './__fixtures__/qq.detail.json';
 
@@ -83,6 +84,16 @@ describe('qq.search (fixture-backed)', () => {
 });
 
 describe('qq.resolve', () => {
+	// D-03: the ladder now reads settings.defaultQuality. Pin it per-case so the
+	// quality assertions reflect the intended tier rather than the live default ('128').
+	let prevQuality: typeof settings.defaultQuality;
+	beforeEach(() => {
+		prevQuality = settings.defaultQuality;
+	});
+	afterEach(() => {
+		settings.defaultQuality = prevQuality;
+	});
+
 	function stubTrack(overrides: Partial<Track> = {}): Track {
 		return {
 			uid: 'qq:002Neh8l0RJHcS',
@@ -112,6 +123,7 @@ describe('qq.resolve', () => {
 
 	// Test 4 (quality priority): picks song_play_url_sq (lossless) when present.
 	it('picks the sq (lossless) URL by priority, sets inline lrc, cover, qqQualityText', async () => {
+		settings.defaultQuality = 'lossless'; // pin: assert the legacy top-tier-first order
 		const spy = mockFetchOnce(detailFixture);
 		vi.stubGlobal('fetch', spy);
 
@@ -139,6 +151,7 @@ describe('qq.resolve', () => {
 
 	// quality priority fallthrough: when sq/pq absent, hq is chosen.
 	it('falls through to hq when sq and pq are absent', async () => {
+		settings.defaultQuality = 'lossless'; // pin: legacy top-tier-first order
 		const noLossless = {
 			...detailFixture,
 			song_play_url_sq: undefined,
@@ -148,6 +161,20 @@ describe('qq.resolve', () => {
 
 		const out = await qq.resolve(stubTrack(), ac.signal);
 		expect(out.audioUrl).toBe(detailFixture.song_play_url_hq);
+	});
+
+	// D-03 NEW: the '128' default promotes the STANDARD tier ahead of sq/pq/hq.
+	it("promotes song_play_url_standard (STD ~128kbps) when defaultQuality is '128'", async () => {
+		settings.defaultQuality = '128';
+		const spy = mockFetchOnce(detailFixture);
+		vi.stubGlobal('fetch', spy);
+
+		const out = await qq.resolve(stubTrack(), ac.signal);
+
+		// STD wins over sq/pq/hq under the 128 pref
+		expect(out.audioUrl).toBe(detailFixture.song_play_url_standard);
+		expect(out.qqQualityText).toBe(`STD ${detailFixture.kbps_standard}`);
+		expect(out.detailsLoaded).toBe(true);
 	});
 
 	// Test 5 (retry semantics): missing song_mid → throw AND detailsLoaded stays false.

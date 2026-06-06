@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { joox } from './joox';
 import type { Track } from './types';
+import { settings } from '$lib/stores/settings.svelte';
 import searchFixture from './__fixtures__/joox.search.json';
 import detailFixture from './__fixtures__/joox.detail.json';
 
@@ -155,8 +156,19 @@ describe('joox.resolve — POSITION-INDEX IDENTITY FIX', () => {
 });
 
 describe('joox.resolve — quality order (pickJooxPlayUrl)', () => {
+	// D-03: pickJooxPlayUrl reorders the probe ladder via settings.defaultQuality.
+	// Pin it per-case so the tier assertions are explicit about the active pref.
+	let prevQuality: typeof settings.defaultQuality;
+	beforeEach(() => {
+		prevQuality = settings.defaultQuality;
+	});
+	afterEach(() => {
+		settings.defaultQuality = prevQuality;
+	});
+
 	// Test 4: with multiple 播放链接 tiers, the highest-priority reachable tier wins.
-	it('picks Atmos全景声 first and tags it lossless', async () => {
+	it('picks Atmos全景声 first and tags it lossless (lossless pref)', async () => {
+		settings.defaultQuality = 'lossless'; // pin: verbatim top-tier-first order
 		vi.stubGlobal('fetch', mockJsonFetch(searchFixture));
 		const tracks = await joox.search('周杰伦', 1, ac.signal);
 		const target = tracks.find((t) => t.songMid === detailFixture.data.songmid)!;
@@ -170,7 +182,39 @@ describe('joox.resolve — quality order (pickJooxPlayUrl)', () => {
 		expect(out.jooxQualityText).toBe('Atmos全景声');
 	});
 
-	it('falls through to a lower tier when a higher one fails the probe', async () => {
+	// D-03 NEW: under the '128' default the 128–160k band (AAC 192 / MP3 128) is probed
+	// FIRST, so it wins over the lossless/320 tiers when present.
+	it("probes the 128–160k band first when defaultQuality is '128'", async () => {
+		settings.defaultQuality = '128';
+		vi.stubGlobal('fetch', mockJsonFetch(searchFixture));
+		const tracks = await joox.search('周杰伦', 1, ac.signal);
+		const target = tracks.find((t) => t.songMid === detailFixture.data.songmid)!;
+
+		// A detail body that includes a 128-band tier alongside the lossless/320 tiers.
+		const withBand = {
+			...detailFixture,
+			data: {
+				...detailFixture.data,
+				'播放链接': {
+					...detailFixture.data['播放链接'],
+					'AAC 192': 'https://cdn.joox.example/audio/002cZ5jq3Hk8Yz.192.aac',
+					'MP3 128': 'https://cdn.joox.example/audio/002cZ5jq3Hk8Yz.128.mp3'
+				}
+			}
+		};
+		vi.stubGlobal('fetch', mockResolveFetch(withBand));
+		const out = await joox.resolve(target, ac.signal);
+
+		// AAC 192 leads the 128 band → wins over Atmos/FLAC/320 under the '128' pref
+		expect(out.audioUrl).toBe(withBand.data['播放链接']['AAC 192']);
+		expect(out.jooxQualityText).toBe('AAC 192');
+		expect(out.quality).toBe('192k');
+		expect(out.qualityLabel).toBe('192K');
+		expect(out.detailsLoaded).toBe(true);
+	});
+
+	it('falls through to a lower tier when a higher one fails the probe (lossless pref)', async () => {
+		settings.defaultQuality = 'lossless'; // pin: verbatim top-tier-first order
 		vi.stubGlobal('fetch', mockJsonFetch(searchFixture));
 		const tracks = await joox.search('周杰伦', 1, ac.signal);
 		const target = tracks.find((t) => t.songMid === detailFixture.data.songmid)!;

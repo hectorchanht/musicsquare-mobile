@@ -22,6 +22,8 @@
 import type { SourceAdapter, Track } from './types';
 import { makeUid } from './types';
 import { inferQualityFromUrl } from '../services/lrc';
+import { settings } from '$lib/stores/settings.svelte';
+import { pickByQualityPref } from './quality';
 
 // JOOX search row shape from the apicx proxy (Chinese field names we read).
 interface JooxSearchItem {
@@ -122,15 +124,23 @@ const JOOX_QUALITY_ORDER = [
 ];
 
 /**
- * Pick the best reachable play URL from the 播放链接 tier map, honoring the verbatim
- * quality order (Atmos > FLAC > Hi-Res > 母带 > OGG320 > MP3320 > ...). Each candidate
- * is probed; the first reachable tier wins. Ported from legacy/index.html:2466-2479.
+ * Pick the best reachable play URL from the 播放链接 tier map. Each candidate is probed;
+ * the first reachable tier in the (pref-reordered) order wins. Ported from
+ * legacy/index.html:2466-2479.
+ *
+ * D-03: the verbatim order (Atmos > FLAC > Hi-Res > 母带 > OGG320 > MP3320 > AAC192 >
+ * OGG192 > MP3128 > ...) is reordered via `pickByQualityPref` so the band matching
+ * `settings.defaultQuality` is probed FIRST. Under the '128' default the 128–160k band
+ * (AAC 192 / OGG 192 / MP3 128) is preferred; 'lossless'/'auto' keep the verbatim order.
+ * The proxy `JOOX_BR=4` tier-SET selector is left untouched (it just makes all tiers
+ * available; keeps proxy.test.ts `br=4` green — A3 / client-ladder approach).
  */
 async function pickJooxPlayUrl(
 	links: Record<string, string>,
 	outerSignal: AbortSignal
 ): Promise<PickedPlayUrl> {
-	for (const name of JOOX_QUALITY_ORDER) {
+	const order = pickByQualityPref(JOOX_QUALITY_ORDER, settings.defaultQuality);
+	for (const name of order) {
 		const u = links[name];
 		if (!u) continue;
 		if (!(await probeJooxAudioUrl(u, outerSignal))) continue;

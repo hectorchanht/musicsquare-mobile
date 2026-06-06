@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { kuwo } from './kuwo';
 import type { Track } from './types';
+import { settings } from '$lib/stores/settings.svelte';
 import searchFixture from './__fixtures__/kuwo.search.json';
 import detailFixture from './__fixtures__/kuwo.detail.json';
 
@@ -66,6 +67,17 @@ describe('kuwo.search (fixture-backed)', () => {
 });
 
 describe('kuwo.resolve', () => {
+	// D-03: resolve requests level=zp (lossless) by default, but level=128k when the
+	// user pref is the 128–160k band. Pin the pref per-case so the level assertions are
+	// explicit rather than tracking the live default ('128').
+	let prevQuality: typeof settings.defaultQuality;
+	beforeEach(() => {
+		prevQuality = settings.defaultQuality;
+	});
+	afterEach(() => {
+		settings.defaultQuality = prevQuality;
+	});
+
 	function stubTrack(overrides: Partial<Track> = {}): Track {
 		return {
 			uid: 'kuwo:158395650',
@@ -89,6 +101,7 @@ describe('kuwo.resolve', () => {
 
 	// Test 3 (resolve): sets audioUrl, inline lrc, lrcUrl=null, quality via inferQualityFromUrl.
 	it('sets audioUrl + inline lrc + quality (level=zp lossless) and marks loaded', async () => {
+		settings.defaultQuality = 'lossless'; // pin: requests level=zp
 		const spy = mockFetchOnce(detailFixture);
 		vi.stubGlobal('fetch', spy);
 
@@ -103,11 +116,24 @@ describe('kuwo.resolve', () => {
 		expect(out.qualityLabel).toBe('LOSSLESS');
 		expect(out.detailsLoaded).toBe(true);
 
-		// hits the same-origin proxy /api/kuwo/detail with id + level=zp
+		// hits the same-origin proxy /api/kuwo/detail with id + level matching the pref
 		const calledUrl = String(spy.mock.calls[0][0]);
 		expect(calledUrl).toMatch(/^\/api\/kuwo\/detail\?/);
 		expect(calledUrl).toContain('id=158395650');
 		expect(calledUrl).toContain('level=zp');
+	});
+
+	// D-03 NEW: the '128' default requests level=128k (best-effort A1 token) not zp.
+	it("requests level=128k when defaultQuality is '128'", async () => {
+		settings.defaultQuality = '128';
+		const spy = mockFetchOnce(detailFixture);
+		vi.stubGlobal('fetch', spy);
+
+		await kuwo.resolve(stubTrack(), ac.signal);
+
+		const calledUrl = String(spy.mock.calls[0][0]);
+		expect(calledUrl).toContain('level=128k');
+		expect(calledUrl).not.toContain('level=zp');
 	});
 
 	// a non-flac url infers 320K (else branch of inferQualityFromUrl)

@@ -13,6 +13,7 @@
 import type { SourceAdapter, Track } from './types';
 import { makeUid } from './types';
 import { inferQualityFromUrl } from '../services/lrc';
+import { settings } from '$lib/stores/settings.svelte';
 
 // QQ search row shape from the tang endpoint (fields we read).
 interface QQSearchItem {
@@ -59,10 +60,27 @@ interface BestPlayUrl {
 }
 
 /**
- * Choose the best-quality play URL by the legacy priority ladder
- * sq > pq > accom > hq > standard > fq > fallback (legacy:2330-2345, VERBATIM order).
+ * Choose the best-quality play URL.
+ *
+ * The default order is the legacy priority ladder sq > pq > accom > hq > standard > fq
+ * > fallback (legacy:2330-2345, VERBATIM). D-03: when `settings.defaultQuality === '128'`
+ * the STANDARD tier (song_play_url_standard, ~128kbps) is promoted ahead of the
+ * sq/pq/accom/hq tiers so the 128–160k band is preferred when present; otherwise the
+ * verbatim lossless-first order is kept. QQ has no request-side bitrate param (the tang
+ * endpoint returns all tiers in one detail body), so the ladder order IS the lever.
  */
 function pickBestPlayUrl(d: QQDetailItem): BestPlayUrl {
+	// D-03: read the user pref directly (lower blast radius than threading a param
+	// through the SourceAdapter.resolve contract — mirrors picks.ts/similar.ts).
+	if (settings.defaultQuality === '128' && d.song_play_url_standard) {
+		return {
+			url: d.song_play_url_standard,
+			tag: 'standard',
+			label: 'STD',
+			text: `STD ${d.kbps_standard || ''}`.trim()
+		};
+	}
+
 	// lossless
 	if (d.song_play_url_sq)
 		return { url: d.song_play_url_sq, tag: 'lossless', label: 'LOSSLESS', text: `SQ ${d.kbps_sq || ''}`.trim() };

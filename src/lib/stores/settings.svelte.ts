@@ -32,7 +32,10 @@ class Settings {
 	lyricsSkip = $state<SourceLang[]>([]);
 	lastfmSkip = $state<SourceLang[]>([]);
 	translateMode = $state<TranslateMode>('below');
-	defaultQuality = $state<DefaultQuality>('auto');
+	// D-03: default to the 128–160k band so audio URLs resolve/stream faster. The
+	// source ladders (QQ/JOOX/Kuwo) read this via pickByQualityPref; higher tiers
+	// remain user-selectable.
+	defaultQuality = $state<DefaultQuality>('128');
 	defaultSource = $state<DefaultSource>('auto');
 	accent = $state(DEFAULT_ACCENT);
 	reduceMotion = $state(false);
@@ -66,7 +69,7 @@ class Settings {
 				this.lyricsSkip = Array.isArray(v.lyricsSkip) ? (v.lyricsSkip as SourceLang[]) : [];
 				this.lastfmSkip = Array.isArray(v.lastfmSkip) ? (v.lastfmSkip as SourceLang[]) : [];
 				this.translateMode = (v.translateMode as TranslateMode) ?? 'below';
-				this.defaultQuality = (v.defaultQuality as DefaultQuality) ?? 'auto';
+				this.defaultQuality = (v.defaultQuality as DefaultQuality) ?? '128';
 				this.defaultSource = (v.defaultSource as DefaultSource) ?? 'auto';
 				this.accent = (v.accent as string) ?? DEFAULT_ACCENT;
 				this.reduceMotion = !!v.reduceMotion;

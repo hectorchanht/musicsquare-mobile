@@ -25,6 +25,7 @@ const zhHans: Dict = {
 	'home.tagShelf': '{tag}',
 	'home.countryShelf': '{country}热门',
 	'home.unplayable': '找不到可播放的版本',
+	'home.preparing': '加载中…',
 
 	// --- search ---
 	'search.title': '搜索',

@@ -17,6 +17,7 @@
 		mapWithConcurrency,
 		shuffle,
 		pickRandomPage,
+		resolveStub,
 		DISCOVERY_TAGS,
 		DISCOVERY_COUNTRIES
 	} from '$lib/services/discovery';
@@ -376,6 +377,28 @@
 		if (tr === null && player.pendingTrack == null) toast(t('home.unplayable'));
 	}
 
+	// Long-press a discovery tile → open the track menu. The tile is an unresolved stub, so
+	// resolve it to a real Track (same searchAll+scoreMatch path as tap-to-play) first; the menu
+	// needs a Track for its play/queue/download/playlist actions. A toast gives feedback during
+	// the resolve; a miss surfaces the unplayable toast.
+	let menuLoading = false;
+	async function tileMenu(item: DiscoveryTrack) {
+		if (menuLoading) return;
+		menuLoading = true;
+		toast(t('home.preparing'));
+		try {
+			const tr = await resolveStub(item.artist, item.title);
+			if (tr) {
+				menuTrack = tr;
+				menuOpen = true;
+			} else {
+				toast(t('home.unplayable'));
+			}
+		} finally {
+			menuLoading = false;
+		}
+	}
+
 	onMount(() => {
 		// w87: ensure the home-layout config is loaded before cache/refresh reads it. load()
 		// is idempotent (its own `loaded` guard), so the layout's onMount call is harmless.
@@ -475,7 +498,7 @@
 		<div class="subhead">{t('home.topHits')}</div>
 		<div class="albumrow" use:dragScroll>
 			{#each topHits as item (item.artist + ' ' + item.title)}
-				<button class="album" onclick={() => playStub(item)}>
+				<button class="album" use:longpress onlongpress={() => tileMenu(item)} onclick={() => playStub(item)}>
 					<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
 						{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
 					</span>
@@ -509,7 +532,7 @@
 		<div class="subhead">{t('home.tagShelf', { tag: shelf.label })}</div>
 		<div class="albumrow" use:dragScroll>
 			{#each shelf.tracks as item (item.artist + ' ' + item.title)}
-				<button class="album" onclick={() => playStub(item)}>
+				<button class="album" use:longpress onlongpress={() => tileMenu(item)} onclick={() => playStub(item)}>
 					<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
 						{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
 					</span>
@@ -526,7 +549,7 @@
 		<div class="subhead">{t('home.countryShelf', { country: shelf.label })}</div>
 		<div class="albumrow" use:dragScroll>
 			{#each shelf.tracks as item (item.artist + ' ' + item.title)}
-				<button class="album" onclick={() => playStub(item)}>
+				<button class="album" use:longpress onlongpress={() => tileMenu(item)} onclick={() => playStub(item)}>
 					<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
 						{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
 					</span>

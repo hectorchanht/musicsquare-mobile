@@ -24,6 +24,7 @@ const en = {
 	'home.tagShelf': '{tag}',
 	'home.countryShelf': 'Top in {country}',
 	'home.unplayable': "Couldn't find a playable version",
+	'home.preparing': 'Loading…',
 
 	// --- search ---
 	'search.title': 'Search',

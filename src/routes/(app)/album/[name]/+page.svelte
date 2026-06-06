@@ -5,13 +5,21 @@
 	// resolved to a playable Track lazily, ON TAP, via resolveStub (D-05/D-03) — the same
 	// resolve-on-tap path the home shelves use.
 	import { page } from '$app/state';
+	import { untrack } from 'svelte';
 	import { fly } from 'svelte/transition';
-	import { ChevronLeft, Play } from '@lucide/svelte';
+	import { ChevronLeft, Play, Download, ListPlus, Heart, Share2, Plus, X } from '@lucide/svelte';
 	import { player } from '$lib/stores/player.svelte';
+	import { library } from '$lib/stores/library.svelte';
+	import { settings } from '$lib/stores/settings.svelte';
 	import { names } from '$lib/stores/names.svelte';
+	import { overlays } from '$lib/stores/overlays.svelte';
+	import { dragClose } from '$lib/actions/dragClose';
 	import { t } from '$lib/i18n';
 	import { goto } from '$app/navigation';
+	import { resolveStub } from '$lib/services/discovery';
+	import { ensureTrackDetails } from '$lib/services/catalog';
 	import { enrichAlbum, getAlbumTracklist, type EnrichResult } from '$lib/services/lastfm';
+	import type { Track } from '$lib/sources/types';
 
 	// A Last.fm tracklist entry — NOT a Track (no uid/source/audioUrl). Resolved on tap.
 	type AlbumStub = { artist: string; title: string };
@@ -120,6 +128,133 @@
 		const tr = await player.playStub(stub.artist, stub.title);
 		if (tr === null && player.pendingTrack == null) toast(t('album.unplayable'));
 	}
+
+	// ---- Album-level actions (between hero + tracklist) ----
+	// The tracklist is {artist,title} STUBS; the whole-album actions (download/playlist/like)
+	// need playable Tracks, so they batch-resolve every stub via the SAME resolveStub path used
+	// on tap, concurrency-capped (album-scoped fan-out is user-initiated, not eager per Pitfall
+	// 11). `albumBusy` guards against a second batch while one runs and disables the toolbar.
+	let albumBusy = $state(false);
+	let pickerOpen = $state(false);
+
+	// Resolve EVERY stub to a Track, order-preserved, max 4 concurrent searchAll fan-outs.
+	async function resolveAll(): Promise<Track[]> {
+		const out: (Track | null)[] = new Array(tracks.length).fill(null);
+		let next = 0;
+		const worker = async () => {
+			for (let i = next++; i < tracks.length; i = next++) {
+				out[i] = await resolveStub(tracks[i].artist, tracks[i].title).catch(() => null);
+			}
+		};
+		await Promise.all(Array.from({ length: Math.min(4, tracks.length || 1) }, worker));
+		return out.filter((t): t is Track => t !== null);
+	}
+
+	// Play the whole album: play track 1 instantly (optimistic now-bar), then resolve the rest
+	// and set the queue in album order so it plays straight through.
+	async function playAlbum() {
+		if (!tracks.length || albumBusy) return;
+		albumBusy = true;
+		try {
+			// Play track 1 instantly (optimistic now-bar), then resolve the WHOLE album in album
+			// order (concurrency-capped) and set it as the queue so it plays straight through.
+			const first = await player.playStub(tracks[0].artist, tracks[0].title);
+			if (!first) {
+				if (player.pendingTrack == null) toast(t('album.unplayable'));
+				return;
+			}
+			const all = await resolveAll();
+			player.setQueue(all.length ? all : [first]);
+		} finally {
+			albumBusy = false;
+		}
+	}
+
+	// Download the album → resolve all + re-resolve each at the DOWNLOAD quality (transient
+	// settings swap, same idiom as the track menu) + add to the library Downloads tab. Unlike a
+	// single track we do NOT trigger N browser file-saves (one prompt per track is hostile); the
+	// Downloads tab re-streams (the app's download model).
+	async function downloadAlbum() {
+		if (!tracks.length || albumBusy) return;
+		albumBusy = true;
+		toast(t('toast.preparingDownload'));
+		try {
+			const resolved = await resolveAll();
+			const prevQuality = settings.defaultQuality;
+			settings.defaultQuality = settings.downloadQuality;
+			try {
+				for (const tr of resolved) {
+					const full = await ensureTrackDetails({ ...tr, detailsLoaded: false, audioUrl: null, lrc: null }).catch(
+						() => tr
+					);
+					library.addDownload(full);
+				}
+			} finally {
+				settings.defaultQuality = prevQuality;
+			}
+			toast(resolved.length ? t('toast.downloaded') : t('album.unplayable'));
+		} finally {
+			albumBusy = false;
+		}
+	}
+
+	// Like the album → resolve all + add every not-yet-liked track to Liked songs.
+	async function likeAlbum() {
+		if (!tracks.length || albumBusy) return;
+		albumBusy = true;
+		try {
+			const resolved = await resolveAll();
+			for (const tr of resolved) if (!library.isLiked(tr.uid)) library.toggleLike(tr);
+			toast(resolved.length ? t('menu.liked') : t('album.unplayable'));
+		} finally {
+			albumBusy = false;
+		}
+	}
+
+	// Share the album = the current album page URL (carries ?artist= so the link reopens the
+	// tracklist). Native share sheet when available, else copy to clipboard.
+	async function shareAlbum() {
+		const url = location.href;
+		try {
+			const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
+			if (nav.share) await nav.share({ title: `${name} — ${albumArtist}`, url });
+			else {
+				await navigator.clipboard.writeText(url);
+				toast(t('toast.shareCopied'));
+			}
+		} catch {
+			/* cancelled */
+		}
+	}
+
+	// Add the whole album to a playlist (existing or new) → resolve all + add each.
+	async function addAlbumToPlaylist(id: string) {
+		pickerOpen = false;
+		if (albumBusy) return;
+		albumBusy = true;
+		try {
+			const resolved = await resolveAll();
+			for (const tr of resolved) library.addToPlaylist(id, tr);
+			toast(resolved.length ? t('toast.addedToPlaylist') : t('album.unplayable'));
+		} finally {
+			albumBusy = false;
+		}
+	}
+	function newPlaylistForAlbum() {
+		const nm = prompt(t('menu.newPlaylistPrompt'));
+		if (!nm) return;
+		const pl = library.createPlaylist(nm);
+		toast(t('toast.playlistCreated'));
+		void addAlbumToPlaylist(pl.id);
+	}
+
+	// Playlist picker is a back-to-close overlay (same single-dismiss idiom as TrackMenu).
+	$effect(() => {
+		if (pickerOpen) {
+			untrack(() => overlays.open('album-picker', () => (pickerOpen = false)));
+			return () => untrack(() => overlays.dismiss('album-picker'));
+		}
+	});
 </script>
 
 <svelte:head><title>{t('album.title', { name })}</title></svelte:head>
@@ -161,6 +296,15 @@
 		{/each}
 	</ul>
 {:else if tracks.length}
+	<!-- Album-level actions (between hero + tracklist). Icon buttons reuse existing i18n keys
+	     for aria-labels (no new translation keys). Disabled while a batch resolve runs. -->
+	<div class="album-actions">
+		<button class="act play" aria-label={t('nowplaying.playPause')} disabled={albumBusy} onclick={playAlbum}><Play size={20} /></button>
+		<button class="act" aria-label={t('menu.download')} disabled={albumBusy} onclick={downloadAlbum}><Download size={20} /></button>
+		<button class="act" aria-label={t('menu.addToPlaylist')} disabled={albumBusy} onclick={() => (pickerOpen = true)}><ListPlus size={20} /></button>
+		<button class="act" aria-label={t('menu.like')} disabled={albumBusy} onclick={likeAlbum}><Heart size={20} /></button>
+		<button class="act" aria-label={t('menu.share')} disabled={albumBusy} onclick={shareAlbum}><Share2 size={20} /></button>
+	</div>
 	<ul class="list">
 		{#each tracks as track, i (i)}
 			<li>
@@ -180,6 +324,19 @@
 {/if}
 
 {#if toastMsg}<div class="toast" transition:fly={{ y: -20, duration: 180 }}>{toastMsg}</div>{/if}
+
+<!-- Add-album-to-playlist picker (back-to-close sheet, mirrors the track menu's picker). -->
+{#if pickerOpen}
+	<button class="scrim" aria-label={t('menu.close')} onclick={() => (pickerOpen = false)}></button>
+	<div class="picker" transition:fly={{ y: 240, duration: 200 }} use:dragClose={{ onclose: () => (pickerOpen = false) }}>
+		<div class="picker-head">{t('menu.addToPlaylist')}</div>
+		<button class="mi" onclick={newPlaylistForAlbum}><Plus size={18} /> {t('menu.newPlaylist')}</button>
+		{#each library.playlists as pl (pl.id)}
+			<button class="mi" onclick={() => addAlbumToPlaylist(pl.id)}><ListPlus size={18} /> {pl.name}</button>
+		{/each}
+		<button class="mi close" onclick={() => (pickerOpen = false)}><X size={18} /> {t('menu.close')}</button>
+	</div>
+{/if}
 
 <style>
 	.hero { padding: 14px 0 18px; text-align: center; position: relative; }
@@ -206,4 +363,19 @@
 	.sk-rank { width: 14px; height: 12px; flex: none; border-radius: 3px; }
 	.meta .sk-rtitle { display: block; width: 80%; height: 13px; margin-bottom: 7px; }
 	.meta .sk-rsub { display: block; width: 45%; height: 11px; }
+
+	/* ---- album-level action toolbar (between hero + tracklist) ---- */
+	.album-actions { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 2px 0 20px; }
+	.act { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text); cursor: pointer; transition: background 0.15s, transform 0.1s; }
+	.act:hover { background: var(--color-surface); }
+	.act:active { transform: scale(0.92); }
+	.act:disabled { opacity: 0.4; cursor: default; }
+	.act.play { width: 56px; height: 56px; background: var(--color-primary); border-color: transparent; color: #fff; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4); }
+	/* ---- add-to-playlist picker (mirrors the track menu sheet) ---- */
+	.scrim { position: fixed; inset: 0; z-index: 80; background: rgba(0, 0, 0, 0.45); border: none; }
+	.picker { position: fixed; left: 12px; right: 12px; bottom: 16px; z-index: 81; background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: 16px; padding: 8px; max-width: 680px; margin: 0 auto; box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5); max-height: 70vh; overflow-y: auto; }
+	.picker-head { font-size: 13px; color: var(--color-text-muted); padding: 8px 10px; }
+	.mi { width: 100%; display: flex; align-items: center; gap: 12px; background: none; border: none; color: var(--color-text); font-size: 15px; padding: 12px; border-radius: 10px; cursor: pointer; text-align: left; }
+	.mi:hover { background: var(--color-surface); }
+	.mi.close { color: var(--color-text-muted); }
 </style>

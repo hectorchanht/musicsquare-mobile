@@ -185,6 +185,7 @@ const en = {
 	'artist.albums': 'Albums',
 	'artist.trackOne': '{count} track',
 	'artist.trackMany': '{count} tracks',
+	'artist.albumLabel': 'Album',
 	'artist.hitSongs': 'Hit songs',
 	'artist.noSongs': 'No songs found for {name}.',
 

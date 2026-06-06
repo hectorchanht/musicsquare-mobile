@@ -4,6 +4,7 @@
 	// "Hit songs" = the result list; "Albums" = results grouped by track.album.
 	// Not a true artist catalog — an approximation from cross-source search.
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import { searchAll } from '$lib/services/catalog';
 	import { dedupeBest } from '$lib/services/dedupe';
 	import { settings } from '$lib/stores/settings.svelte';
@@ -13,7 +14,7 @@
 	import { longpress } from '$lib/actions/longpress';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import TagChips from '$lib/components/TagChips.svelte';
-	import { enrichArtist, type EnrichResult } from '$lib/services/lastfm';
+	import { enrichArtist, getArtistTopAlbums, type EnrichResult, type DiscoveryAlbum } from '$lib/services/lastfm';
 	import type { Track } from '$lib/sources/types';
 
 	let menuTrack = $state<Track | null>(null);
@@ -34,24 +35,24 @@
 	let enrich = $state<EnrichResult | null>(null);
 	let enrichedFor = '';
 
+	// ---- Real Last.fm top-albums (Phase 9, D-04) ----
+	// REPLACES the old searchAll-grouped-by-`track.album` approximation. A SEPARATE
+	// race-guarded $effect (clone of the enrichedFor pattern, own `albumsFor` guard)
+	// void-fires getArtistTopAlbums(name) and assigns the result only if `name` still
+	// matches. [] on absent key / CN artist not on Last.fm → the section simply hides.
+	let albums = $state<DiscoveryAlbum[]>([]);
+	let albumsFor = '';
+
 	function fallbackCover(t: Track): string {
 		const h = (t.uid.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 47) % 360;
 		return `linear-gradient(145deg, hsl(${h} 55% 32%), hsl(${(h + 40) % 360} 55% 18%))`;
 	}
+	// String-seed variant for the Last.fm album row (DiscoveryAlbum has no uid/cover).
+	function fallbackCoverSeed(seed: string): string {
+		const h = (seed.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 47) % 360;
+		return `linear-gradient(145deg, hsl(${h} 55% 32%), hsl(${(h + 40) % 360} 55% 18%))`;
+	}
 
-	type Album = { name: string; cover: string | null; tracks: Track[] };
-	const albums = $derived.by<Album[]>(() => {
-		const map = new Map<string, Album>();
-		for (const t of songs) {
-			const a = (t.album || '').trim();
-			if (!a) continue;
-			if (!map.has(a)) map.set(a, { name: a, cover: t.cover, tracks: [] });
-			const al = map.get(a)!;
-			al.tracks.push(t);
-			if (!al.cover && t.cover) al.cover = t.cover;
-		}
-		return [...map.values()].sort((x, y) => y.tracks.length - x.tracks.length);
-	});
 	const hero = $derived(songs.find((t) => t.cover)?.cover ?? null);
 	// Prefer the Last.fm artist image for the hero ONLY when present (the service
 	// already placeholder-filtered it); otherwise keep the derived cover so a real
@@ -83,6 +84,19 @@
 			});
 		}
 	});
+
+	// SEPARATE top-albums effect (D-04). Mirrors the enrichedFor race guard with its
+	// own `albumsFor` key. Never blocks the Hit-songs / bio load; [] → section hides.
+	$effect(() => {
+		const n = name;
+		if (n && albumsFor !== n) {
+			albumsFor = n;
+			albums = [];
+			void getArtistTopAlbums(n).then((r) => {
+				if (albumsFor === n) albums = r; // race guard — discard if name changed
+			});
+		}
+	});
 </script>
 
 <svelte:head><title>{name} · MusicSquare</title></svelte:head>
@@ -108,24 +122,24 @@
 	{/if}
 </header>
 
+{#if albums.length}
+	<section>
+		<h2>{t('artist.albums')}</h2>
+		<div class="albumrow">
+			{#each albums as al (al.name)}
+				<button class="album" onclick={() => goto('/album/' + encodeURIComponent(al.name) + '?artist=' + encodeURIComponent(name))}>
+					<span class="al-cover" style:background-image={al.image ? `url(${al.image})` : fallbackCoverSeed(al.name)}></span>
+					<span class="al-name">{names.dn(al.name)}</span>
+					<span class="al-count">{t('artist.albumLabel')}</span>
+				</button>
+			{/each}
+		</div>
+	</section>
+{/if}
+
 {#if loading}
 	<p class="muted">{t('artist.loading', { name: names.dn(name) })}</p>
 {:else}
-	{#if albums.length}
-		<section>
-			<h2>{t('artist.albums')}</h2>
-			<div class="albumrow">
-				{#each albums as al (al.name)}
-					<button class="album" onclick={() => { player.setQueue(al.tracks); player.play(al.tracks[0]); }}>
-						<span class="al-cover" style:background-image={al.cover ? `url(${al.cover})` : fallbackCover(al.tracks[0])}></span>
-						<span class="al-name">{names.dn(al.name)}</span>
-						<span class="al-count">{al.tracks.length > 1 ? t('artist.trackMany', { count: al.tracks.length }) : t('artist.trackOne', { count: al.tracks.length })}</span>
-					</button>
-				{/each}
-			</div>
-		</section>
-	{/if}
-
 	<section>
 		<h2>{t('artist.hitSongs')}</h2>
 		{#if songs.length}

@@ -185,6 +185,7 @@ const zhHans: Dict = {
 	'artist.albums': '专辑',
 	'artist.trackOne': '{count} 首歌曲',
 	'artist.trackMany': '{count} 首歌曲',
+	'artist.albumLabel': '专辑',
 	'artist.hitSongs': '热门歌曲',
 	'artist.noSongs': '找不到 {name} 的歌曲。',
 

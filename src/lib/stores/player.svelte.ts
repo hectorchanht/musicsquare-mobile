@@ -14,10 +14,25 @@ import { buildDiversePicks } from '$lib/services/picks';
 import { buildSimilarQueue } from '$lib/services/similar';
 import { dedupeBest } from '$lib/services/dedupe';
 import { buildArtwork, safePositionState, playbackStateFor } from '$lib/services/media-session';
+import { resolveStub } from '$lib/services/discovery';
 import { settings } from '$lib/stores/settings.svelte';
 import { history } from '$lib/stores/history.svelte';
 import { names } from '$lib/stores/names.svelte';
 import type { Track } from '$lib/sources/types';
+
+/**
+ * The minimal display shape the now-bar renders the INSTANT a discovery stub is tapped,
+ * before resolveStub finishes (~5-10s). It is NOT a Track (no uid/source/audioUrl) — just
+ * enough to lock the tapped song's identity into the now-bar with a loading indicator.
+ */
+export interface PendingTrack {
+	artist: string;
+	title: string;
+	cover: string | null;
+}
+
+/** U+241F SYMBOL FOR UNIT SEPARATOR — a separator that cannot appear in a real title/artist. */
+const PENDING_KEY_SEP = '␟';
 
 /** mm:ss, NaN/Infinity-safe (avoids the "NaN:NaN" bug before metadata loads). */
 export function fmtTime(s: number): string {
@@ -32,6 +47,18 @@ class Player {
 	playing = $state(false);
 	loading = $state(false);
 	error = $state<string | null>(null);
+
+	/**
+	 * Optimistic now-bar overlay (FIX-A). Set SYNCHRONOUSLY the instant a discovery stub
+	 * is tapped so the now-bar can render the tapped {artist,title,cover} with a loading
+	 * indicator before resolveStub settles. Cleared once `current` is set (success) or on a
+	 * miss. A NON-null pendingTrack with a null `current` means "resolving — show loading".
+	 */
+	pendingTrack = $state<PendingTrack | null>(null);
+	/** Key (`${artist}␟${title}` lowercased/trimmed) of the in-flight stub resolve — dedupe guard. */
+	private pendingKey = '';
+	/** Monotonic generation: a newer playStub bumps it so a stale resolve's result is discarded. */
+	private pendingGen = 0;
 
 	/** Full-screen now-playing overlay open? */
 	expanded = $state(false);
@@ -198,6 +225,66 @@ class Player {
 	}
 
 	/**
+	 * Optimistic resolve-on-tap (FIX-A). A discovery tile is a Last.fm {artist,title} stub,
+	 * NOT a Track — resolveStub re-searches it through searchAll+dedupeBest (~5-10s). This
+	 * makes that feel instant + native:
+	 *
+	 *  - SYNCHRONOUSLY (before awaiting) it locks the tapped {artist,title,cover} into
+	 *    `pendingTrack` and sets `loading`, so the now-bar renders immediately.
+	 *  - DEDUPE: a second tap with the SAME pending key while one is in flight is a NO-OP
+	 *    (no second resolveStub) — repeated double-taps don't stack resolves.
+	 *  - SUPERSEDE: a tap with a DIFFERENT key bumps `pendingGen`; when an older resolve
+	 *    settles its gen !== current → its result is discarded (never played, pendingTrack
+	 *    is left pointing at the NEWER song).
+	 *  - On success for the current gen → setQueue([track]) + play(track) (play() owns
+	 *    loading/current from there) and pendingTrack is cleared.
+	 *  - On a miss (null) for the current gen → pendingTrack + loading clear and null is
+	 *    returned so the CALLER owns its own unplayable toast.
+	 *
+	 * Returns the resolved Track on success, or null on a miss OR a supersede. Never throws
+	 * (resolveStub is best-effort; this wraps it defensively too).
+	 */
+	async playStub(artist: string, title: string, cover?: string | null): Promise<Track | null> {
+		const key = `${artist}${PENDING_KEY_SEP}${title}`.toLowerCase().trim();
+
+		// Dedupe: same song tapped again while its resolve is still in flight → no-op.
+		// "In flight" = a pendingTrack still showing (it is cleared on success/miss/supersede).
+		if (key === this.pendingKey && this.pendingTrack !== null) return null;
+
+		const gen = ++this.pendingGen;
+		this.pendingKey = key;
+		this.pendingTrack = { artist, title, cover: cover ?? null };
+		this.loading = true;
+		this.error = null;
+
+		let tr: Track | null = null;
+		try {
+			tr = await resolveStub(artist, title);
+		} catch {
+			tr = null; // resolveStub never throws, but stay defensive — never reject.
+		}
+
+		// Superseded by a newer tap while we were resolving → discard silently. Do NOT touch
+		// pendingTrack/loading; the newer playStub call owns them now.
+		if (gen !== this.pendingGen) return null;
+
+		if (tr) {
+			// Hand off to the real player. Clear the optimistic overlay; play() sets `current`
+			// (and owns loading from here) so there is no flicker of a stale pending bar.
+			this.pendingTrack = null;
+			this.setQueue([tr]);
+			void this.play(tr, { fresh: true });
+			return tr;
+		}
+
+		// Genuine miss for the current generation — clear the overlay; caller toasts.
+		this.pendingTrack = null;
+		this.pendingKey = '';
+		this.loading = false;
+		return null;
+	}
+
+	/**
 	 * Play a track. `opts.fresh` marks a FRESH user-initiated play (the user tapped a
 	 * song in a list to start something new) — that regenerates the AUTO portion of
 	 * Up-Next from songs similar to the new track, preserving the current track + all
@@ -205,6 +292,10 @@ class Player {
 	 * path, so they never regenerate.
 	 */
 	async play(track: Track, opts?: { fresh?: boolean }) {
+		// A direct play() (queue/auto-advance/share link) supersedes any optimistic overlay,
+		// so a stale pending bar never lingers once a real track takes over.
+		this.pendingTrack = null;
+		this.pendingKey = '';
 		this.error = null;
 		this.loading = true;
 		this.current = track;

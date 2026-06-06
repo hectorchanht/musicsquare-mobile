@@ -19,6 +19,19 @@ export interface SearchResult {
 }
 
 /**
+ * D-06 progressive snapshot — emitted via the optional `onPartial` callback as each
+ * source settles. Shapes match `SearchResult` plus a `pending` countdown.
+ */
+export interface PartialSearchResult {
+	/** Sources that have settled SO FAR this call (ok or error). */
+	perSource: SettledSourceResult[];
+	/** uid-deduped + round-robin interleave over ALL sources settled so far. */
+	interleaved: Track[];
+	/** Number of adapters still pending (0 on the final emit). */
+	pending: number;
+}
+
+/**
  * D-04 search-result TTL (ms). Search/discovery metadata changes infrequently, so a
  * few minutes of memoization gives instant repeat responses + fewer proxy calls
  * without serving stale data for long. This caches the SearchResult METADATA only —
@@ -39,55 +52,90 @@ const SEARCH_TTL_MS = 5 * 60 * 1000;
  * for the cache key ONLY, so "Jay" and "jay " share an entry. The cached value is the
  * resolved SearchResult; a HIT returns instantly (nothing in flight to abort, so the
  * AbortSignal is moot on a hit; a MISS still honors `signal`).
+ *
+ * D-06: the optional trailing `onPartial` callback streams progressive snapshots as each
+ * source settles. Omitting it = byte-for-byte today's behavior (final SearchResult only).
+ * On a cache HIT, `onPartial` (if passed) fires ONCE with the full set and `pending: 0`
+ * so the page's streaming handler has one uniform code path.
  */
 export async function searchAll(
 	keyword: string,
 	page = 1,
 	prefs: Partial<Record<SourceId, boolean>> = {},
-	signal?: AbortSignal
+	signal?: AbortSignal,
+	onPartial?: (partial: PartialSearchResult) => void
 ): Promise<SearchResult> {
 	const enabledKey = getEnabledAdapters(prefs)
 		.map((a) => a.id)
 		.join(',');
 	const key = `${keyword.trim().toLowerCase()}|${enabledKey}|${page}`;
-	return cached(key, SEARCH_TTL_MS, () => searchAllUncached(keyword, page, prefs, signal));
+
+	// On a MISS, thread onPartial through so partials stream during the cold fetch.
+	// On a HIT, `cached` returns the resolved value WITHOUT invoking the factory, so we
+	// fire onPartial once below with the full cached set (pending:0) for a uniform path.
+	let wasMiss = false;
+	const result = await cached(key, SEARCH_TTL_MS, () => {
+		wasMiss = true;
+		return searchAllUncached(keyword, page, prefs, signal, onPartial);
+	});
+
+	if (onPartial && !wasMiss && !signal?.aborted) {
+		onPartial({ perSource: result.perSource, interleaved: result.interleaved, pending: 0 });
+	}
+	return result;
 }
 
 /**
  * The actual fan-out (un-memoized). Split out of `searchAll` so the exported function
  * is purely the D-04 cache wrapper.
  *
- * Uses `Promise.allSettled` (NOT `Promise.all`, legacy 2244) so one rejecting
- * adapter yields a typed `status:'error'` entry while the others' results survive
- * (DATA-03 / criterion #1). Results are deduped by canonical colon uid and
- * interleaved round-robin in registry order — no source named (DATA-04).
+ * D-06: replaces the single `Promise.allSettled` with per-adapter `.then/.catch/.finally`
+ * that each push into a running accumulator and re-interleave over the WHOLE accumulated
+ * set, emitting via `onPartial` as each source lands. Because every promise is
+ * `.catch`-guarded, `Promise.all` never rejects — preserving the DATA-03 "one failure
+ * isolated" contract that `allSettled` gave. The `if (sig.aborted) return` guard inside
+ * `.finally` suppresses partials after a new query aborts this call. The final return
+ * shape is unchanged (`acc` ends holding all sources; `interleave` is registry-ordered by
+ * source-id regardless of settle order, so membership + interleaved output match the old
+ * behavior — verified against the existing fan-out tests).
  */
 async function searchAllUncached(
 	keyword: string,
 	page = 1,
 	prefs: Partial<Record<SourceId, boolean>> = {},
-	signal?: AbortSignal
+	signal?: AbortSignal,
+	onPartial?: (partial: PartialSearchResult) => void
 ): Promise<SearchResult> {
 	const adapters = getEnabledAdapters(prefs);
 	const sig = signal ?? new AbortController().signal;
 
-	const settled = await Promise.allSettled(adapters.map((a) => a.search(keyword, page, sig)));
+	const acc: SettledSourceResult[] = []; // grows as sources settle
+	let pending = adapters.length;
 
-	const perSource: SettledSourceResult[] = adapters.map((adapter, i) => {
-		const outcome = settled[i];
-		if (outcome.status === 'fulfilled') {
-			return { source: adapter.id, status: 'ok', tracks: outcome.value };
-		}
-		const reason = outcome.reason;
-		return {
-			source: adapter.id,
-			status: 'error',
-			tracks: [],
-			error: reason instanceof Error ? reason.message : String(reason)
-		};
-	});
+	await Promise.all(
+		adapters.map((a) =>
+			a
+				.search(keyword, page, sig)
+				.then((tracks) => {
+					acc.push({ source: a.id, status: 'ok', tracks });
+				})
+				.catch((reason) => {
+					acc.push({
+						source: a.id,
+						status: 'error',
+						tracks: [],
+						error: reason instanceof Error ? reason.message : String(reason)
+					});
+				})
+				.finally(() => {
+					pending--;
+					if (sig.aborted) return; // ABORT GUARD — drop partials for a superseded query
+					onPartial?.({ perSource: [...acc], interleaved: interleave(acc), pending });
+				})
+		)
+	);
 
-	return { perSource, interleaved: interleave(perSource) };
+	return { perSource: acc, interleaved: interleave(acc) };
 }
 
 /**

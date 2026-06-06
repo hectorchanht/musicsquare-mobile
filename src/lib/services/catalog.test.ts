@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { searchAll, ensureTrackDetails, __clearSearchCache } from './catalog';
+import {
+	searchAll,
+	ensureTrackDetails,
+	__clearSearchCache,
+	type PartialSearchResult
+} from './catalog';
 import { SOURCES } from '$lib/sources/registry';
 import { makeUid, type SourceId, type Track } from '$lib/sources/types';
 
@@ -139,6 +144,113 @@ describe('searchAll (D-04 TTL cache)', () => {
 
 		// same normalized key → only one fan-out
 		expect(n).toHaveBeenCalledOnce();
+	});
+});
+
+describe('searchAll (D-06 progressive onPartial)', () => {
+	// Deferred-promise recipe — control settle order/timing deterministically.
+	const defer = () => {
+		let resolve!: (v: Track[]) => void;
+		const promise = new Promise<Track[]>((r) => {
+			resolve = r;
+		});
+		return { promise, resolve };
+	};
+
+	it('emits monotonically-growing deduped sets as staggered sources settle (final pending===0)', async () => {
+		const n = defer();
+		const q = defer();
+		vi.spyOn(SOURCES.netease, 'search').mockReturnValue(n.promise);
+		vi.spyOn(SOURCES.qq, 'search').mockReturnValue(q.promise);
+		vi.spyOn(SOURCES.kuwo, 'search').mockResolvedValue([]);
+		vi.spyOn(SOURCES.joox, 'search').mockResolvedValue([]);
+
+		const partials: PartialSearchResult[] = [];
+		const done = searchAll('stream', 1, ALL, undefined, (pt) => partials.push(pt));
+
+		// kuwo + joox resolve immediately (empty); netease then qq land later.
+		n.resolve([mk('netease', 'n1')]);
+		await Promise.resolve();
+		q.resolve([mk('qq', 'q1')]);
+		const final = await done;
+
+		// at least one partial was emitted, and the interleaved set never shrank
+		expect(partials.length).toBeGreaterThan(0);
+		for (let i = 1; i < partials.length; i++) {
+			expect(partials[i].interleaved.length).toBeGreaterThanOrEqual(
+				partials[i - 1].interleaved.length
+			);
+		}
+		// the LAST emit is the final state: pending 0, both uids present
+		const last = partials.at(-1)!;
+		expect(last.pending).toBe(0);
+		const lastUids = last.interleaved.map((t) => t.uid);
+		expect(lastUids).toContain('netease:n1');
+		expect(lastUids).toContain('qq:q1');
+		// returned final value matches the streamed final set
+		const finalUids = final.interleaved.map((t) => t.uid);
+		expect(finalUids).toEqual(expect.arrayContaining(['netease:n1', 'qq:q1']));
+	});
+
+	it('suppresses onPartial after the signal is aborted mid-stream', async () => {
+		const n = defer();
+		const q = defer();
+		vi.spyOn(SOURCES.netease, 'search').mockReturnValue(n.promise);
+		vi.spyOn(SOURCES.qq, 'search').mockReturnValue(q.promise);
+		vi.spyOn(SOURCES.kuwo, 'search').mockResolvedValue([]);
+		vi.spyOn(SOURCES.joox, 'search').mockResolvedValue([]);
+
+		const ac = new AbortController();
+		const partials: PartialSearchResult[] = [];
+		const done = searchAll('abort', 1, ALL, ac.signal, (pt) => partials.push(pt));
+
+		// first source lands (emits), then we abort, then the second lands.
+		n.resolve([mk('netease', 'n1')]);
+		await Promise.resolve();
+		const countBeforeAbort = partials.length;
+
+		ac.abort();
+		q.resolve([mk('qq', 'q1')]);
+		await done;
+
+		// no onPartial fired AFTER the abort
+		expect(partials.length).toBe(countBeforeAbort);
+	});
+
+	it('omitting onPartial leaves the final SearchResult shape unchanged', async () => {
+		vi.spyOn(SOURCES.netease, 'search').mockResolvedValue([mk('netease', 'n1')]);
+		vi.spyOn(SOURCES.qq, 'search').mockResolvedValue([mk('qq', 'q1')]);
+		vi.spyOn(SOURCES.kuwo, 'search').mockResolvedValue([mk('kuwo', 'k1')]);
+		vi.spyOn(SOURCES.joox, 'search').mockResolvedValue([mk('joox', 'j1')]);
+
+		const { perSource, interleaved } = await searchAll('noop', 1, ALL);
+
+		expect(perSource.map((p) => p.source).sort()).toEqual(['joox', 'kuwo', 'netease', 'qq']);
+		// interleave stays registry-ordered regardless of settle order
+		expect(interleaved.map((t) => t.uid)).toEqual([
+			'netease:n1',
+			'qq:q1',
+			'kuwo:k1',
+			'joox:j1'
+		]);
+	});
+
+	it('fires onPartial ONCE with pending:0 on a cache HIT', async () => {
+		vi.spyOn(SOURCES.netease, 'search').mockResolvedValue([mk('netease', 'n1')]);
+		vi.spyOn(SOURCES.qq, 'search').mockResolvedValue([]);
+		vi.spyOn(SOURCES.kuwo, 'search').mockResolvedValue([]);
+		vi.spyOn(SOURCES.joox, 'search').mockResolvedValue([]);
+
+		// warm the cache (cold fetch)
+		await searchAll('hitkw', 1, ALL);
+
+		// second call is a HIT — onPartial must fire exactly once, pending 0, full set
+		const partials: PartialSearchResult[] = [];
+		await searchAll('hitkw', 1, ALL, undefined, (pt) => partials.push(pt));
+
+		expect(partials.length).toBe(1);
+		expect(partials[0].pending).toBe(0);
+		expect(partials[0].interleaved.map((t) => t.uid)).toContain('netease:n1');
 	});
 });
 

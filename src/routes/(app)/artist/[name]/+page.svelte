@@ -12,6 +12,8 @@
 	import { t } from '$lib/i18n';
 	import { longpress } from '$lib/actions/longpress';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
+	import TagChips from '$lib/components/TagChips.svelte';
+	import { enrichArtist, type EnrichResult } from '$lib/services/lastfm';
 
 	let menuTrack = $state<Track | null>(null);
 	let menuOpen = $state(false);
@@ -22,6 +24,15 @@
 	let songs = $state<Track[]>([]);
 	let loading = $state(true);
 	let loadedFor = '';
+
+	// ---- Last.fm enrichment (Phase 8, ENRICH-01/02 · D-07/D-08) ----
+	// Best-effort, AUGMENTS the derived track-list — it never blocks or replaces the
+	// searchAll load below (D-02). A SEPARATE $effect keyed on `name` with its own
+	// guard void-fires enrichArtist (never awaited, never throws) and assigns the
+	// result only if `name` still matches (race guard). A CN artist with no Last.fm
+	// match / absent key resolves to the all-empty shape, so nothing extra renders.
+	let enrich = $state<EnrichResult | null>(null);
+	let enrichedFor = '';
 
 	function fallbackCover(t: Track): string {
 		const h = (t.uid.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 47) % 360;
@@ -42,6 +53,10 @@
 		return [...map.values()].sort((x, y) => y.tracks.length - x.tracks.length);
 	});
 	const hero = $derived(songs.find((t) => t.cover)?.cover ?? null);
+	// Prefer the Last.fm artist image for the hero ONLY when present (the service
+	// already placeholder-filtered it); otherwise keep the derived cover so a real
+	// hero NEVER regresses to a placeholder (ENRICH-02 overrides D-03).
+	const heroImg = $derived(enrich?.lastfmArt ?? hero);
 
 	$effect(() => {
 		const n = name;
@@ -55,15 +70,42 @@
 				.finally(() => (loading = false));
 		}
 	});
+
+	// SEPARATE enrichment effect (D-02: augment, never block/replace the searchAll
+	// load above). Keyed on `name` with its own `enrichedFor` guard.
+	$effect(() => {
+		const n = name;
+		if (n && enrichedFor !== n) {
+			enrichedFor = n;
+			enrich = null;
+			void enrichArtist(n).then((r) => {
+				if (enrichedFor === n) enrich = r; // race guard — discard if name changed
+			});
+		}
+	});
 </script>
 
 <svelte:head><title>{name} · MusicSquare</title></svelte:head>
 
 <header class="hero">
 	<a class="back" href="/">{t('artist.back')}</a>
-	<div class="herocover" style:background-image={hero ? `url(${hero})` : 'linear-gradient(145deg,#3a2d63,#1a1326)'}></div>
+	<div class="herocover" style:background-image={heroImg ? `url(${heroImg})` : 'linear-gradient(145deg,#3a2d63,#1a1326)'}></div>
 	<h1>{names.dn(name)}</h1>
 	<p class="note">{t('artist.derived', { count: songs.length })}</p>
+
+	{#if enrich?.tags?.length}
+		<div class="herotags"><TagChips tags={enrich.tags} /></div>
+	{/if}
+
+	<!-- Bio (D-07: English-as-is, HTML-stripped — NOT run through names.dn). Gated on
+	     BOTH bio AND bioUrl so the required attribution link is never missing (D-08). -->
+	{#if enrich?.bio && enrich?.bioUrl}
+		<section class="bio">
+			<h2>{t('lastfm.about')}</h2>
+			<p>{enrich.bio}</p>
+			<a class="readmore" href={enrich.bioUrl} target="_blank" rel="noopener noreferrer">{t('lastfm.readMore')}</a>
+		</section>
+	{/if}
 </header>
 
 {#if loading}
@@ -110,6 +152,11 @@
 	.herocover { width: 150px; height: 150px; border-radius: 50%; margin: 8px auto 12px; background-size: cover; background-position: center; box-shadow: 0 12px 34px rgba(0,0,0,0.5); }
 	.hero h1 { font-size: 1.7rem; margin: 0; }
 	.note { color: var(--color-text-muted); font-size: 12px; margin-top: 4px; }
+	.herotags { display: flex; justify-content: center; margin-top: 8px; }
+	.bio { text-align: left; margin: 16px 0 0; }
+	.bio h2 { font-size: 1.1rem; margin: 0 0 8px; }
+	.bio p { color: var(--color-text-muted); font-size: 13px; line-height: 1.55; margin: 0; }
+	.readmore { display: inline-block; margin-top: 8px; color: var(--color-primary); font-size: 13px; }
 	section { margin: 18px 0; }
 	section h2 { font-size: 1.1rem; margin: 0 0 12px; }
 	.albumrow { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; }

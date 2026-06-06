@@ -12,18 +12,42 @@
 // surface or the player. catalog.ts / dedupe.ts are pure reuse — NOT modified here.
 import { searchAll } from '$lib/services/catalog';
 import { dedupeBest } from '$lib/services/dedupe';
+import { scoreMatch } from '$lib/services/score-match';
 import { settings } from '$lib/stores/settings.svelte';
 import type { Track } from '$lib/sources/types';
 
 /**
- * Resolve a Last.fm {artist, title} stub to a playable Track via searchAll + dedupeBest.
- * Returns the best cross-source hit, or null when nothing matches / on any failure.
- * Never throws (best-effort, like buildDiversePicks / buildSimilarQueue).
+ * Resolve a Last.fm {artist, title} stub to a playable Track via searchAll + dedupeBest,
+ * SCORED (LFSRC-03 / D-02): instead of blindly taking dedupeBest[0] — which can be a
+ * karaoke/cover/live/instrumental variant of the song the user tapped — re-rank the
+ * deduped candidates by scoreMatch and return the top-scored one. dedupeBest still
+ * collapses same-song dupes and orders by quality + preferredSource, so a STABLE max
+ * (keeping the earlier dedupeBest position on equal scores) makes that ordering the FINAL
+ * tie-break among similarly-scored candidates (D-02 tie-break).
+ *
+ * Returns the best cross-source match, or null ONLY when searchAll yields zero results /
+ * on any failure (D-03 — no score threshold ever nulls a found result). Never throws
+ * (best-effort, like buildDiversePicks / buildSimilarQueue).
  */
 export async function resolveStub(artist: string, title: string): Promise<Track | null> {
 	try {
 		const r = await searchAll(`${artist} ${title}`, 1);
-		return dedupeBest(r.interleaved, settings.preferredSource)[0] ?? null;
+		// dedupeBest = the deduped, quality/preferredSource-ordered candidate list (FINAL
+		// tie-break). Re-rank IT by scoreMatch with a stable max: only replace the current
+		// best on a STRICTLY higher score, so equal scores keep the earlier dedupeBest slot.
+		const candidates = dedupeBest(r.interleaved, settings.preferredSource);
+		if (candidates.length === 0) return null;
+		const query = { artist, title };
+		let best = candidates[0];
+		let bestScore = scoreMatch(query, best);
+		for (let i = 1; i < candidates.length; i++) {
+			const s = scoreMatch(query, candidates[i]);
+			if (s > bestScore) {
+				best = candidates[i];
+				bestScore = s;
+			}
+		}
+		return best;
 	} catch {
 		return null;
 	}

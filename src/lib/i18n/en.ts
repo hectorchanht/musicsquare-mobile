@@ -14,7 +14,7 @@ const en = {
 
 	// --- home ---
 	'home.settings': 'Settings',
-	'home.searchPill': 'Search songs, artists across all sources',
+	'home.searchPill': 'Search songs, artists',
 	'home.topPicks': 'Top picks',
 	'home.loadingPicks': 'Loading…',
 	'home.randomize': 'Randomize',

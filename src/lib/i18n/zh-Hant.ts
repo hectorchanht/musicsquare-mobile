@@ -15,7 +15,7 @@ const zhHant: Dict = {
 
 	// --- home ---
 	'home.settings': '設定',
-	'home.searchPill': '搜尋歌曲、歌手（跨所有來源）',
+	'home.searchPill': '搜尋歌曲、歌手',
 	'home.topPicks': '精選推薦',
 	'home.loadingPicks': '載入中…',
 	'home.randomize': '隨機推薦',
@@ -28,7 +28,7 @@ const zhHant: Dict = {
 
 	// --- search ---
 	'search.title': '搜尋',
-	'search.placeholder': '搜尋歌曲、歌手（跨所有來源）',
+	'search.placeholder': '搜尋歌曲、歌手',
 	'search.go': '搜尋',
 	'search.submitting': '…',
 	'search.someFailed': '部分來源沒有回應 — 顯示其餘結果。',

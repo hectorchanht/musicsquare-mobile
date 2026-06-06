@@ -48,7 +48,17 @@ export function parseSearchHistory(raw: string | null): SearchHistoryEntry[] {
 	if (raw == null) return [];
 	try {
 		const v = JSON.parse(raw);
-		return Array.isArray(v) ? (v as SearchHistoryEntry[]) : [];
+		if (!Array.isArray(v)) return [];
+		// CR-01: validate per-ENTRY shape, not just that the blob is an array. A corrupt
+		// store containing null / a number / an object without a string `query` would make
+		// recordQuery's `.filter(e => e.query.toLowerCase()...)` throw — and add() runs
+		// BEFORE run()'s try block, so an uncaught throw breaks the whole search form.
+		return (v as unknown[]).filter(
+			(e): e is SearchHistoryEntry =>
+				e != null &&
+				typeof (e as Partial<SearchHistoryEntry>).query === 'string' &&
+				typeof (e as Partial<SearchHistoryEntry>).ts === 'number'
+		);
 	} catch {
 		return [];
 	}

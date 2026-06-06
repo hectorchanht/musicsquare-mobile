@@ -11,8 +11,11 @@
 // source actually has (best-effort — matches the honest `defaultQualityNote`).
 import type { DefaultQuality } from '$lib/stores/settings.svelte';
 
-/** 128–160k band — JOOX `AAC 192`/`OGG 192`/`MP3 128`, QQ STD (128kbps). */
-const BAND_128 = /128|192|aac/i;
+/** 128–160k band — JOOX `AAC 192`/`OGG 192`/`MP3 128`, QQ STD (128kbps).
+ *  WR-02: match by BITRATE NUMBER only. A bare `aac` branch over-matched sub-128k
+ *  tiers (`AAC 96`, `AAC 48`), which could promote a 48kbps stream ahead of 320/lossless
+ *  when the user asked for 128k. The numbers express the band unambiguously. */
+const BAND_128 = /128|160|192/i;
 /** 320k band. */
 const BAND_320 = /320/i;
 /** Lossless / hi-res / atmos band — same vocabulary used in joox.ts/dedupe.ts. */

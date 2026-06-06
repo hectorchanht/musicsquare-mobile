@@ -81,9 +81,13 @@
 			page = 1;
 			hasMore = results.length > 0;
 			persistSession(); // D-02: store the fresh set (overwrites the prior session)
-		} catch {
+		} catch (err) {
+			// WR-01: a superseded query (AbortError) must NOT clobber state or flag failure.
+			if (err instanceof DOMException && err.name === 'AbortError') return;
+			// Genuine failure: surface it (someFailed) instead of a silent "no results found".
 			results = [];
 			hasMore = false;
+			someFailed = true;
 		} finally {
 			loading = false;
 		}

@@ -80,6 +80,16 @@ function pickBestPlayUrl(d: QQDetailItem): BestPlayUrl {
 			text: `STD ${d.kbps_standard || ''}`.trim()
 		};
 	}
+	// WR-03: '320' pref → promote HQ (~320k) ahead of the lossless-first ladder, mirroring
+	// the '128'→STD promotion above and JOOX's pickByQualityPref 320 handling.
+	if (settings.defaultQuality === '320' && d.song_play_url_hq) {
+		return {
+			url: d.song_play_url_hq,
+			tag: 'hq',
+			label: 'HQ',
+			text: `HQ ${d.kbps_hq || ''}`.trim()
+		};
+	}
 
 	// lossless
 	if (d.song_play_url_sq)

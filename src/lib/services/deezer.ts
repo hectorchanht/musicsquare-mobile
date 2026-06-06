@@ -1,13 +1,13 @@
 // deezer — the thin, never-throws Deezer cover client (quick-260606-wv8, WV8-01).
 //
 // Deezer becomes the PRIMARY cover source for home discovery tiles (it has far stronger
-// Western + decent CN album-cover coverage and — unlike iTunes / Last.fm — real artist-
-// picture coverage). This module ONLY builds the search URL and does a bounded fetch through
+// Western + decent CN album-cover coverage and — unlike Last.fm — real artist-picture
+// coverage). This module ONLY builds the search URL and does a bounded fetch through
 // the OWN-ORIGIN proxy /api/deezer/search. It does NOT call api.deezer.com directly: the
 // browser fetch to Deezer is CORS-blocked (api.deezer.com sends no Access-Control-Allow-Origin),
 // so the request MUST go through the edge proxy (which also gives caching + posture parity).
 //
-// POSTURE (mirrors itunes-cover.ts, which this supersedes):
+// POSTURE (mirrors the prior never-throws cover client this supersedes):
 //  - Every network path NEVER throws: a non-ok response / { cover:null } / malformed JSON /
 //    abort / any throw all return null. A null → the caller leaves the gradient (never a broken
 //    image, never blocks first paint — callers fire this post-paint, capped + cached).
@@ -86,7 +86,7 @@ export async function deezerSongCover(
 
 /**
  * Resolve an artist picture via the Deezer proxy for the artist name. Returns the artist
- * picture URL or null on any miss/abort/throw (never throws). Deezer (unlike iTunes/Last.fm)
+ * picture URL or null on any miss/abort/throw (never throws). Deezer (unlike Last.fm)
  * carries a real artist picture, so this is the artist-tile cover source.
  */
 export async function deezerArtistCover(

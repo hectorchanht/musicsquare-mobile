@@ -15,8 +15,8 @@
 // an `<img src>` ATTRIBUTE (never CSS url()) — no script/CSS-injection surface (T-rvy-01).
 //
 // quick-260606-v7k adds an ARTIST-ONLY cover key (artistCoverCacheKey) so the 熱門歌手
-// (top-artist) tiles can cache an iTunes-resolved artist image WITHOUT colliding with a
-// {artist,title} track row of the same name. The artist entry is `'artist:' + matchKey(name, '')`
+// (top-artist) tiles can cache a backfilled artist image (Deezer, wv8) WITHOUT colliding with
+// a {artist,title} track row of the same name. The artist entry is `'artist:' + matchKey(name, '')`
 // — the `artist:` prefix is provably disjoint from any track key (matchKey never emits a
 // leading `artist:`), so artist + track entries safely coexist in the same flat record.
 

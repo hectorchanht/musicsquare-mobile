@@ -3,7 +3,7 @@ import { buildDeezerSearchUrl, deezerSongCover, deezerArtistCover } from './deez
 
 // deezer.ts (quick-260606-wv8) is the thin, never-throws client that fetches the
 // OWN-ORIGIN /api/deezer/search proxy (NOT api.deezer.com directly — the browser fetch to
-// Deezer is CORS-blocked). It mirrors the itunes-cover never-throws + AbortSignal contract:
+// Deezer is CORS-blocked). It mirrors the prior cover client's never-throws + AbortSignal contract:
 // a miss → null → the caller's gradient. These tests pin the URL build/encoding, the
 // song/artist resolve, the empty-term + already-aborted-signal (no fetch) short-circuits,
 // and the non-ok / null-field / malformed-JSON / fetch-throws → null paths — all node-

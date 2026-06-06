@@ -90,6 +90,10 @@ const zhHant: Dict = {
 	'lastfm.connect': '連接 Last.fm',
 	'lastfm.comingSoon': '即將推出',
 	'lastfm.note': '同步記錄與你的 Last.fm 個人檔案將於未來版本推出。',
+	'lastfm.readMore': '在 Last.fm 上閱讀更多',
+	'lastfm.about': '簡介',
+	'lastfm.listeners': '聽眾',
+	'lastfm.playcount': '播放次數',
 
 	// --- now playing ---
 	'nowplaying.collapse': '收合',
@@ -112,6 +116,7 @@ const zhHant: Dict = {
 	'nowplaying.translating': '翻譯中…',
 	'nowplaying.noLyrics': '這首歌沒有歌詞。',
 	'nowplaying.loadingRelated': '載入相關歌曲中…',
+	'nowplaying.lastfmTags': 'Last.fm 標籤',
 
 	// --- now bar ---
 	'nowbar.openNowPlaying': '開啟正在播放',

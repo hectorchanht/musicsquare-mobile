@@ -89,6 +89,10 @@ const en = {
 	'lastfm.connect': 'Connect Last.fm',
 	'lastfm.comingSoon': 'Coming soon',
 	'lastfm.note': 'Scrobbling and your Last.fm profile will arrive in a future update.',
+	'lastfm.readMore': 'Read more on Last.fm',
+	'lastfm.about': 'About',
+	'lastfm.listeners': 'Listeners',
+	'lastfm.playcount': 'Plays',
 
 	// --- now playing ---
 	'nowplaying.collapse': 'Collapse',
@@ -111,6 +115,7 @@ const en = {
 	'nowplaying.translating': 'translating…',
 	'nowplaying.noLyrics': 'No lyrics for this track.',
 	'nowplaying.loadingRelated': 'Loading related…',
+	'nowplaying.lastfmTags': 'Last.fm tags',
 
 	// --- now bar (layout) ---
 	'nowbar.openNowPlaying': 'Open now playing',

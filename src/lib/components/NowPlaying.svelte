@@ -11,8 +11,10 @@
 	import { searchAll } from '$lib/services/catalog';
 	import { dedupeBest } from '$lib/services/dedupe';
 	import { translateLines } from '$lib/services/translate';
+	import { enrichTrack, type EnrichResult } from '$lib/services/lastfm';
 	import { longpress } from '$lib/actions/longpress';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
+	import TagChips from '$lib/components/TagChips.svelte';
 	import { parseLRC, type LyricLine } from '$lib/services/lrc';
 	import type { Track } from '$lib/sources/types';
 
@@ -103,6 +105,54 @@
 				.catch(() => (related = []));
 		}
 	});
+
+	// ---- Last.fm enrichment (Phase 8, ENRICH-01/02) ----
+	// Best-effort, OFF the playback critical path: keyed on the current uid, the
+	// $effect void-fires enrichTrack (never awaited, never blocks) and assigns the
+	// result only if the uid still matches (race guard, mirrors the related/trKey
+	// idiom). A non-Last.fm track / absent key resolves to the all-empty shape, so
+	// nothing renders and the source cover is never disturbed.
+	let enrich = $state<EnrichResult | null>(null);
+	let enrichedFor = '';
+	let swappedCover = $state<string | null>(null);
+	$effect(() => {
+		const cur = player.current;
+		const uid = cur?.uid ?? '';
+		if (!cur || enrichedFor === uid) return;
+		enrichedFor = uid;
+		enrich = null;
+		swappedCover = null; // reset — never carry the previous track's swapped art
+		void enrichTrack(cur).then((r) => {
+			if (player.current?.uid !== uid) return; // track changed mid-flight — discard
+			enrich = r;
+			if (r.lastfmArt) maybeSwapCover(r.lastfmArt, cur);
+		});
+	});
+
+	// Preload the Last.fm cover candidate BEFORE swapping (D-04 guardrail 4 — no
+	// flash). Swap only when the source cover is absent OR the preloaded image is
+	// strictly larger than a sane threshold (D-04 guardrail 3). A real cover NEVER
+	// regresses to a placeholder/broken image — the endpoint already filtered the
+	// grey-star/empty art, and we keep the source cover when lastfmArt is null
+	// (ENRICH-02 overrides D-03). Best-effort + async — never blocks first paint.
+	function maybeSwapCover(art: string, forTrack: Track) {
+		if (typeof Image === 'undefined') return; // SSR guard
+		const img = new Image();
+		img.onload = () => {
+			if (player.current?.uid !== forTrack.uid) return; // track changed — abort
+			const sourceMissing = !forTrack.cover;
+			// "strictly larger": Last.fm extralarge/mega is ~300-600px; require a
+			// reasonably hi-res image so we never downgrade a good source cover.
+			const hiRes = img.naturalWidth >= 300;
+			if (sourceMissing || hiRes) swappedCover = art;
+		};
+		img.onerror = () => {}; // broken candidate → keep the source cover
+		img.src = art;
+	}
+
+	// Effective now-playing cover: the swapped hi-res Last.fm art when adopted, else
+	// the source cover (never a placeholder).
+	const effectiveCover = $derived(swappedCover ?? player.current?.cover ?? null);
 
 	function openArtist() {
 		if (player.current) {
@@ -300,13 +350,15 @@
 		onpointermove={coverMove}
 		onpointerup={coverUp}
 		onpointercancel={coverUp}
-		style:background-image={player.current?.cover ? `url(${player.current.cover})` : fallbackCover(player.current)}
+		style:background-image={effectiveCover ? `url(${effectiveCover})` : fallbackCover(player.current)}
 	></div>
 
 	<div class="meta">
 		<div class="title">{player.current ? names.dn(player.current.title) : ''}</div>
 		<button class="artist" onclick={openArtist}>{player.current ? names.dn(player.current.artist) : ''}</button>
 	</div>
+
+	<TagChips tags={enrich?.tags ?? []} />
 
 	<div class="prog">
 		<div class="track" onclick={seek} onkeydown={seekKey} role="slider" tabindex="0" aria-label={t('nowplaying.seek')} aria-valuenow={Math.round(frac * 100)}>

@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 5: PWA + Service Worker** - Installable PWA with app-shell precache; audio + `/api` bypass; offline state
 - [ ] **Phase 6: Background Audio + MediaSession** - Lock-screen / notification controls + metadata; real-device iOS validation of the contested background-audio path
 - [ ] **Phase 7: New Sources + Queue Model + Gestures** - Kugou + Migu via the adapter registry; explicit Up-Next queue model; drag-to-reorder and swipe-to-change-track gestures
-- [ ] **Phase 14: Search & Data Responsiveness** - First-load skeleton, cross-nav search-state restore, default 128–160k quality, TTL query cache, past-search suggestions, progressive/streaming results (responsiveness polish; not part of v1.1)
+- [x] **Phase 14: Search & Data Responsiveness** - First-load skeleton, cross-nav search-state restore, default 128–160k quality, TTL query cache, past-search suggestions, progressive/streaming results (responsiveness polish; not part of v1.1) (completed 2026-06-06)
 
 ## Phase Details
 
@@ -317,7 +317,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 14-02-PLAN.md — Search page UI: D-01 first-load skeleton + D-02 searchSession cross-nav restore + D-05 tappable suggestions + D-06 progressive wire-up (checkpoint: human-verify) (wave 2)
+- [x] 14-02-PLAN.md — Search page UI: D-01 first-load skeleton + D-02 searchSession cross-nav restore + D-05 tappable suggestions + D-06 progressive wire-up (checkpoint: human-verify) (wave 2)
 
 **Research flag**: Standard in-codebase patterns — no `--research-phase` needed. All four store/cache/quality/streaming patterns have working exemplars in-repo (overlays/history/settings stores, edge TTL cache, source ladders); zero new dependencies.
 **Security note**: Low surface (ASVS L1). Only live concern is SSR module-state leakage in the new `searchSession` + `searchHistory` runes singletons — mitigated by browser-guarded writes mirroring settings/history/overlays. D-03 uses the client-ladder approach (does NOT touch proxy/joox.ts) so the JOOX no-log rule and `br=4` stay intact. No package installs.
@@ -344,4 +344,4 @@ v1.1 dependency chain: 8 → (9, 10) read-only & auth-free first; 11 (auth) befo
 | 11. Signed-call Infrastructure & Auth | 0/TBD | Not started | - |
 | 12. Scrobbling (online-only) | 0/TBD | Not started | - |
 | 13. Loved-Tracks Sync | 0/TBD | Not started | - |
-| 14. Search & Data Responsiveness | 1/2 | In Progress|  |
+| 14. Search & Data Responsiveness | 2/2 | Complete   | 2026-06-06 |

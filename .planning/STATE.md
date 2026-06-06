@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Last.fm Integration
-status: executing
+status: verifying
 stopped_at: "Phase 9 executed — 3/3 plans + code-review fixes (CR-01 image XSS, WR-01..04); pnpm check clean, 165/165 tests. SECURITY.md pending for 8 & 9 (/gsd:secure-phase)."
-last_updated: "2026-06-06T13:32:13.857Z"
+last_updated: "2026-06-06T13:41:15.138Z"
 last_activity: 2026-06-06
 progress:
   total_phases: 7
-  completed_phases: 2
+  completed_phases: 4
   total_plans: 9
-  completed_plans: 7
-  percent: 29
+  completed_plans: 9
+  percent: 57
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-05)
 Milestone: v1.1 — Last.fm Integration (Phases 8–13)
 Phase: 14 (search-data-responsiveness-first-load-search-skeleton-search) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-06
 
 ## Performance Metrics
@@ -56,6 +56,7 @@ Last activity: 2026-06-06
 | Phase 09 P02 | 4min | 3 tasks | 6 files |
 | Phase 09 P03 | 7min | 3 tasks | 5 files |
 | Phase 14 P01 | 8min | 4 tasks | 18 files |
+| Phase 14 P02 | 4 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,9 @@ Recent decisions affecting current work:
 - [Phase 14-01]: D-03 client-ladder reorder via pure pickByQualityPref; settings.defaultQuality default auto->128 read by QQ(STD)/JOOX(probe order)/Kuwo(level=128k best-effort) adapters importing settings directly; JOOX_BR=4 untouched (proxy.test.ts green)
 - [Phase 14-01]: D-05 searchHistory store (key openmusic:search-history:v1, cap 12) DISTINCT in symbol+key from play-history; pure recordQuery/parseSearchHistory + thin browser-guarded runes wrapper
 - [Phase 14-01]: D-06 progressive searchAll via optional trailing onPartial (non-breaking); accumulate->re-interleave->emit with sig.aborted guard in .finally; cache HIT fires onPartial once with pending:0
+- [Phase ?]: [Phase 14-02]: D-02 searchSession is IN-MEMORY runes singleton (q/results/page/hasMore/scrollY/searched); SSR-leak (T-14-05) mitigated by browser-side-write discipline + HAS_WINDOW backstop, NOT persistence; onMount restores instantly (no refetch) + scroll after tick, new query overwrites via save()
+- [Phase ?]: [Phase 14-02]: D-01 one {#snippet skeletonRows} shared by first-load (loading && results.length===0) + load-more; D-06 onPartial re-runs dedupeBest per partial with two-layer abort guard (myAc.signal.aborted || kw!==q.trim()), results cleared at run() start so skeleton yields to first partial; loadMore stays blocking
+- [Phase ?]: [Phase 14-02]: D-05 suggestions on inputFocused && q.trim()==='' && !searched; 150ms blur-delay + onmousedown-preventDefault so tap registers; recorded on submit (zero-result queries listed); +search.recent/search.clear i18n in 3 dicts
 
 ### Pending Todos
 
@@ -143,6 +147,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-06T13:30:54.853Z
+Last session: 2026-06-06T13:41:15.133Z
 Stopped at: Phase 9 executed — 3/3 plans + code-review fixes (CR-01 image XSS, WR-01..04); pnpm check clean, 165/165 tests. SECURITY.md pending for 8 & 9 (/gsd:secure-phase).
 Resume: verify phase 9 (run /gsd:verify-phase 9) — all 3 plans complete

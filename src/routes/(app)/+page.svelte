@@ -14,7 +14,6 @@
 		type DiscoveryArtist
 	} from '$lib/services/lastfm';
 	import {
-		resolveStub,
 		mapWithConcurrency,
 		DISCOVERY_TAGS,
 		DISCOVERY_COUNTRIES
@@ -207,17 +206,16 @@
 		}
 	}
 
-	// Resolve-on-tap (D-03): a discovery track is a {artist,title} stub, NOT a Track, so
-	// it MUST be resolved via searchAll+dedupeBest before play. Strictly lazy (one tap →
-	// one resolve). A miss shows an unplayable toast and never breaks the surface/player.
+	// Resolve-on-tap (D-03) — now OPTIMISTIC (FIX-A). Delegate to player.playStub, which
+	// locks the tapped {artist,title,cover} into the now-bar with a loading indicator
+	// instantly, dedupes a same-song double-tap, and supersedes an in-flight resolve when a
+	// different song is tapped. playStub returns null for BOTH a genuine miss AND a
+	// supersede, so gate the toast on pendingTrack: a supersede leaves pendingTrack pointing
+	// at the NEWER song (no toast), a miss clears pendingTrack (toast). Cover-if-known is
+	// passed so the optimistic bar shows real art immediately when available.
 	async function playStub(item: DiscoveryTrack) {
-		const tr = await resolveStub(item.artist, item.title);
-		if (tr) {
-			player.setQueue([tr]);
-			player.play(tr);
-		} else {
-			toast(t('home.unplayable'));
-		}
+		const tr = await player.playStub(item.artist, item.title, item.image);
+		if (tr === null && player.pendingTrack == null) toast(t('home.unplayable'));
 	}
 
 	onMount(() => {

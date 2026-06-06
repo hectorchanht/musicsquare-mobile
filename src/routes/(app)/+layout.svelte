@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, type Component } from 'svelte';
 	import { page } from '$app/state';
-	import { House, Search, Library, Play, Pause } from '@lucide/svelte';
+	import { House, Search, Library, Play, Pause, Loader } from '@lucide/svelte';
 	import { player } from '$lib/stores/player.svelte';
 	import { library } from '$lib/stores/library.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
@@ -37,22 +37,38 @@
 		{@render children()}
 	</main>
 
-	{#if player.current && !player.expanded}
+	{#if (player.current || player.pendingTrack) && !player.expanded}
+		<!-- Optimistic now-bar (FIX-A): when a discovery stub is tapped, player.pendingTrack
+		     locks the tapped {artist,title,cover} here INSTANTLY (before resolveStub settles),
+		     with an indeterminate loading sliver. Once the real Track resolves, player.current
+		     takes over and the bar swaps to the determinate progress fill. -->
+		{@const np = player.current ?? player.pendingTrack}
+		{@const resolving = !player.current && !!player.pendingTrack}
 		<div class="nowbar">
-			<div class="np-prog"><i style:width={`${player.duration > 0 ? (player.currentTime / player.duration) * 100 : 0}%`}></i></div>
-			<button class="np-open" aria-label={t('nowbar.openNowPlaying')} onclick={() => player.expand()}>
-				<span class="np-art" style:background-image={player.current.cover ? `url(${player.current.cover})` : cover(player.current)}></span>
+			<div class="np-prog" class:indet={player.loading}>
+				{#if player.loading}
+					<i class="sliver"></i>
+				{:else}
+					<i style:width={`${player.duration > 0 ? (player.currentTime / player.duration) * 100 : 0}%`}></i>
+				{/if}
+			</div>
+			<button class="np-open" aria-label={t('nowbar.openNowPlaying')} disabled={resolving} onclick={() => player.expand()}>
+				<span class="np-art" style:background-image={np?.cover ? `url(${np.cover})` : cover(np)}></span>
 				<span class="np-meta">
-					<span class="np-title">{names.dn(player.current.title)}</span>
+					<span class="np-title">{names.dn(np?.title ?? '')}</span>
 					<span class="np-artist">
-						{names.dn(player.current.artist)}
+						{names.dn(np?.artist ?? '')}
 						{#if player.loading}· {t('common.loading')}{:else if player.error}· <span class="err">{player.error}</span>{/if}
 					</span>
 				</span>
 			</button>
-			<button class="np-btn" aria-label={t('nowbar.playPause')} onclick={() => player.toggle()}>
-				{#if player.playing}<Pause size={18} />{:else}<Play size={18} />{/if}
-			</button>
+			{#if resolving}
+				<span class="np-btn np-spin" aria-label={t('common.loading')} aria-busy="true"><Loader size={18} /></span>
+			{:else}
+				<button class="np-btn" aria-label={t('nowbar.playPause')} onclick={() => player.toggle()}>
+					{#if player.playing}<Pause size={18} />{:else}<Play size={18} />{/if}
+				</button>
+			{/if}
 		</div>
 	{/if}
 
@@ -119,6 +135,37 @@
 		height: 100%;
 		background: var(--color-primary);
 		transition: width 0.25s linear;
+	}
+	/* Indeterminate loading sliver (FIX-A): while resolveStub runs there is no real
+	   duration/progress yet, so animate a left↔right sliver instead of a width-bound fill. */
+	.np-prog.indet {
+		overflow: hidden;
+	}
+	.np-prog.indet > i.sliver {
+		width: 35%;
+		transition: none;
+		animation: np-indet 1.1s ease-in-out infinite;
+	}
+	@keyframes np-indet {
+		0% { transform: translateX(-110%); }
+		100% { transform: translateX(310%); }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.np-prog.indet > i.sliver { animation-duration: 2.2s; }
+	}
+	.np-open[disabled] { cursor: default; }
+	/* Resolving spinner stand-in for the play/pause button (no audio yet). */
+	.np-spin {
+		display: grid;
+		place-items: center;
+		opacity: 0.85;
+	}
+	.np-spin :global(svg) { animation: np-spin 0.9s linear infinite; }
+	@keyframes np-spin {
+		to { transform: rotate(360deg); }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.np-spin :global(svg) { animation: none; }
 	}
 	.np-open {
 		flex: 1;

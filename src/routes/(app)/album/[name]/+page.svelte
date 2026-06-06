@@ -12,7 +12,6 @@
 	import { t } from '$lib/i18n';
 	import { goto } from '$app/navigation';
 	import { enrichAlbum, getAlbumTracklist, type EnrichResult } from '$lib/services/lastfm';
-	import { resolveStub } from '$lib/services/discovery';
 
 	// A Last.fm tracklist entry — NOT a Track (no uid/source/audioUrl). Resolved on tap.
 	type AlbumStub = { artist: string; title: string };
@@ -103,18 +102,14 @@
 		}
 	});
 
-	// Resolve-on-tap (D-05/D-03): a tracklist entry is a {artist,title} STUB, NOT a Track,
-	// so it MUST be resolved via searchAll+dedupeBest before play. Strictly lazy — one tap
-	// → one resolve (NEVER eager over the whole tracklist; Pitfall 11). A miss shows an
-	// unplayable toast and never breaks the page or the player.
+	// Resolve-on-tap (D-05/D-03) — now OPTIMISTIC (FIX-A). Delegate to player.playStub so the
+	// now-bar locks the tapped {artist,title} with a loading indicator instantly (album stubs
+	// carry no cover), dedupes a same-song double-tap, and supersedes an in-flight resolve.
+	// playStub returns null for BOTH a miss AND a supersede; toast only on a genuine miss
+	// (pendingTrack cleared) — a supersede leaves pendingTrack on the newer song (no toast).
 	async function playStub(stub: AlbumStub) {
-		const tr = await resolveStub(stub.artist, stub.title);
-		if (tr) {
-			player.setQueue([tr]);
-			player.play(tr);
-		} else {
-			toast(t('album.unplayable'));
-		}
+		const tr = await player.playStub(stub.artist, stub.title);
+		if (tr === null && player.pendingTrack == null) toast(t('album.unplayable'));
 	}
 </script>
 

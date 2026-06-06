@@ -114,8 +114,16 @@
 	$effect(() => {
 		// untrack the overlays calls: open/dismiss read the $state overlay stack internally,
 		// so without untrack this effect would re-run (cleanup+reopen, churning history) whenever
-		// ANOTHER overlay (picker/detail/nowplaying) pushes or pops. Deps stay: open + track.
-		if (open && track) {
+		// ANOTHER overlay (picker/detail/nowplaying) pushes or pops.
+		//
+		// DEP IS `open` ONLY — deliberately NOT `track`. The home long-press opens the menu on a
+		// discovery STUB then reassigns `track` (stub → resolved) after resolveStub. If `track`
+		// were a dep, that reassignment would re-run the effect: cleanup fires overlays.dismiss
+		// (→ history.back()) and the body re-runs overlays.open (→ pushState) in the same flush —
+		// a back()+push churn that desyncs history depth and over-pops Back into the PREVIOUS
+		// route (long-press a home tile → bounced to /library or /search). The render guard
+		// `{#if open && track}` still gates visibility; overlays.open is idempotent.
+		if (open) {
 			untrack(() => overlays.open("trackmenu-menu", () => onclose()));
 			return () => untrack(() => overlays.dismiss("trackmenu-menu"));
 		}
@@ -202,8 +210,10 @@
 	.mi-skel { display: flex; align-items: center; gap: 12px; padding: 12px; }
 	.sk-ico { width: 18px; height: 18px; border-radius: 4px; flex: none; }
 	.sk-bar { height: 12px; border-radius: 6px; }
-	.sk-ico, .sk-bar { position: relative; overflow: hidden; background: var(--color-surface); }
-	.sk-ico::after, .sk-bar::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent); transform: translateX(-100%); animation: mi-shimmer 1.1s ease-in-out infinite; }
+	/* Lighter than the menu's --color-surface-2 bg so the placeholders are visibly grey (the
+	   old --color-surface was DARKER than the menu → invisible). Stronger shimmer too. */
+	.sk-ico, .sk-bar { position: relative; overflow: hidden; background: rgba(255, 255, 255, 0.13); }
+	.sk-ico::after, .sk-bar::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.28), transparent); transform: translateX(-100%); animation: mi-shimmer 1.1s ease-in-out infinite; }
 	@keyframes mi-shimmer { 100% { transform: translateX(100%); } }
 	@media (prefers-reduced-motion: reduce) { .sk-ico::after, .sk-bar::after { animation: none; } }
 	.detail { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; padding: 6px 12px 14px; margin: 0; }

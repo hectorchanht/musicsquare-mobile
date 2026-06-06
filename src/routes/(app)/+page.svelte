@@ -563,7 +563,12 @@
 	}
 	/* Horizontal scroll row (copied from the artist page .albumrow pattern). */
 	.albumrow { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; }
-	.album { flex: 0 0 130px; background: none; border: none; padding: 0; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 4px; transition: transform 0.12s ease; }
+	/* min-width:0 is REQUIRED: without it the flex item's default min-width:auto lets the
+	   nowrap .al-name/.al-count grow the tile past its 130px basis to fit the full text — which
+	   both widened the row AND defeated the marquee (its clientWidth grew to the text width so
+	   scrollWidth>clientWidth never tripped). Pinning min-width:0 holds the 130px basis, so the
+	   labels clip to the cover width and the marquee correctly detects + scrolls the overflow. */
+	.album { flex: 0 0 130px; min-width: 0; max-width: 130px; background: none; border: none; padding: 0; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 4px; transition: transform 0.12s ease; }
 	.album:active { transform: scale(0.96); }
 	.al-cover { position: relative; overflow: hidden; width: 130px; height: 130px; border-radius: 10px; background-size: cover; background-position: center; background-color: var(--color-surface-2); }
 	.al-cover.round { border-radius: 50%; }

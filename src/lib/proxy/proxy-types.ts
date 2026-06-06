@@ -15,6 +15,11 @@ export interface Env {
 	// (threat parity with JOOX_TOKEN / T-01-04, T-5ug-01). Absent key is a SUPPORTED
 	// state: /api/similar returns { artists: [] } so the service falls back to same-artist.
 	LASTFM_KEY?: string;
+	// OPTIONAL Last.fm shared secret for SIGNED calls (auth.getSession, track.love,
+	// track.scrobble). Used ONLY to compute the md5 api_sig on the edge — never echoed
+	// to the client (same threat class as LASTFM_KEY / JOOX_TOKEN). Absent = auth/scrobble
+	// endpoints unavailable; read-only Last.fm features still work.
+	LASTFM_SECRET?: string;
 }
 
 export interface ProxyAdapter {

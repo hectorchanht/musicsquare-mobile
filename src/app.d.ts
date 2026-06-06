@@ -13,6 +13,10 @@ declare global {
 				// OPTIONAL Last.fm key for /api/similar — server-side only, never on the
 				// client bundle (threat T-5ug-01, parity with JOOX_TOKEN / T-01-04).
 				LASTFM_KEY?: string;
+				// OPTIONAL Last.fm shared secret for SIGNED calls (auth.getSession,
+				// track.love, track.scrobble). Server-side only — used to compute the
+				// md5 api_sig on the edge, never on the client bundle.
+				LASTFM_SECRET?: string;
 			};
 			// ctx?: ExecutionContext;  // add if waitUntil() is needed for caching later
 		}

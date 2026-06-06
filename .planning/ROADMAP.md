@@ -236,7 +236,8 @@ Plans:
   3. When no playable variant is found, the track surfaces a clear "no playable source" state (same posture as a dead CDN URL) and the failure never breaks search, the queue, or other sources
   4. The new "Last.fm" source is registered in both the client source registry and the edge proxy registry by adding files only — no edits to shared aggregation/dispatch code (adapter-pattern parity)
 
-**Plans**: TBD
+**Plans**: 1 plan
+- [ ] 10-01-PLAN.md — Upgrade resolveStub to a scored best-match pick (scoreMatch helper: variant-keyword penalty + matchKey similarity, dedupeBest tie-break) + reconcile LFSRC traceability (D-01)
 **Research flag**: Re-search resolver path (the v1.1 scope) needs no extra research. NOTE: GD Studio `ytmusic` is OUT of v1.1 (deferred — LFSRC-FB-01). If it is ever pulled in, it warrants its own `--research-phase` feasibility spike (`s`-checksum host/version drift, 50 req/5 min cap, instance failover, Western-catalog match rate).
 **Security note**: Isolate the resolver behind `Promise.allSettled` + `AbortSignal.timeout` so a slow/empty resolve can never stall the shared fan-out or break the working 4-source experience; score matches to avoid wrong-song playback (PITFALLS Pitfall 7 / threat T-lfm-04, scoped to the deferred ytmusic path).
 

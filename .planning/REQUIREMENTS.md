@@ -53,9 +53,59 @@ Initial release. Reuses the existing data layer; replaces the desktop UI with a 
 - [ ] **PWA-01**: App is installable to the home screen
 - [ ] **PWA-02**: Service worker precaches the app shell (UI loads offline); never caches audio or `/api`; shows a clear "offline — playback needs a connection" state
 
+## v1.1 Requirements — Last.fm Integration
+
+Milestone v1.1 (Last.fm Integration). Optional/additive — local-first still works signed-out. All Last.fm key + shared-secret use stays server-side only (JOOX_TOKEN parity). Phases continue at 8.
+
+### Last.fm Metadata Enrichment
+
+- [ ] **ENRICH-01**: Playing or viewing a track enriches it with Last.fm metadata (track/artist/album.getInfo) — top tags, artist bio snippet, and higher-resolution cover art — layered on without overwriting good per-source data
+- [ ] **ENRICH-02**: Last.fm placeholder / grey-star images (hash `2a96cbd8b46e442fc41c2b86b821562f`) and empty image entries are detected and discarded, falling back to the existing per-source cover
+- [ ] **ENRICH-03**: All Last.fm read calls route through a server-side edge proxy (LASTFM_KEY injected on the edge, never in the client bundle); a missing key degrades gracefully and enrichment never blocks or delays playback
+
+### Discovery / Hot Picks
+
+- [ ] **DISCO-01**: User can browse global leaderboards — top tracks and top artists (chart.getTopTracks / chart.getTopArtists)
+- [ ] **DISCO-02**: User can browse by vibe / mood / genre tag — pick a tag and see its top tracks, artists, and albums (tag.getTopTracks / getTopArtists / getTopAlbums)
+- [ ] **DISCO-03**: User can browse country / region charts (geo.getTopTracks / getTopArtists) for a curated set of countries
+- [ ] **DISCO-04**: Discovery is a tab in the existing bottom-nav shell, fully usable signed-out, with Last.fm responses edge-cached to respect rate limits
+
+### Last.fm-searchable Source
+
+- [ ] **LFSRC-01**: A new "Last.fm" source is registered in both the client source registry and the edge proxy registry, addable without touching shared code (parity with the existing adapter pattern)
+- [ ] **LFSRC-02**: A Last.fm-discovered track ({artist, title}) resolves to playable audio via the existing CN-source resolver (searchAll + dedupeBest); resolution failures degrade gracefully so discovery items are tap-to-play and a miss never breaks the app
+- [ ] **LFSRC-03**: Audio resolution picks the best match (normalized artist+title scoring; penalize cover/karaoke/live; duration sanity check) rather than the first result
+
+### Last.fm Authentication
+
+- [ ] **LFAUTH-01**: User can sign in to Last.fm via the official Web Auth flow (authorize on last.fm, return to the app) and sign out
+- [ ] **LFAUTH-02**: The Last.fm session key is stored server-side in an httpOnly + Secure + SameSite cookie; the session key and shared secret never reach the client bundle or any response body
+- [ ] **LFAUTH-03**: All signed Last.fm calls compute `api_sig` on the edge with correct UTF-8 handling, verified against Chinese artist/track names
+- [ ] **LFAUTH-04**: When signed in the app shows the Last.fm username; when signed out the app remains fully usable (local-first preserved)
+
+### Scrobbling
+
+- [ ] **SCROB-01**: When signed in, the app sends now-playing (track.updateNowPlaying) at play start
+- [ ] **SCROB-02**: When signed in, a play is scrobbled exactly once (track.scrobble) when it crosses the Last.fm threshold (track > 30s and played ≥ 50% or ≥ 4 min), using a play-start UTC timestamp; seek/replay does not double-scrobble
+- [ ] **SCROB-03**: Scrobbling is a no-op when signed out and never blocks or delays playback (online-only; offline queue deferred)
+
+### Loved-Tracks Sync
+
+- [ ] **LOVE-01**: When signed in, favoriting / unfavoriting a track also loves / unloves it on Last.fm (track.love / track.unlove), best-effort and non-blocking
+- [ ] **LOVE-02**: On sign-in, the user's Last.fm loved tracks are merged into local favorites (additive union via normalized artist+title match) — never destructive (no auto-unlove of local favorites)
+
 ## v2 Requirements
 
 Acknowledged, deferred — not in the current roadmap.
+
+### Last.fm (deferred from v1.1)
+
+- **LFSRC-FB-01**: GD Studio `ytmusic` source as a YouTube-Music audio resolver for better Western-catalog coverage (third-party, no SLA, study-only ToS) — needs a feasibility spike before adoption
+- **DISCO-P-01**: Personal top-lists — your top artists / tracks / albums with a period switcher (user.getTopArtists / getTopTracks / getTopAlbums) — requires sign-in
+- **HIST-01**: Listening-history surface (user.getRecentTracks), including the now-playing item with no date
+- **SCROB-Q-01**: Offline scrobble queue with batched flush (≤ 50 per request, per-item timestamps, 14-day expiry)
+- **LIBIMP-01**: Full Last.fm library import (library.getArtists)
+- **TAG-01**: Personal track tagging UI (track.getTags + write)
 
 ### Resilience
 
@@ -75,10 +125,10 @@ Explicitly excluded. Documented to prevent scope creep.
 | Feature | Reason |
 |---------|--------|
 | Offline audio download / track caching | Source URLs are short-lived expiring CDN links (technically near-impossible) + legal exposure + storage cost. Stream-only; cache app shell only. |
-| User accounts / cloud sync of library | Contradicts local-first design; backend/auth/PII/server cost. Import/export covers portability. |
+| First-party account system (own email/password + user DB) | Backend/auth/PII/server cost. NOTE (v1.1): optional **Last.fm** sign-in IS now in scope — accounts/cloud-sync are delegated to Last.fm, not built in-house; local-first remains the signed-out default. |
 | Native iOS / Android apps | App-store ToS exposure for an unofficial aggregator + double maintenance. PWA delivers app-like UX. |
 | Crossfade / gapless playback | A single `<audio>` element can't crossfade; dual-element + Web Audio against expiring/flaky URLs not worth it. |
-| Official Spotify / Apple Music / YouTube Music APIs | Licensing + auth complexity; aggregates the same unofficial sources as today. |
+| Official *paid streaming* APIs (Spotify / Apple Music) | Licensing + auth complexity. NOTE (v1.1): a YouTube-style source for resolving audio of Last.fm-discovered tracks IS in scope (GD Studio `ytmusic` deferred to a spike); Last.fm itself is metadata/social only, not a stream provider. |
 | Audio-reactive visualizer / EQ | Cross-origin non-CORS media blocks Web Audio analysis (existing app already fakes it). |
 
 ## Traceability
@@ -116,13 +166,15 @@ Each v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for ph
 | PWA-01 | Phase 5 | Pending |
 | PWA-02 | Phase 5 | Pending |
 
-**Coverage:**
+**Coverage (v1.0):**
 - v1 requirements: 28 total
 - Mapped to phases: 28 ✓
 - Unmapped: 0 ✓
 
-**Per-phase counts:** Phase 1: 5 (DATA-01..04, SRC-01) · Phase 2: 4 (PLAY-01..04) · Phase 3: 4 (LIB-01..04) · Phase 4: 8 (UI-01..08) · Phase 5: 2 (PWA-01..02) · Phase 6: 1 (PLAY-05) · Phase 7: 4 (SRC-02, SRC-03, PLAY-06, UI-09)
+**Per-phase counts (v1.0):** Phase 1: 5 (DATA-01..04, SRC-01) · Phase 2: 4 (PLAY-01..04) · Phase 3: 4 (LIB-01..04) · Phase 4: 8 (UI-01..08) · Phase 5: 2 (PWA-01..02) · Phase 6: 1 (PLAY-05) · Phase 7: 4 (SRC-02, SRC-03, PLAY-06, UI-09)
+
+**v1.1 (Last.fm Integration):** 19 requirements (ENRICH-01..03, DISCO-01..04, LFSRC-01..03, LFAUTH-01..04, SCROB-01..03, LOVE-01..02) — traceability rows for phases 8–13 populated at v1.1 roadmap creation.
 
 ---
 *Requirements defined: 2026-06-05*
-*Last updated: 2026-06-05 after roadmap creation (traceability populated)*
+*Last updated: 2026-06-06 after defining milestone v1.1 (Last.fm Integration) requirements*

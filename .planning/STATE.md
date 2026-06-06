@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Last.fm Integration
 status: executing
-stopped_at: Phase 9 context gathered (home Last.fm discovery + artist top-albums/album-play; Phase 10 likely rescopes)
-last_updated: "2026-06-06T07:43:07.308Z"
-last_activity: 2026-06-06 -- Phase 9 execution started
+stopped_at: Completed 09-01-PLAN.md (discovery data foundation)
+last_updated: "2026-06-06T07:56:34.363Z"
+last_activity: 2026-06-06
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 6
-  completed_plans: 3
+  completed_plans: 4
   percent: 17
 ---
 
@@ -27,9 +27,9 @@ See: .planning/PROJECT.md (updated 2026-06-05)
 
 Milestone: v1.1 — Last.fm Integration (Phases 8–13)
 Phase: 9 (Discovery / Hot-Picks Tab) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 9
-Last activity: 2026-06-06 -- Phase 9 execution started
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-06-06
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Last activity: 2026-06-06 -- Phase 9 execution started
 
 *Updated after each plan completion*
 | Phase 8 P03 | 5 | 1 tasks | 1 files |
+| Phase 09 P01 | 9min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,8 @@ Recent decisions affecting current work:
 - [Roadmap]: Bottom-up phase order — extract data layer + prove proxy boundary headless before any UI is built (avoids building on an audio engine whose iOS behavior is unproven).
 - [Roadmap]: Proxy metadata only through SvelteKit `+server.ts`; audio bytes stream browser → CDN directly (preserves geo/IP context, stays within Worker free-tier limits).
 - [Roadmap]: Single module-scoped `<audio>` element owned by an `AudioEngine` singleton; Svelte 5 runes in `.svelte.ts` for all shared state; source-adapter registry so adding a source touches only new files.
+- [Phase ?]: 09-01: Endpoint fork B — dedicated /api/lastfm/discovery for LIST methods; /api/lastfm/info extended only for album tracklist
+- [Phase ?]: 09-01: Cache API cache key = own-origin discovery Request (secret never cached); per-method public TTLs charts 1h/tags 6h/topalbums 24h
 
 ### Pending Todos
 
@@ -123,6 +126,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-06T07:21:37.595Z
-Stopped at: Phase 9 context gathered (home Last.fm discovery + artist top-albums/album-play; Phase 10 likely rescopes)
+Last session: 2026-06-06T07:56:34.358Z
+Stopped at: Completed 09-01-PLAN.md (discovery data foundation)
 Resume: execute 08-03-PLAN.md (album-page art + info enrichment)

@@ -211,7 +211,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 09-01-PLAN.md — Edge /api/lastfm/discovery list proxy (chart/tag/geo/getTopAlbums) + Cache API TTLs + album-tracklist on /api/lastfm/info + discovery list builders + resolveStub transform
+- [x] 09-01-PLAN.md — Edge /api/lastfm/discovery list proxy (chart/tag/geo/getTopAlbums) + Cache API TTLs + album-tracklist on /api/lastfm/info + discovery list builders + resolveStub transform
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -306,7 +306,7 @@ v1.1 dependency chain: 8 → (9, 10) read-only & auth-free first; 11 (auth) befo
 | 6. Background Audio + MediaSession | 0/TBD | Not started | - |
 | 7. New Sources + Queue Model + Gestures | 0/TBD | Not started | - |
 | 8. Last.fm Read Foundation & Metadata Enrichment | 3/3 | Complete   | 2026-06-06 |
-| 9. Discovery / Hot-Picks Tab | 0/3 | Planned | - |
+| 9. Discovery / Hot-Picks Tab | 1/3 | In Progress|  |
 | 10. Last.fm-searchable Source | 0/TBD | Not started | - |
 | 11. Signed-call Infrastructure & Auth | 0/TBD | Not started | - |
 | 12. Scrobbling (online-only) | 0/TBD | Not started | - |

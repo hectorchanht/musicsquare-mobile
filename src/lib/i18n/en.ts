@@ -19,6 +19,11 @@ const en = {
 	'home.loadingPicks': 'Loading…',
 	'home.randomize': 'Randomize',
 	'home.noResults': 'no results — sources may be unavailable',
+	'home.topHits': 'Top hits',
+	'home.topArtists': 'Top artists',
+	'home.tagShelf': '{tag}',
+	'home.countryShelf': 'Top in {country}',
+	'home.unplayable': "Couldn't find a playable version",
 
 	// --- search ---
 	'search.title': 'Search',

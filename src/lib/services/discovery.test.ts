@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { resolveStub } from './discovery';
+import {
+	resolveStub,
+	mapWithConcurrency,
+	DISCOVERY_TAGS,
+	DISCOVERY_COUNTRIES
+} from './discovery';
 import * as catalog from './catalog';
 import { makeUid, type SourceId, type Track } from '$lib/sources/types';
 
@@ -68,5 +73,61 @@ describe('resolveStub — Last.fm {artist,title} stub → playable Track', () =>
 	it('returns null (never throws) when searchAll throws', async () => {
 		vi.spyOn(catalog, 'searchAll').mockRejectedValue(new Error('search down'));
 		await expect(resolveStub('X', 'Y')).resolves.toBeNull();
+	});
+});
+
+describe('mapWithConcurrency — order-preserving capped async pool (Pitfall 11)', () => {
+	it('runs at most `limit` calls in flight and preserves input order', async () => {
+		const items = [0, 1, 2, 3, 4, 5];
+		let inFlight = 0;
+		let maxInFlight = 0;
+
+		const out = await mapWithConcurrency(items, 2, async (n) => {
+			inFlight++;
+			maxInFlight = Math.max(maxInFlight, inFlight);
+			// Yield a few microtasks so concurrent slots actually overlap before resolving.
+			await new Promise((r) => setTimeout(r, 5));
+			inFlight--;
+			return n * 10;
+		});
+
+		// Cap of 2 is never exceeded...
+		expect(maxInFlight).toBeLessThanOrEqual(2);
+		// ...and at least 2 ran together (proves it isn't accidentally serial).
+		expect(maxInFlight).toBe(2);
+		// Result order matches input order regardless of completion order.
+		expect(out).toEqual([0, 10, 20, 30, 40, 50]);
+	});
+
+	it('never rejects when an item fn throws — that slot is left empty', async () => {
+		const out = await mapWithConcurrency([1, 2, 3], 2, async (n) => {
+			if (n === 2) throw new Error('boom');
+			return n;
+		});
+		expect(out[0]).toBe(1);
+		expect(out[1]).toBeUndefined(); // the thrown slot is swallowed, not propagated
+		expect(out[2]).toBe(3);
+	});
+
+	it('handles an empty input list without spawning workers', async () => {
+		const fn = vi.fn(async (n: number) => n);
+		await expect(mapWithConcurrency([], 4, fn)).resolves.toEqual([]);
+		expect(fn).not.toHaveBeenCalled();
+	});
+});
+
+describe('curated discovery sets', () => {
+	it('DISCOVERY_TAGS is a small, non-empty editable genre/mood set', () => {
+		expect(Array.isArray(DISCOVERY_TAGS)).toBe(true);
+		expect(DISCOVERY_TAGS.length).toBeGreaterThan(0);
+		expect(DISCOVERY_TAGS).toContain('mandopop');
+	});
+
+	it('DISCOVERY_COUNTRIES is a CN-biased set of ISO 3166-1 NAMES (not codes)', () => {
+		expect(DISCOVERY_COUNTRIES).toContain('China');
+		expect(DISCOVERY_COUNTRIES).toContain('Taiwan');
+		// Names, not codes: 'United States' (not 'US'), so no 2-letter entries.
+		expect(DISCOVERY_COUNTRIES).toContain('United States');
+		expect(DISCOVERY_COUNTRIES.every((c) => c.length > 2)).toBe(true);
 	});
 });

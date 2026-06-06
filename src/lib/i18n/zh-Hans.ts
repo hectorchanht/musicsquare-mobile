@@ -20,6 +20,11 @@ const zhHans: Dict = {
 	'home.loadingPicks': '加载中…',
 	'home.randomize': '随机推荐',
 	'home.noResults': '没有结果 — 来源可能暂时无法使用',
+	'home.topHits': '热门金曲',
+	'home.topArtists': '热门歌手',
+	'home.tagShelf': '{tag}',
+	'home.countryShelf': '{country}热门',
+	'home.unplayable': '找不到可播放的版本',
 
 	// --- search ---
 	'search.title': '搜索',

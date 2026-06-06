@@ -20,6 +20,11 @@ const zhHant: Dict = {
 	'home.loadingPicks': '載入中…',
 	'home.randomize': '隨機推薦',
 	'home.noResults': '沒有結果 — 來源可能暫時無法使用',
+	'home.topHits': '熱門金曲',
+	'home.topArtists': '熱門歌手',
+	'home.tagShelf': '{tag}',
+	'home.countryShelf': '{country}熱門',
+	'home.unplayable': '找不到可播放的版本',
 
 	// --- search ---
 	'search.title': '搜尋',

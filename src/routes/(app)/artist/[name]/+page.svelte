@@ -131,8 +131,8 @@
 			{#each albums as al (al.name)}
 				<button class="album" onclick={() => goto('/album/' + encodeURIComponent(al.name) + '?artist=' + encodeURIComponent(name))}>
 					<span class="al-cover" style:background-image={al.image ? `url(${al.image})` : fallbackCoverSeed(al.name)}></span>
-					<span class="al-name" use:marquee>{names.dnTitle(al.name)}</span>
-					<span class="al-count" use:marquee>{t('artist.albumLabel')}</span>
+					<span class="al-name" use:marquee><span class="marquee-inner">{names.dnTitle(al.name)}</span></span>
+					<span class="al-count" use:marquee><span class="marquee-inner">{t('artist.albumLabel')}</span></span>
 				</button>
 			{/each}
 		</div>

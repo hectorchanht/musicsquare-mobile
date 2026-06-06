@@ -502,8 +502,8 @@
 					<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
 						{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
 					</span>
-					<span class="al-name" use:marquee>{names.dnTitle(item.title)}</span>
-					<span class="al-count" use:marquee>{names.dnArtist(item.artist)}</span>
+					<span class="al-name" use:marquee><span class="marquee-inner">{names.dnTitle(item.title)}</span></span>
+					<span class="al-count" use:marquee><span class="marquee-inner">{names.dnArtist(item.artist)}</span></span>
 				</button>
 			{/each}
 		</div>
@@ -520,7 +520,7 @@
 					<span class="al-cover round" style:background-image={fallbackCover(a.name)}>
 						{#if artistCover}<img class="al-cover-img" src={artistCover} loading="lazy" alt="" onerror={hideOnError} />{/if}
 					</span>
-					<span class="al-name center" use:marquee>{names.dnArtist(a.name)}</span>
+					<span class="al-name center" use:marquee><span class="marquee-inner">{names.dnArtist(a.name)}</span></span>
 				</button>
 			{/each}
 		</div>
@@ -536,8 +536,8 @@
 					<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
 						{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
 					</span>
-					<span class="al-name" use:marquee>{names.dnTitle(item.title)}</span>
-					<span class="al-count" use:marquee>{names.dnArtist(item.artist)}</span>
+					<span class="al-name" use:marquee><span class="marquee-inner">{names.dnTitle(item.title)}</span></span>
+					<span class="al-count" use:marquee><span class="marquee-inner">{names.dnArtist(item.artist)}</span></span>
 				</button>
 			{/each}
 		</div>
@@ -553,8 +553,8 @@
 					<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
 						{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
 					</span>
-					<span class="al-name" use:marquee>{names.dnTitle(item.title)}</span>
-					<span class="al-count" use:marquee>{names.dnArtist(item.artist)}</span>
+					<span class="al-name" use:marquee><span class="marquee-inner">{names.dnTitle(item.title)}</span></span>
+					<span class="al-count" use:marquee><span class="marquee-inner">{names.dnArtist(item.artist)}</span></span>
 				</button>
 			{/each}
 		</div>
@@ -610,30 +610,9 @@
 	.al-name { font-size: 12px; font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.al-name.center { text-align: center; }
 	.al-count { font-size: 11px; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-	/* FIX-C: marquee-bounce a truncated label. use:marquee adds .marquee-on and sets
-	   --marquee-dx (the exact overflow distance) ONLY when the text overflows AND the user
-	   has not requested reduced motion. The box keeps overflow:hidden + nowrap; we animate
-	   text-indent (which scrolls inline text WITHIN the clip box, respecting it) from 0 to
-	   -dx and back (alternate = bounce), dropping the ellipsis while scrolling. Non-overflow
-	   labels never get the class → the static ellipsis above stays. The @media gate is
-	   defense-in-depth alongside the action's own prefers-reduced-motion check. */
-	@media (prefers-reduced-motion: no-preference) {
-		/* .marquee-on is toggled at runtime by use:marquee, so it is not in the static markup;
-		   :global() on that part keeps the .al-name/.al-count scope while telling svelte-check
-		   the runtime class is intentional (no false "unused selector"). */
-		.al-name:global(.marquee-on),
-		.al-count:global(.marquee-on) {
-			text-overflow: clip;
-			/* SIMPLE fixed 8s loop, LINEAR (no wobble): 0–2s hold at start (25%), 2–6s slowly
-			   scroll left to reveal the end, 6–8s hold revealed, then `alternate` glides back.
-			   Fixed duration → a guaranteed ~2s readable pause regardless of text length. */
-			animation: marquee-scroll 8s linear infinite alternate;
-		}
-	}
-	@keyframes marquee-scroll {
-		0%, 25% { text-indent: 0; } /* ~2s hold at the start */
-		75%, 100% { text-indent: calc(-1 * var(--marquee-dx, 0px)); } /* reveal + hold the end */
-	}
+	/* Marquee animation now lives globally in app.css (transform-based .marquee-inner). The
+	   clip element keeps overflow:hidden + white-space:nowrap above; when text overflows the
+	   use:marquee action sets --marquee-dx + .marquee-on and the inner span scrolls. */
 	/* Fallback grid (D-06). */
 	.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 	.tile {

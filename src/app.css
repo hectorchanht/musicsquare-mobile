@@ -35,6 +35,26 @@ a { color: inherit; text-decoration: none; }
 button { font-family: inherit; }
 ::-webkit-scrollbar { width: 0; height: 0; }
 
+/* Marquee — a clipped label whose inner span scrolls to reveal the end. Uses TRANSFORM (not
+   text-indent) so it is GPU-composited and smooth (text-indent reflows every frame → twitch).
+   The use:marquee action sets --marquee-dx + toggles .marquee-on on the CLIP element (which
+   must be overflow:hidden + white-space:nowrap); the inner .marquee-inner does the motion.
+   Below the action's overflow threshold there is no .marquee-on → the inner stays inline so the
+   clip element's text-overflow:ellipsis still applies. Global so home + artist share one rule. */
+.marquee-inner { white-space: nowrap; }
+.marquee-on .marquee-inner {
+	display: inline-block;
+	will-change: transform;
+	animation: marquee-scroll 8s linear infinite alternate;
+}
+@keyframes marquee-scroll {
+	0%, 25% { transform: translateX(0); } /* ~2s hold at the start */
+	75%, 100% { transform: translateX(calc(-1 * var(--marquee-dx, 0px))); } /* reveal + hold end */
+}
+@media (prefers-reduced-motion: reduce) {
+	.marquee-on .marquee-inner { animation: none; }
+}
+
 /* Reduce-motion setting: kill nonessential transitions/animations app-wide. */
 :root[data-reduce-motion] *,
 :root[data-reduce-motion] *::before,

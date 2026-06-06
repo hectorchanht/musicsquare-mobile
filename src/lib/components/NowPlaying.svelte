@@ -637,7 +637,7 @@
 	.np.reflow .meta { position: relative; z-index: 2; margin-top: -42px; padding: 0 2px; }
 	.np.reflow .title { text-shadow: 0 1px 6px rgba(0,0,0,0.6); }
 	.title { font-size: 1.5rem; font-weight: 800; line-height: 1.2; }
-	.artist { background: none; border: none; padding: 0; color: var(--color-text-muted); font-size: 1rem; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+	.artist { background: black; border: none; padding: 2px; border-radius: 4px; color: var(--color-text-muted); font-size: 1rem; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 	.prog { margin: 4px 0 10px; }
 	.track { position: relative; height: 14px; display: flex; align-items: center; cursor: pointer; }
 	.track::before { content: ''; position: absolute; left: 0; right: 0; height: 4px; border-radius: 4px; background: rgba(255,255,255,0.18); }

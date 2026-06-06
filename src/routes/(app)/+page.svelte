@@ -58,6 +58,11 @@
 	// A labelled tag/country row paired with its heading.
 	type Shelf = { label: string; tracks: DiscoveryTrack[] };
 	// Versioned cache payload: the four displayed shelves + the fallback flag.
+	// `cfg` (stamped by saveCache) is a signature of the home-layout config the shelves were
+	// built with (shelf size + selected tag/country subset). On reload we only background-
+	// revalidate when it DIFFERS from the current config — so a Randomize arrangement survives a
+	// refresh instead of being clobbered by a fresh page-1 fetch (a non-randomize revalidate is
+	// deterministic page 1, so skipping it when config is unchanged loses nothing).
 	type ShelfCache = {
 		v: 2;
 		topHits: DiscoveryTrack[];
@@ -66,6 +71,7 @@
 		countryShelves: Shelf[];
 		useFallback: boolean;
 		fallback: Track[];
+		cfg?: string;
 	};
 
 	let topHits = $state<DiscoveryTrack[]>([]);
@@ -195,7 +201,19 @@
 	}
 
 	// localStorage is browser-only; these run inside onMount / click handlers (never SSR).
+	// Signature of the home-layout config the shelves depend on. Two cached payloads with the
+	// same cfg would re-fetch (non-randomized) to the identical page-1 surface, so a reload can
+	// safely skip the revalidate and keep whatever is cached (incl. a Randomize arrangement).
+	function configSig(): string {
+		return JSON.stringify({
+			s: clampShelfSize(settings.homeShelfSize),
+			t: resolveSubset(settings.homeTags, DISCOVERY_TAGS),
+			c: resolveSubset(settings.homeCountries, DISCOVERY_COUNTRIES)
+		});
+	}
+
 	function saveCache(payload: ShelfCache) {
+		payload.cfg = configSig();
 		try {
 			localStorage.setItem(CACHE_KEY, JSON.stringify(payload));
 		} catch {
@@ -434,9 +452,12 @@
 			}
 			loading = false;
 			scheduleBackfill(); // FIX-A: backfill covers for the just-applied cached shelves
-			// Background revalidate (WR-02: keeps Randomize enabled, no "Loading…") without
-			// re-seeding the queue (don't clobber ?play).
-			void refresh(false, true);
+			// Background revalidate ONLY when the home-layout config changed since the cache was
+			// built. When it's unchanged, a non-randomize revalidate would just re-fetch the same
+			// deterministic page-1 surface AND overwrite a prior Randomize arrangement — so we
+			// keep the cached set instead (user: "after refresh it should show the latest set B,
+			// not A"). A config change still revalidates to reconcile the new shelf size/subset.
+			if (cached.cfg !== configSig()) void refresh(false, true);
 		} else {
 			// Cold cache: full fetch. Seed the queue unless a shared link is taking over.
 			refresh(!token);

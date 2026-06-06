@@ -4,8 +4,8 @@ milestone: v1.1
 milestone_name: Last.fm Integration
 status: executing
 stopped_at: Phase 9 context gathered (home Last.fm discovery + artist top-albums/album-play; Phase 10 likely rescopes)
-last_updated: "2026-06-06T07:42:02.798Z"
-last_activity: 2026-06-06 -- Phase 9 planning complete
+last_updated: "2026-06-06T07:43:07.308Z"
+last_activity: 2026-06-06 -- Phase 9 execution started
 progress:
   total_phases: 6
   completed_phases: 1
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-05)
 
 **Core value:** A user on their phone can search a song, tap it, and have it play instantly with a smooth, native-app-like experience — and keep playing when the screen locks.
-**Current focus:** Phase 8 — Last.fm Read Foundation & Metadata Enrichment
+**Current focus:** Phase 9 — Discovery / Hot-Picks Tab
 
 ## Current Position
 
 Milestone: v1.1 — Last.fm Integration (Phases 8–13)
-Phase: 8 (Last.fm Read Foundation & Metadata Enrichment) — EXECUTING
-Plan: 3 of 3
-Status: Ready to execute
-Last activity: 2026-06-06 -- Phase 9 planning complete
+Phase: 9 (Discovery / Hot-Picks Tab) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 9
+Last activity: 2026-06-06 -- Phase 9 execution started
 
 ## Performance Metrics
 

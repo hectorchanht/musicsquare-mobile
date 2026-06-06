@@ -193,8 +193,11 @@ const zhHans: Dict = {
 	'album.title': '{name} · openmusic',
 	'album.back': '返回',
 	'album.derived': '专辑 · {count} 首歌曲（由搜索衍生）',
+	'album.tracklistNote': '专辑 · {count} 首歌曲',
 	'album.loading': '加载专辑中…',
-	'album.noTracks': '找不到「{name}」的歌曲。'
+	'album.noTracks': '找不到「{name}」的歌曲。',
+	'album.openFromArtist': '请从歌手页面打开此专辑以查看曲目列表。',
+	'album.unplayable': '找不到可播放的版本'
 };
 
 export default zhHans;

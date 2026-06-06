@@ -193,8 +193,11 @@ const en = {
 	'album.title': '{name} · openmusic',
 	'album.back': 'Back',
 	'album.derived': 'Album · {count} tracks (derived from search)',
+	'album.tracklistNote': 'Album · {count} tracks',
 	'album.loading': 'Loading album…',
-	'album.noTracks': 'No tracks found for "{name}".'
+	'album.noTracks': 'No tracks found for "{name}".',
+	'album.openFromArtist': 'Open this album from an artist page to see its tracklist.',
+	'album.unplayable': "Couldn't find a playable version"
 } as const;
 
 export default en;

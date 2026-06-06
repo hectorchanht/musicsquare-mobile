@@ -193,8 +193,11 @@ const zhHant: Dict = {
 	'album.title': '{name} · openmusic',
 	'album.back': '返回',
 	'album.derived': '專輯 · {count} 首歌曲（由搜尋衍生）',
+	'album.tracklistNote': '專輯 · {count} 首歌曲',
 	'album.loading': '載入專輯中…',
-	'album.noTracks': '找不到「{name}」的歌曲。'
+	'album.noTracks': '找不到「{name}」的歌曲。',
+	'album.openFromArtist': '請從歌手頁面開啟此專輯以查看曲目清單。',
+	'album.unplayable': '找不到可播放的版本'
 };
 
 export default zhHant;

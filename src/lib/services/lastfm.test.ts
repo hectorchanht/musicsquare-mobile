@@ -250,7 +250,10 @@ describe('discovery list builders — clean lists, never throw', () => {
 		);
 		const out = await getGeoTopTracks('United States');
 		expect(capturedUrl).toContain('method=geo.gettoptracks');
-		expect(capturedUrl).toContain(encodeURIComponent('United States'));
+		// URLSearchParams form-encodes the space as '+'; assert it round-trips to the
+		// ISO 3166-1 NAME (not a code) regardless of +/%20 encoding.
+		const qs = new URL(capturedUrl, 'https://x').searchParams;
+		expect(qs.get('country')).toBe('United States');
 		expect(out).toHaveLength(1);
 	});
 

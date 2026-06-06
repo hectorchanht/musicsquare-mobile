@@ -37,6 +37,8 @@ interface LastfmInfo {
 	image?: string | null;
 	listeners?: number | null;
 	playcount?: number | null;
+	/** Ordered album tracklist — present ONLY for album.getinfo (Phase 9, D-05). */
+	tracks?: { artist: string; title: string }[];
 }
 
 const EMPTY: EnrichResult = { tags: [], bio: null, bioUrl: null, lastfmArt: null };
@@ -132,4 +134,114 @@ export async function enrichAlbum(album: string, artist: string): Promise<Enrich
 	} catch {
 		return { ...EMPTY };
 	}
+}
+
+// ---- Discovery list builders (Phase 9, D-02) -------------------------------------
+// The list-shaped sibling of enrich*: each hits /api/lastfm/discovery (the dedicated
+// LIST proxy) and returns the already-cleaned, placeholder-filtered list — or [] on ANY
+// failure / absent-key empty shape (never throws). The LASTFM_KEY stays server-side;
+// these only ever see the clean { items } shape. The image-array → URL pick lives ON
+// THE EDGE (pickImage in +server.ts); the builder just consumes image: string | null.
+// Concurrency capping when the home page fans out many shelves lives in the Plan-02
+// builder, not here (Pitfall 11).
+
+/** A chart/tag/geo top-track item (already cleaned on the edge). */
+export interface DiscoveryTrack {
+	artist: string;
+	title: string;
+	image: string | null;
+}
+/** A top-artist item. */
+export interface DiscoveryArtist {
+	name: string;
+	image: string | null;
+}
+/** An artist top-album item. */
+export interface DiscoveryAlbum {
+	name: string;
+	image: string | null;
+}
+
+/** The discovery endpoint's clean response shape. */
+interface LastfmList<T> {
+	items?: T[];
+}
+
+/**
+ * Fetch one discovery list call → { items }. Resolves to { items: [] } on ANY failure
+ * (never throws) — mirrors fetchInfo's posture against /api/lastfm/discovery.
+ */
+async function fetchList<T>(params: Record<string, string>): Promise<LastfmList<T>> {
+	try {
+		const qs = new URLSearchParams(params).toString();
+		const res = await fetch(`/api/lastfm/discovery?${qs}`);
+		const data = (await res.json()) as LastfmList<T>;
+		return data ?? { items: [] };
+	} catch {
+		return { items: [] };
+	}
+}
+
+/** Global trending songs (DISCO-01 — Top hits shelf). */
+export async function getChartTopTracks(limit = 30): Promise<DiscoveryTrack[]> {
+	const data = await fetchList<DiscoveryTrack>({
+		method: 'chart.gettoptracks',
+		limit: String(limit)
+	});
+	return data.items ?? [];
+}
+
+/** Global top artists (DISCO-01 — Top artists shelf; tap → /artist/[name]). */
+export async function getChartTopArtists(limit = 30): Promise<DiscoveryArtist[]> {
+	const data = await fetchList<DiscoveryArtist>({
+		method: 'chart.gettopartists',
+		limit: String(limit)
+	});
+	return data.items ?? [];
+}
+
+/** Top tracks for a genre/mood tag (DISCO-02 — per-tag shelf). */
+export async function getTagTopTracks(tag: string, limit = 30): Promise<DiscoveryTrack[]> {
+	const data = await fetchList<DiscoveryTrack>({
+		method: 'tag.gettoptracks',
+		tag,
+		limit: String(limit)
+	});
+	return data.items ?? [];
+}
+
+/**
+ * Top tracks for a country (DISCO-03 — per-country shelf). NOTE: `country` is the
+ * ISO 3166-1 NAME (e.g. `United States`), NOT the code (e.g. `US`) — per FEATURES.md.
+ */
+export async function getGeoTopTracks(country: string, limit = 30): Promise<DiscoveryTrack[]> {
+	const data = await fetchList<DiscoveryTrack>({
+		method: 'geo.gettoptracks',
+		country,
+		limit: String(limit)
+	});
+	return data.items ?? [];
+}
+
+/** An artist's top albums (D-04 — real artist-page album list). */
+export async function getArtistTopAlbums(artist: string, limit = 30): Promise<DiscoveryAlbum[]> {
+	const data = await fetchList<DiscoveryAlbum>({
+		method: 'artist.gettopalbums',
+		artist,
+		limit: String(limit)
+	});
+	return data.items ?? [];
+}
+
+/**
+ * An album's ordered tracklist (D-05 — real album-page tracklist). Unlike the other
+ * builders this consumes the Task-2 /api/lastfm/info album.getinfo `tracks` field, not
+ * the discovery list endpoint. Returns [] on any failure / absent-key miss.
+ */
+export async function getAlbumTracklist(
+	album: string,
+	artist: string
+): Promise<{ artist: string; title: string }[]> {
+	const info = await fetchInfo({ method: 'album.getinfo', album, artist });
+	return info.tracks ?? [];
 }

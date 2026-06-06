@@ -52,14 +52,20 @@ pnpm check        # svelte-check (TypeScript, strict)
 pnpm test         # run the Vitest suite (58 tests)
 ```
 
-### Deploy (Cloudflare Pages)
+## Deployment
 
-```bash
-pnpm build
-pnpm exec wrangler pages deploy .svelte-kit/cloudflare --project-name openmusic
-```
+Pushes to **`main`** auto-deploy to **Cloudflare Pages** (project `openmusic`,
+<https://openmusic.pages.dev>) via Cloudflare's **native Git integration** — no
+GitHub Actions, no GitHub secrets, no manual `wrangler deploy`. The `/api/*` proxy
+ships inside the same Pages build (`adapter-cloudflare` → `_worker.js`). Node 22 is
+pinned via `.nvmrc` + `package.json` `engines.node`.
 
-The JOOX token must be set as a Pages secret (`wrangler pages secret put JOOX_TOKEN --project-name openmusic`); locally it goes in a gitignored `.dev.vars`.
+Production runtime secrets (`JOOX_TOKEN` **required**; `LASTFM_KEY` / `LASTFM_SECRET`
+optional) must be set in the Pages dashboard, or `/api/*` breaks in production.
+
+See **[docs/DEPLOY.md](docs/DEPLOY.md)** for the one-time dashboard setup, the exact
+build settings, the full env-var reminder, and a manual `wrangler` fallback. Locally,
+secrets go in a gitignored `.dev.vars` for `pnpm preview`.
 
 ## Project layout
 

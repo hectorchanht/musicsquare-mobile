@@ -601,12 +601,14 @@
 		.al-name:global(.marquee-on),
 		.al-count:global(.marquee-on) {
 			text-overflow: clip;
-			animation: marquee-bounce 5s ease-in-out infinite alternate;
+			/* LINEAR (no ease wobble) + duration set by the action ∝ overflow (constant slow
+			   speed). alternate = reveal to the end, hold, glide back. */
+			animation: marquee-scroll var(--marquee-dur, 6s) linear infinite alternate;
 		}
 	}
-	@keyframes marquee-bounce {
-		0%, 15% { text-indent: 0; }
-		85%, 100% { text-indent: calc(-1 * var(--marquee-dx, 0px)); }
+	@keyframes marquee-scroll {
+		0%, 25% { text-indent: 0; } /* hold at start so the beginning is readable */
+		75%, 100% { text-indent: calc(-1 * var(--marquee-dx, 0px)); } /* hold fully revealed */
 	}
 	/* Fallback grid (D-06). */
 	.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }

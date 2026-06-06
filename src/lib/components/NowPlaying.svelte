@@ -61,16 +61,36 @@
 	let lyricsEl = $state<HTMLElement | null>(null);
 	let autoScroll = $state(true);
 	let idleTimer: ReturnType<typeof setTimeout> | null = null;
+	// Touch-presence auto-scroll: pause WHILE a finger is down (or wheel is active), resume a
+	// short grace after release — NOT a blind fixed idle timer. lyricsTouched only pauses;
+	// lyricsReleased schedules the resume.
 	function lyricsTouched() {
 		autoScroll = false;
 		if (idleTimer) clearTimeout(idleTimer);
-		idleTimer = setTimeout(() => (autoScroll = true), 2500);
+	}
+	function lyricsReleased() {
+		if (idleTimer) clearTimeout(idleTimer);
+		idleTimer = setTimeout(() => (autoScroll = true), 600);
+	}
+	function lyricsWheel() {
+		// No release event for a wheel — pause, then schedule the same grace resume.
+		lyricsTouched();
+		lyricsReleased();
 	}
 	$effect(() => {
 		const idx = activeLine;
 		if (tab !== 'lyrics' || !autoScroll || idx < 0 || !lyricsEl) return;
-		const el = lyricsEl.querySelectorAll('p')[idx];
-		if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		const el = lyricsEl.querySelectorAll('p')[idx] as HTMLElement | undefined;
+		// Scope the scroll to the bounded .panel container (the overflow-y:auto scroller) and
+		// move it manually — never the ancestor-walking scroll-into-view API, which yanks the
+		// sheet to full in half mode. Compute the line's offset RELATIVE TO the container via rect deltas
+		// (offsetParent-agnostic), then center it inside the panel without changing sheetState.
+		const container = lyricsEl.closest('.panel') as HTMLElement | null;
+		if (!el || !container) return;
+		const elRect = el.getBoundingClientRect();
+		const cRect = container.getBoundingClientRect();
+		const offsetWithin = elRect.top - cRect.top + container.scrollTop; // line top in container scroll-space
+		container.scrollTo({ top: offsetWithin - container.clientHeight / 2 + el.offsetHeight / 2, behavior: 'smooth' });
 	});
 
 	// ---- lyrics translation ----
@@ -203,6 +223,7 @@
 	let sheetState = $state<SheetState>('closed');
 	let sheetEl = $state<HTMLElement | null>(null);
 	let transportEl = $state<HTMLElement | null>(null); // transport row → live bottom edge for flush half offset
+	let coverEl = $state<HTMLElement | null>(null); // cover banner → its 0.32s reflow must settle before re-measuring halfOffset
 	let sheetDragY = $state(0); // px in full-coordinates (0 = full, closedOffset = closed)
 	let sheetDragging = $state(false); // forces absolute layout while dragging/snapping
 	let gripActive = $state(false); // true only while finger is down (transition off)
@@ -347,8 +368,35 @@
 	// flush offset whenever the sheet rests in half (and on layout-affecting changes).
 	// SEPARATE from the back-gesture $effect above — measureOffsets() is idempotent and
 	// guards on null refs.
+	//
+	// BUG-2 ROOT CAUSE FIX: the .cover runs a 0.32s width/height/margin reflow when entering
+	// half/full. Measuring transportEl.bottom DURING that transition overshoots by the
+	// cover-shrink delta → a visible dead gap. So defer the measurement until the reflow has
+	// SETTLED: re-measure on the cover's transitionend (one-shot) AND via a double-rAF + a
+	// ~340ms timeout fallback for the cases where no transition fires (already-reflowed tap
+	// into half, or prefers-reduced-motion). All listeners/timers are torn down on cleanup so
+	// nothing leaks or fires after the sheet leaves half.
 	$effect(() => {
-		if (sheetState === 'half' && !sheetDragging) measureOffsets();
+		if (sheetState !== 'half' || sheetDragging) return;
+		// Measure immediately (best-effort) then again once the reflow settles for the flush value.
+		measureOffsets();
+		let raf1 = 0;
+		let raf2 = 0;
+		const onSettled = () => measureOffsets();
+		const cover = coverEl;
+		cover?.addEventListener('transitionend', onSettled, { once: true });
+		// double-rAF: wait two frames so layout has flushed, then re-measure.
+		raf1 = requestAnimationFrame(() => {
+			raf2 = requestAnimationFrame(onSettled);
+		});
+		// timeout fallback (> the 0.32s reflow) for when no transitionend fires at all.
+		const fallback = setTimeout(onSettled, 340);
+		return () => {
+			cover?.removeEventListener('transitionend', onSettled);
+			if (raf1) cancelAnimationFrame(raf1);
+			if (raf2) cancelAnimationFrame(raf2);
+			clearTimeout(fallback);
+		};
 	});
 
 	// ---- Up-Next reorder: custom pointer/touch drag on the far-right grip handle ----
@@ -410,6 +458,7 @@
 		class="cover"
 		role="button"
 		tabindex="0"
+		bind:this={coverEl}
 		aria-label={t('nowplaying.albumArt')}
 		onpointerdown={coverDown}
 		onpointermove={coverMove}
@@ -497,7 +546,7 @@
 			{:else if tab === 'lyrics'}
 				{#if lines.length}
 					{#if translating}<p class="tr-hint">{t('nowplaying.translating')}</p>{/if}
-					<div class="lyrics" role="group" aria-label={t('nowplaying.lyrics')} bind:this={lyricsEl} onpointerdown={lyricsTouched} onwheel={lyricsTouched}>
+					<div class="lyrics" role="group" aria-label={t('nowplaying.lyrics')} bind:this={lyricsEl} onpointerdown={lyricsTouched} onpointerup={lyricsReleased} onpointercancel={lyricsReleased} onwheel={lyricsWheel}>
 						{#each lines as l, i (i)}
 							<p class:active={i === activeLine}>
 								{#if showTr && settings.translateMode === 'replace'}

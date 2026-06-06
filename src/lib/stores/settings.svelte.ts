@@ -40,7 +40,24 @@ const KEY = 'openmusic:settings:v1';
 const DEFAULT_ACCENT = '#7c5cff';
 
 /** Source-language tags usable in a per-part skip whitelist (LyricsLang minus 'off'). */
-export type SourceLang = 'zh-Hant' | 'zh-Hans' | 'en' | 'ja' | 'ko';
+export type SourceLang =
+	| 'zh-Hant'
+	| 'zh-Hans'
+	| 'en'
+	| 'ja'
+	| 'ko'
+	| 'es'
+	| 'fr'
+	| 'de'
+	| 'pt'
+	| 'it'
+	| 'ru'
+	| 'tr'
+	| 'ar'
+	| 'hi'
+	| 'id'
+	| 'vi'
+	| 'th';
 
 class Settings {
 	/** UI-chrome language (separate from content translation; stays en/zh-Hant/zh-Hans). */

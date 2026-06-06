@@ -34,7 +34,19 @@
 		{ v: 'zh-Hans', label: '简体中文' },
 		{ v: 'en', label: 'English' },
 		{ v: 'ja', label: '日本語' },
-		{ v: 'ko', label: '한국어' }
+		{ v: 'ko', label: '한국어' },
+		{ v: 'es', label: 'Español' },
+		{ v: 'fr', label: 'Français' },
+		{ v: 'de', label: 'Deutsch' },
+		{ v: 'pt', label: 'Português' },
+		{ v: 'it', label: 'Italiano' },
+		{ v: 'ru', label: 'Русский' },
+		{ v: 'tr', label: 'Türkçe' },
+		{ v: 'ar', label: 'العربية' },
+		{ v: 'hi', label: 'हिन्दी' },
+		{ v: 'id', label: 'Bahasa Indonesia' },
+		{ v: 'vi', label: 'Tiếng Việt' },
+		{ v: 'th', label: 'ไทย' }
 	];
 	const modes: { v: TranslateMode; key: string }[] = [
 		{ v: 'replace', key: 'settings.optReplace' },

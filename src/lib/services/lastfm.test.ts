@@ -1,5 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { enrichTrack, enrichArtist, enrichAlbum } from './lastfm';
+import {
+	enrichTrack,
+	enrichArtist,
+	enrichAlbum,
+	getChartTopTracks,
+	getChartTopArtists,
+	getTagTopTracks,
+	getGeoTopTracks,
+	getArtistTopAlbums,
+	getAlbumTracklist
+} from './lastfm';
 import type { Track } from '$lib/sources/types';
 
 // services/lastfm.ts is the CLIENT enrichment service. It only ever sees the clean
@@ -176,5 +186,165 @@ describe('enrichArtist / enrichAlbum — clean shapes consumed by Plans 02/03', 
 			})
 		);
 		await expect(enrichArtist('X')).resolves.toEqual(EMPTY);
+	});
+});
+
+// Phase 9 (D-02): discovery list builders hit /api/lastfm/discovery (lists) — except
+// getAlbumTracklist which consumes the Task-2 /api/lastfm/info album.getinfo tracks
+// field. Each returns a clean list and NEVER throws ([] on any failure / absent-key
+// empty shape). The LASTFM_KEY stays server-side; these only see the clean shape.
+describe('discovery list builders — clean lists, never throw', () => {
+	/** Stub /api/lastfm/discovery returning a fixed { items } list. */
+	function stubDiscovery(items: object[]) {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(JSON.stringify({ items }), { status: 200 }))
+		);
+	}
+
+	it('getChartTopTracks returns the { artist, title, image }[] items', async () => {
+		stubDiscovery([
+			{ artist: '周杰伦', title: '稻香', image: 'https://lastfm/a.png' },
+			{ artist: 'Ed Sheeran', title: 'Perfect', image: null }
+		]);
+		const out = await getChartTopTracks();
+		expect(out).toEqual([
+			{ artist: '周杰伦', title: '稻香', image: 'https://lastfm/a.png' },
+			{ artist: 'Ed Sheeran', title: 'Perfect', image: null }
+		]);
+	});
+
+	it('getChartTopArtists returns the { name, image }[] items', async () => {
+		stubDiscovery([{ name: '周杰伦', image: 'https://lastfm/jay.png' }]);
+		const out = await getChartTopArtists();
+		expect(out).toEqual([{ name: '周杰伦', image: 'https://lastfm/jay.png' }]);
+	});
+
+	it('getTagTopTracks passes the tag through and returns track items', async () => {
+		let capturedUrl = '';
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (input: RequestInfo | URL) => {
+				capturedUrl = String(input);
+				return new Response(JSON.stringify({ items: [{ artist: 'A', title: 'T', image: null }] }), {
+					status: 200
+				});
+			})
+		);
+		const out = await getTagTopTracks('mandopop');
+		expect(capturedUrl).toContain('method=tag.gettoptracks');
+		expect(capturedUrl).toContain('tag=mandopop');
+		expect(out).toEqual([{ artist: 'A', title: 'T', image: null }]);
+	});
+
+	it('getGeoTopTracks passes the ISO 3166-1 NAME (country) through', async () => {
+		let capturedUrl = '';
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (input: RequestInfo | URL) => {
+				capturedUrl = String(input);
+				return new Response(JSON.stringify({ items: [{ artist: 'A', title: 'T', image: null }] }), {
+					status: 200
+				});
+			})
+		);
+		const out = await getGeoTopTracks('United States');
+		expect(capturedUrl).toContain('method=geo.gettoptracks');
+		expect(capturedUrl).toContain(encodeURIComponent('United States'));
+		expect(out).toHaveLength(1);
+	});
+
+	it('getArtistTopAlbums passes the artist through and returns { name, image }[]', async () => {
+		let capturedUrl = '';
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (input: RequestInfo | URL) => {
+				capturedUrl = String(input);
+				return new Response(JSON.stringify({ items: [{ name: '魔杰座', image: null }] }), {
+					status: 200
+				});
+			})
+		);
+		const out = await getArtistTopAlbums('周杰伦');
+		expect(capturedUrl).toContain('method=artist.gettopalbums');
+		expect(capturedUrl).toContain(encodeURIComponent('周杰伦'));
+		expect(out).toEqual([{ name: '魔杰座', image: null }]);
+	});
+
+	it('getAlbumTracklist consumes /api/lastfm/info album.getinfo tracks (D-05)', async () => {
+		let capturedUrl = '';
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (input: RequestInfo | URL) => {
+				capturedUrl = String(input);
+				return new Response(
+					JSON.stringify({
+						tags: [],
+						bio: null,
+						bioUrl: null,
+						image: null,
+						listeners: null,
+						playcount: null,
+						tracks: [
+							{ artist: '周杰伦', title: '稻香' },
+							{ artist: '周杰伦', title: '魔术先生' }
+						]
+					}),
+					{ status: 200 }
+				);
+			})
+		);
+		const out = await getAlbumTracklist('魔杰座', '周杰伦');
+		expect(capturedUrl).toContain('/api/lastfm/info');
+		expect(capturedUrl).toContain('method=album.getinfo');
+		expect(out).toEqual([
+			{ artist: '周杰伦', title: '稻香' },
+			{ artist: '周杰伦', title: '魔术先生' }
+		]);
+	});
+
+	it('getAlbumTracklist returns [] when info has no tracks (absent-key / miss)', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({
+							tags: [],
+							bio: null,
+							bioUrl: null,
+							image: null,
+							listeners: null,
+							playcount: null
+						}),
+						{ status: 200 }
+					)
+			)
+		);
+		await expect(getAlbumTracklist('X', 'Y')).resolves.toEqual([]);
+	});
+
+	it('every builder returns [] when fetch throws (never throws)', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => {
+				throw new Error('network down');
+			})
+		);
+		await expect(getChartTopTracks()).resolves.toEqual([]);
+		await expect(getChartTopArtists()).resolves.toEqual([]);
+		await expect(getTagTopTracks('pop')).resolves.toEqual([]);
+		await expect(getGeoTopTracks('China')).resolves.toEqual([]);
+		await expect(getArtistTopAlbums('X')).resolves.toEqual([]);
+		await expect(getAlbumTracklist('A', 'B')).resolves.toEqual([]);
+	});
+
+	it('builders return [] on the absent-key empty list shape', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(JSON.stringify({ items: [] }), { status: 200 }))
+		);
+		await expect(getChartTopTracks()).resolves.toEqual([]);
+		await expect(getChartTopArtists()).resolves.toEqual([]);
 	});
 });

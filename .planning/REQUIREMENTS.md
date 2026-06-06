@@ -173,7 +173,38 @@ Each v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for ph
 
 **Per-phase counts (v1.0):** Phase 1: 5 (DATA-01..04, SRC-01) · Phase 2: 4 (PLAY-01..04) · Phase 3: 4 (LIB-01..04) · Phase 4: 8 (UI-01..08) · Phase 5: 2 (PWA-01..02) · Phase 6: 1 (PLAY-05) · Phase 7: 4 (SRC-02, SRC-03, PLAY-06, UI-09)
 
-**v1.1 (Last.fm Integration):** 19 requirements (ENRICH-01..03, DISCO-01..04, LFSRC-01..03, LFAUTH-01..04, SCROB-01..03, LOVE-01..02) — traceability rows for phases 8–13 populated at v1.1 roadmap creation.
+### Traceability (v1.1 — Last.fm Integration)
+
+Each v1.1 requirement maps to exactly one phase (8–13). See `.planning/ROADMAP.md` ## Milestone v1.1 for phase detail.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| ENRICH-01 | Phase 8 | Pending |
+| ENRICH-02 | Phase 8 | Pending |
+| ENRICH-03 | Phase 8 | Pending |
+| DISCO-01 | Phase 9 | Pending |
+| DISCO-02 | Phase 9 | Pending |
+| DISCO-03 | Phase 9 | Pending |
+| DISCO-04 | Phase 9 | Pending |
+| LFSRC-01 | Phase 10 | Pending |
+| LFSRC-02 | Phase 10 | Pending |
+| LFSRC-03 | Phase 10 | Pending |
+| LFAUTH-01 | Phase 11 | Pending |
+| LFAUTH-02 | Phase 11 | Pending |
+| LFAUTH-03 | Phase 11 | Pending |
+| LFAUTH-04 | Phase 11 | Pending |
+| SCROB-01 | Phase 12 | Pending |
+| SCROB-02 | Phase 12 | Pending |
+| SCROB-03 | Phase 12 | Pending |
+| LOVE-01 | Phase 13 | Pending |
+| LOVE-02 | Phase 13 | Pending |
+
+**Coverage (v1.1):**
+- v1.1 requirements: 19 total
+- Mapped to phases: 19 ✓
+- Unmapped: 0 ✓
+
+**Per-phase counts (v1.1):** Phase 8: 3 (ENRICH-01..03) · Phase 9: 4 (DISCO-01..04) · Phase 10: 3 (LFSRC-01..03) · Phase 11: 4 (LFAUTH-01..04) · Phase 12: 3 (SCROB-01..03) · Phase 13: 2 (LOVE-01..02)
 
 ---
 *Requirements defined: 2026-06-05*

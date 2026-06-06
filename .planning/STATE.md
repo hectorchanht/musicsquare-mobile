@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Last.fm Integration
-status: planning
-last_updated: "2026-06-05T20:42:21.675Z"
-last_activity: 2026-06-05
+status: ready-to-plan
+last_updated: "2026-06-06T00:00:00.000Z"
+last_activity: 2026-06-06
 progress:
-  total_phases: 0
+  total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,14 +20,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-05)
 
 **Core value:** A user on their phone can search a song, tap it, and have it play instantly with a smooth, native-app-like experience — and keep playing when the screen locks.
-**Current focus:** Phase 1 — Data Layer + Proxy Foundation
+**Current focus:** Phase 8 — Last.fm Read Foundation & Metadata Enrichment (v1.1)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-06-05 — Completed quick task 260606-6p7: app-language selector + whole-app i18n (en/zh-Hant/zh-Hans)
+Milestone: v1.1 — Last.fm Integration (Phases 8–13)
+Phase: Phase 8 — Last.fm Read Foundation & Metadata Enrichment
+Plan: — (not yet planned)
+Status: Defined — ready to plan (`/gsd:plan-phase 8`)
+Last activity: 2026-06-06 — Created v1.1 roadmap (Phases 8–13): all 19 Last.fm requirements mapped, 100% coverage
 
 ## Performance Metrics
 
@@ -57,6 +58,9 @@ Last activity: 2026-06-05 — Completed quick task 260606-6p7: app-language sele
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- [Roadmap v1.1]: Read-only-first phase order — enrichment (8), discovery (9), source (10) ship value with zero auth surface before the highest-risk signed-call infrastructure + auth lands once (11), then scrobble (12) and loved-sync (13) layer on top. Auth cannot move earlier: scrobble/loved-sync hard-depend on the `sk` cookie.
+- [Roadmap v1.1]: Last.fm-searchable source resolves via the EXISTING CN-source re-search resolver (searchAll + dedupeBest + best-match scoring). GD Studio `ytmusic` is OUT of v1.1 (deferred to v2 / LFSRC-FB-01); would need its own feasibility spike if pulled in.
+- [Roadmap v1.1]: `LASTFM_SECRET` + session key stay edge-only; sk in an httpOnly+Secure+SameSite cookie, never localStorage, never in a response body (JOOX_TOKEN parity / threats T-lfm-01/02/03). The match-key normalization primitive lands in Phase 8 and is reused by Phase 13 reconciliation.
 - [Roadmap]: Bottom-up phase order — extract data layer + prove proxy boundary headless before any UI is built (avoids building on an audio engine whose iOS behavior is unproven).
 - [Roadmap]: Proxy metadata only through SvelteKit `+server.ts`; audio bytes stream browser → CDN directly (preserves geo/IP context, stays within Worker free-tier limits).
 - [Roadmap]: Single module-scoped `<audio>` element owned by an `AudioEngine` singleton; Svelte 5 runes in `.svelte.ts` for all shared state; source-adapter registry so adding a source touches only new files.
@@ -73,6 +77,9 @@ None yet.
 
 - [Phase 1]: Worker egress geo-behavior against JOOX/QQ audio CDNs is unconfirmed — spike required before the audio data-flow architecture is locked. Research flag set.
 - [Phase 6]: iOS standalone-PWA background audio is contested (STACK.md vs PITFALLS.md); only a real-device spike (iOS 15.4 / 16 / 17 / 18 / 18.4+) covering play-while-locked AND pause→wait→resume-from-lock can resolve it. Research flag set.
+- [Phase 11]: Highest-risk v1.1 surface — owns T-lfm-01/02/03 (secret/sk leakage, CSRF) + `api_sig` UTF-8/CJK correctness. Mandatory `周杰伦`/`稻香` signing fixture test must run in the workerd/`wrangler dev` runtime (throws NotSupportedError under jsdom/Node — that's runtime, not a code bug).
+- [Phase 13]: May need `/gsd:plan-phase --research-phase 13` IF CJK normalization proves complex (Traditional/Simplified folding, CJK punctuation variants, "ghost" loved stubs with no playable source).
+- [Phase 10]: GD Studio `ytmusic` is deferred from v1.1; if ever pulled in it warrants its own feasibility spike (`s`-checksum drift, 50 req/5 min cap, instance failover, Western-catalog match rate).
 
 ### Quick Tasks Completed
 
@@ -108,6 +115,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-05T11:27:49.472Z
-Stopped at: Phase 1 planned — 4 plans, 3 waves
-Resume file: .planning/phases/01-data-layer-proxy-foundation/01-01-PLAN.md
+Last session: 2026-06-06
+Stopped at: v1.1 roadmap created — Phases 8–13 defined, 19/19 requirements mapped (100% coverage)
+Resume: `/gsd:plan-phase 8` (Last.fm Read Foundation & Metadata Enrichment)

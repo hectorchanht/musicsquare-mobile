@@ -4,13 +4,13 @@ milestone: v1.1
 milestone_name: Last.fm Integration
 status: executing
 stopped_at: "Phase 9 executed — 3/3 plans + code-review fixes (CR-01 image XSS, WR-01..04); pnpm check clean, 165/165 tests. SECURITY.md pending for 8 & 9 (/gsd:secure-phase)."
-last_updated: "2026-06-06T12:16:23.200Z"
-last_activity: 2026-06-06 -- Phase 14 planning complete
+last_updated: "2026-06-06T13:32:13.857Z"
+last_activity: 2026-06-06
 progress:
   total_phases: 7
   completed_phases: 2
-  total_plans: 8
-  completed_plans: 6
+  total_plans: 9
+  completed_plans: 7
   percent: 29
 ---
 
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-05)
 
 **Core value:** A user on their phone can search a song, tap it, and have it play instantly with a smooth, native-app-like experience — and keep playing when the screen locks.
-**Current focus:** Phase 9 — Discovery / Hot-Picks Tab
+**Current focus:** Phase 14 — search-data-responsiveness-first-load-search-skeleton-search
 
 ## Current Position
 
 Milestone: v1.1 — Last.fm Integration (Phases 8–13)
-Phase: 9 (Discovery / Hot-Picks Tab) — EXECUTING
-Plan: 3 of 3
+Phase: 14 (search-data-responsiveness-first-load-search-skeleton-search) — EXECUTING
+Plan: 2 of 2
 Status: Ready to execute
-Last activity: 2026-06-06 - Completed quick task 260606-t5r: prefetch next track for gapless-ish play
+Last activity: 2026-06-06
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Last activity: 2026-06-06 - Completed quick task 260606-t5r: prefetch next track
 | Phase 09 P01 | 9min | 3 tasks | 8 files |
 | Phase 09 P02 | 4min | 3 tasks | 6 files |
 | Phase 09 P03 | 7min | 3 tasks | 5 files |
+| Phase 14 P01 | 8min | 4 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,10 @@ Recent decisions affecting current work:
 - [Phase ?]: 09-02: Home is the Last.fm discovery surface — FOUR shelves (top hits / top artists / per-tag / per-country); tag+country fan-out capped via mapWithConcurrency (≤4 in-flight, Pitfall 11); v2 localStorage shelf cache + background revalidate
 - [Phase ?]: 09-02: Discovery tracks are {artist,title} stubs — tap-to-play resolves via resolveStub (searchAll+dedupeBest) then player.play (D-03); top-artist tiles goto to the artist page; buildDiversePicks stays as the no-key/empty fallback (D-06)
 - [Phase ?]: 09-03: album artist carried via ?artist= URL query param (artist-page link), read with page.url.searchParams.get — replaces the tracks[0]?.artist derivation; the album tracklist is the real album.getInfo ordered stubs resolved on tap via resolveStub
+- [Phase 14-01]: D-04 TTL cache wraps the searchAll seam (key=normQuery|sources|page, 5-min TTL, __clearSearchCache() for tests); caches final merged superset metadata only, never audio URLs
+- [Phase 14-01]: D-03 client-ladder reorder via pure pickByQualityPref; settings.defaultQuality default auto->128 read by QQ(STD)/JOOX(probe order)/Kuwo(level=128k best-effort) adapters importing settings directly; JOOX_BR=4 untouched (proxy.test.ts green)
+- [Phase 14-01]: D-05 searchHistory store (key openmusic:search-history:v1, cap 12) DISTINCT in symbol+key from play-history; pure recordQuery/parseSearchHistory + thin browser-guarded runes wrapper
+- [Phase 14-01]: D-06 progressive searchAll via optional trailing onPartial (non-breaking); accumulate->re-interleave->emit with sig.aborted guard in .finally; cache HIT fires onPartial once with pending:0
 
 ### Pending Todos
 
@@ -138,6 +143,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-06T08:36:29.252Z
+Last session: 2026-06-06T13:30:54.853Z
 Stopped at: Phase 9 executed — 3/3 plans + code-review fixes (CR-01 image XSS, WR-01..04); pnpm check clean, 165/165 tests. SECURITY.md pending for 8 & 9 (/gsd:secure-phase).
 Resume: verify phase 9 (run /gsd:verify-phase 9) — all 3 plans complete

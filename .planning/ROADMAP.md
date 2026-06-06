@@ -311,7 +311,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 14-01-PLAN.md — Service layer: D-04 TTL cache wrap of searchAll + D-06 progressive onPartial streaming + D-03 quality wiring (pickByQualityPref, default '128') + D-05 pure search-history logic & runes store (wave 1)
+- [x] 14-01-PLAN.md — Service layer: D-04 TTL cache wrap of searchAll + D-06 progressive onPartial streaming + D-03 quality wiring (pickByQualityPref, default '128') + D-05 pure search-history logic & runes store (wave 1)
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -342,4 +342,4 @@ v1.1 dependency chain: 8 → (9, 10) read-only & auth-free first; 11 (auth) befo
 | 11. Signed-call Infrastructure & Auth | 0/TBD | Not started | - |
 | 12. Scrobbling (online-only) | 0/TBD | Not started | - |
 | 13. Loved-Tracks Sync | 0/TBD | Not started | - |
-| 14. Search & Data Responsiveness | 0/2 | Planned | - |
+| 14. Search & Data Responsiveness | 1/2 | In Progress|  |

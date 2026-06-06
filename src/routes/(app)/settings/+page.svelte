@@ -1,20 +1,20 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { ChevronLeft, ChevronRight, Globe, LayoutGrid, Languages, Music, Clock, Radio, Database, Info } from '@lucide/svelte';
+	import { ChevronLeft, ChevronRight, Globe, LayoutGrid, Languages, Music, Radio, Database, Info } from '@lucide/svelte';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { t, type TranslationKey } from '$lib/i18n';
 	import type { Component } from 'svelte';
 
 	onMount(() => settings.load());
 
-	// Group rows: order = general, home, translation, playback, history, lastfm, data, about.
+	// Group rows: order = general, home, translation, playback, lastfm, data, about.
+	// (Listen history moved to the Library page → /library "History" tab.)
 	const groups: { href: string; icon: Component; title: TranslationKey; desc: TranslationKey }[] = [
 		{ href: '/settings/general', icon: Globe, title: 'settings.groupGeneral', desc: 'settings.groupGeneralDesc' },
 		{ href: '/settings/home', icon: LayoutGrid, title: 'settings.groupHome', desc: 'settings.groupHomeDesc' },
 		{ href: '/settings/translation', icon: Languages, title: 'settings.groupTranslation', desc: 'settings.groupTranslationDesc' },
 		{ href: '/settings/playback', icon: Music, title: 'settings.groupPlayback', desc: 'settings.groupPlaybackDesc' },
-		{ href: '/settings/history', icon: Clock, title: 'settings.groupHistory', desc: 'settings.groupHistoryDesc' },
 		// { href: '/settings/lastfm', icon: Radio, title: 'settings.groupLastfm', desc: 'settings.groupLastfmDesc' },
 		{ href: '/settings/data', icon: Database, title: 'settings.groupData', desc: 'settings.groupDataDesc' },
 		{ href: '/settings/about', icon: Info, title: 'settings.groupAbout', desc: 'settings.groupAboutDesc' }

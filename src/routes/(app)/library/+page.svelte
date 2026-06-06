@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Heart, ListMusic, Download, Trash2, Play } from '@lucide/svelte';
+	import { Heart, ListMusic, Download, Trash2, Play, Clock } from '@lucide/svelte';
 	import { library } from '$lib/stores/library.svelte';
+	import { history } from '$lib/stores/history.svelte';
 	import { player } from '$lib/stores/player.svelte';
 	import { names } from '$lib/stores/names.svelte';
 	import { t } from '$lib/i18n';
@@ -9,12 +10,15 @@
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import type { Track } from '$lib/sources/types';
 
-	type Tab = 'liked' | 'playlists' | 'downloads';
+	type Tab = 'liked' | 'playlists' | 'downloads' | 'history';
 	let tab = $state<Tab>('liked');
 	let menuTrack = $state<Track | null>(null);
 	let menuOpen = $state(false);
 	function openMenu(t: Track) { menuTrack = t; menuOpen = true; }
-	onMount(() => library.load());
+	onMount(() => {
+		library.load();
+		history.load();
+	});
 
 	function fallbackCover(t: Track): string {
 		const h = (t.uid.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 47) % 360;
@@ -23,6 +27,11 @@
 	function playList(list: Track[], t: Track) {
 		player.setQueue(list);
 		player.play(t);
+	}
+	// Listen history: replay slice (audioUrl re-resolves on play), moved here from settings.
+	function playEntry(track: Track) {
+		player.setQueue(history.entries as Track[]);
+		player.play(track);
 	}
 </script>
 
@@ -34,6 +43,7 @@
 	<button class:active={tab === 'liked'} onclick={() => (tab = 'liked')}><Heart size={15} /> {t('library.liked')}</button>
 	<button class:active={tab === 'playlists'} onclick={() => (tab = 'playlists')}><ListMusic size={15} /> {t('library.playlists')}</button>
 	<button class:active={tab === 'downloads'} onclick={() => (tab = 'downloads')}><Download size={15} /> {t('library.downloads')}</button>
+	<button class:active={tab === 'history'} onclick={() => (tab = 'history')}><Clock size={15} /> {t('history.heading')}</button>
 </nav>
 
 {#if tab === 'liked'}
@@ -73,7 +83,7 @@
 			</section>
 		{/each}
 	{:else}<p class="empty"><ListMusic size={28} /><span>{t('library.noPlaylists')}</span></p>{/if}
-{:else}
+{:else if tab === 'downloads'}
 	{#if library.downloads.length}
 		<ul class="list">
 			{#each library.downloads as track (track.uid)}
@@ -88,6 +98,22 @@
 		</ul>
 		<p class="note">{t('library.downloadsNote')}</p>
 	{:else}<p class="empty"><Download size={28} /><span>{t('library.noDownloads')}</span></p>{/if}
+{:else}
+	{#if history.entries.length}
+		<ul class="list">
+			{#each history.entries as entry (entry.uid)}
+				{@const track = entry as Track}
+				<li>
+					<button class="row" use:longpress onlongpress={() => openMenu(track)} onclick={() => playEntry(track)}>
+						<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
+						<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
+						<Play size={16} />
+					</button>
+				</li>
+			{/each}
+		</ul>
+		<button class="clear-history" onclick={() => history.clear()}><Trash2 size={16} /> {t('history.clear')}</button>
+	{:else}<p class="empty"><Clock size={28} /><span>{t('history.empty')}</span></p>{/if}
 {/if}
 
 <TrackMenu track={menuTrack} open={menuOpen} onclose={() => (menuOpen = false)} />
@@ -114,4 +140,5 @@
 	.empty { display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--color-text-muted); padding: 48px 16px; text-align: center; font-size: 14px; }
 	.empty-sm { color: var(--color-text-muted); font-size: 13px; padding: 4px 8px; }
 	.note { color: var(--color-text-muted); font-size: 11px; margin-top: 12px; }
+	.clear-history { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; background: var(--color-surface-2); border: 1px solid var(--color-border); color: #ff7a90; padding: 10px 14px; border-radius: 12px; font-size: 14px; cursor: pointer; }
 </style>

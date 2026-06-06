@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Last.fm Integration
-status: executing
-stopped_at: Completed 09-01-PLAN.md (discovery data foundation)
-last_updated: "2026-06-06T08:05:58.657Z"
+status: verifying
+stopped_at: Completed 09-03-PLAN.md (artist top-albums + album tracklist select-to-play)
+last_updated: "2026-06-06T08:18:39.666Z"
 last_activity: 2026-06-06
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 5
-  percent: 17
+  completed_plans: 6
+  percent: 33
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-05)
 Milestone: v1.1 — Last.fm Integration (Phases 8–13)
 Phase: 9 (Discovery / Hot-Picks Tab) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-06
 
 ## Performance Metrics
@@ -54,6 +54,7 @@ Last activity: 2026-06-06
 | Phase 8 P03 | 5 | 1 tasks | 1 files |
 | Phase 09 P01 | 9min | 3 tasks | 8 files |
 | Phase 09 P02 | 4min | 3 tasks | 6 files |
+| Phase 09 P03 | 7min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,7 @@ Recent decisions affecting current work:
 - [Phase ?]: 09-01: Cache API cache key = own-origin discovery Request (secret never cached); per-method public TTLs charts 1h/tags 6h/topalbums 24h
 - [Phase ?]: 09-02: Home is the Last.fm discovery surface — FOUR shelves (top hits / top artists / per-tag / per-country); tag+country fan-out capped via mapWithConcurrency (≤4 in-flight, Pitfall 11); v2 localStorage shelf cache + background revalidate
 - [Phase ?]: 09-02: Discovery tracks are {artist,title} stubs — tap-to-play resolves via resolveStub (searchAll+dedupeBest) then player.play (D-03); top-artist tiles goto to the artist page; buildDiversePicks stays as the no-key/empty fallback (D-06)
+- [Phase ?]: 09-03: album artist carried via ?artist= URL query param (artist-page link), read with page.url.searchParams.get — replaces the tracks[0]?.artist derivation; the album tracklist is the real album.getInfo ordered stubs resolved on tap via resolveStub
 
 ### Pending Todos
 
@@ -129,6 +131,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-06T08:05:07.700Z
-Stopped at: Completed 09-01-PLAN.md (discovery data foundation)
-Resume: execute 08-03-PLAN.md (album-page art + info enrichment)
+Last session: 2026-06-06T08:17:50.841Z
+Stopped at: Completed 09-03-PLAN.md (artist top-albums + album tracklist select-to-play)
+Resume: verify phase 9 (run /gsd:verify-phase 9) — all 3 plans complete

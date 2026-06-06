@@ -66,7 +66,7 @@ Milestone v1.1 (Last.fm Integration). Optional/additive — local-first still wo
 ### Discovery / Hot Picks
 
 - [x] **DISCO-01**: User can browse global leaderboards — top tracks and top artists (chart.getTopTracks / chart.getTopArtists)
-- [ ] **DISCO-02**: User can browse by vibe / mood / genre tag — pick a tag and see its top tracks, artists, and albums (tag.getTopTracks / getTopArtists / getTopAlbums)
+- [x] **DISCO-02**: User can browse by vibe / mood / genre tag — pick a tag and see its top tracks, artists, and albums (tag.getTopTracks / getTopArtists / getTopAlbums)
 - [ ] **DISCO-03**: User can browse country / region charts (geo.getTopTracks / getTopArtists) for a curated set of countries
 - [x] **DISCO-04**: Discovery is a tab in the existing bottom-nav shell, fully usable signed-out, with Last.fm responses edge-cached to respect rate limits
 
@@ -183,7 +183,7 @@ Each v1.1 requirement maps to exactly one phase (8–13). See `.planning/ROADMAP
 | ENRICH-02 | Phase 8 | Complete |
 | ENRICH-03 | Phase 8 | Complete |
 | DISCO-01 | Phase 9 | Complete |
-| DISCO-02 | Phase 9 | Pending |
+| DISCO-02 | Phase 9 | Complete |
 | DISCO-03 | Phase 9 | Pending |
 | DISCO-04 | Phase 9 | Complete |
 | LFSRC-01 | Phase 10 | Pending |

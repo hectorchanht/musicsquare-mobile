@@ -156,7 +156,7 @@ Connects the standalone aggregator to Last.fm across four cross-cutting capabili
 ### Phases (v1.1)
 
 - [x] **Phase 8: Last.fm Read Foundation & Metadata Enrichment** - Edge Last.fm read proxy (`LASTFM_KEY` injected on the edge) + lazy, additive metadata enrichment (tags, bio, hi-res art) with placeholder-art filtering; establishes the reusable match-key normalization primitive (completed 2026-06-06)
-- [ ] **Phase 9: Discovery / Hot-Picks Tab** - Auth-free Explore tab — global charts, vibe/mood tag browsing, and country/region top-lists — edge-cached to respect rate limits
+- [x] **Phase 9: Discovery / Hot-Picks Tab** - Auth-free Explore tab — global charts, vibe/mood tag browsing, and country/region top-lists — edge-cached to respect rate limits (completed 2026-06-06)
 - [ ] **Phase 10: Last.fm-searchable Source** - A new "Last.fm" source whose discovered tracks resolve to playable audio via the existing CN-source resolver (best-match scoring); discovery becomes tap-to-play
 - [ ] **Phase 11: Signed-call Infrastructure & Auth** - `api_sig` signer on the edge (UTF-8/CJK-correct), Last.fm Web Auth sign-in/out, session key in an httpOnly cookie; gates all write features
 - [ ] **Phase 12: Scrobbling (online-only)** - When signed in, now-playing + exactly-once scrobble at the Last.fm threshold; a no-op and non-blocking when signed out
@@ -216,7 +216,7 @@ Plans:
 **Wave 2** *(blocked on Wave 1)*
 
 - [x] 09-02-PLAN.md — Home four-shelf Last.fm discovery surface (top hits / top artists / tag rows / country rows) + resolve-on-tap + buildDiversePicks fallback (checkpoint)
-- [ ] 09-03-PLAN.md — Artist real artist.getTopAlbums + album real album.getInfo tracklist with select-to-play via resolveStub (checkpoint)
+- [x] 09-03-PLAN.md — Artist real artist.getTopAlbums + album real album.getInfo tracklist with select-to-play via resolveStub (checkpoint)
 
 **UI hint**: yes
 **Research flag**: Standard SvelteKit `+page.ts` SSR `load` + Cloudflare Cache API TTL caching. No `--research-phase` needed.
@@ -306,7 +306,7 @@ v1.1 dependency chain: 8 → (9, 10) read-only & auth-free first; 11 (auth) befo
 | 6. Background Audio + MediaSession | 0/TBD | Not started | - |
 | 7. New Sources + Queue Model + Gestures | 0/TBD | Not started | - |
 | 8. Last.fm Read Foundation & Metadata Enrichment | 3/3 | Complete   | 2026-06-06 |
-| 9. Discovery / Hot-Picks Tab | 2/3 | In Progress|  |
+| 9. Discovery / Hot-Picks Tab | 3/3 | Complete   | 2026-06-06 |
 | 10. Last.fm-searchable Source | 0/TBD | Not started | - |
 | 11. Signed-call Infrastructure & Auth | 0/TBD | Not started | - |
 | 12. Scrobbling (online-only) | 0/TBD | Not started | - |

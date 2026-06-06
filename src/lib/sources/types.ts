@@ -47,6 +47,12 @@ export interface Track {
 	jooxQualityText?: string | null;
 	pay?: string | null; // QQ paywall signal
 	pageUrl?: string; // QQ
+
+	// --- Last.fm enrichment (Phase 8, additive/optional) — never overwrites source data ---
+	tags?: string[]; // top-5 display tags
+	bio?: string; // English bio snippet, HTML-stripped (D-07)
+	bioUrl?: string; // Last.fm attribution link, REQUIRED when bio shown (D-08)
+	lastfmArt?: string; // hi-res cover candidate, placeholder-filtered (D-04)
 }
 
 export interface SourceAdapter {

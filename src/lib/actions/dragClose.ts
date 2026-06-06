@@ -1,4 +1,5 @@
 import type { Action } from 'svelte/action';
+import { createVelocityTracker } from '$lib/gestures/velocity';
 
 // use:dragClose — finger-drag-DOWN to dismiss any sheet/modal element.
 // Mirrors NowPlaying's coverDown/coverMove/coverUp live-drag idiom.
@@ -7,12 +8,14 @@ import type { Action } from 'svelte/action';
 //  - While the finger is down the node follows it via inline translateY (transition
 //    off) — a live, finger-following drag, never a tap-then-snap.
 //  - On release: dragged DOWN past `threshold` (default 120px, matching the cover's
-//    existing 120px) → call onclose() immediately so the host's existing {#if}
-//    transition:fly plays the close animation (we reset our inline transform first
-//    so the fly-out starts clean). Below threshold → animate back to 0 (snap-back).
+//    existing 120px) OR a fast downward flick (velocity > V with dy > 8) → call onclose()
+//    immediately so the host's existing {#if} transition:fly plays the close animation (we
+//    reset our inline transform first so the fly-out starts clean). Below threshold and no
+//    flick → animate back to 0 (snap-back).
 //  - TAP-PRESERVING: we never preventDefault on pointerdown and only dismiss when the
-//    release distance exceeds `threshold` (a tap is dy<8 ⇒ no dismiss), so child
-//    onclick handlers (e.g. `.mi` menu buttons) keep firing normally.
+//    release distance exceeds `threshold` OR a deliberate flick is detected; a tap (dy<8,
+//    low velocity) NEVER dismisses, so child onclick handlers (e.g. `.mi` menu buttons)
+//    keep firing normally.
 //  - touch-action:none + user-select:none are set on attach so a drag never selects
 //    text or scrolls the page on mobile.
 //  - Reactive `update(opts)` swaps onclose / toggles `enabled`. `enabled:false` makes
@@ -31,6 +34,8 @@ export const dragClose: Action<HTMLElement, DragCloseOpts> = (node, opts) => {
 	let dragging = false;
 	let startY = 0;
 	let dy = 0;
+	const vel = createVelocityTracker();
+	const FLICK_V = 0.5; // px/ms — a fast downward flick dismisses even when not dragged far
 
 	// Prevent text-selection / page-scroll while dragging on touch devices.
 	node.style.touchAction = 'none';
@@ -47,18 +52,24 @@ export const dragClose: Action<HTMLElement, DragCloseOpts> = (node, opts) => {
 		dragging = true;
 		startY = e.clientY;
 		dy = 0;
+		vel.reset();
+		vel.sample(e.clientY, e.timeStamp);
 		node.setPointerCapture(e.pointerId);
 		node.style.transition = 'none';
 	}
 	function move(e: PointerEvent) {
 		if (!dragging) return;
+		vel.sample(e.clientY, e.timeStamp);
 		dy = Math.max(0, e.clientY - startY);
 		node.style.transform = `translateY(${dy}px)`;
 	}
 	function up() {
 		if (!dragging) return;
 		dragging = false;
-		if (dy > threshold) {
+		// Dismiss on a far drag OR a fast downward flick (v > 0 = moving DOWN). The dy > 8
+		// guard keeps the tap contract intact: a tap (dy < 8, low velocity) never dismisses.
+		const v = vel.velocity();
+		if (dy > threshold || (v > FLICK_V && dy > 8)) {
 			// Hand off to the host's transition:fly — reset our inline transform first
 			// so the fly-out animates from the resting position, not the dragged one.
 			resetTransform();

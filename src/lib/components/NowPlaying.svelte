@@ -16,6 +16,7 @@
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import TagChips from '$lib/components/TagChips.svelte';
 	import { parseLRC, type LyricLine } from '$lib/services/lrc';
+	import { createVelocityTracker } from '$lib/gestures/velocity';
 	import type { Track } from '$lib/sources/types';
 
 	type Tab = 'queue' | 'lyrics' | 'related';
@@ -212,6 +213,10 @@
 	let closedOffset = 300; // distance from full-top to closed/peek-top (measured at drag start)
 	let halfOffset = $state(150); // distance from full-top to half-open-top; reactive so the resting-half transform updates when re-measured
 	let snapTimer: ReturnType<typeof setTimeout> | null = null;
+	// Pointer-velocity tracker for the grip drag → a fast flick steps ONE state in the
+	// flick direction even when distance is small (slow-drag falls back to nearest-by-position).
+	const gripVel = createVelocityTracker();
+	const FLICK_V = 0.5; // px/ms threshold that counts as a deliberate flick
 
 	/** translateY (full-coordinate px) for a given resting state. */
 	function offsetFor(s: SheetState): number {
@@ -250,12 +255,15 @@
 		gripStartTab = btn ? (btn.dataset.tab as Tab) : null;
 		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 		if (snapTimer) clearTimeout(snapTimer);
+		gripVel.reset();
+		gripVel.sample(e.clientY, e.timeStamp);
 		measureOffsets();
 		sheetDragging = true;
 		sheetDragY = offsetFor(sheetState);
 	}
 	function gripMove(e: PointerEvent) {
 		if (!gripActive) return;
+		gripVel.sample(e.clientY, e.timeStamp);
 		gripMoved = e.clientY - gripStartY;
 		if (Math.abs(gripMoved) >= 8) subnavMoved = true;
 		const start = offsetFor(sheetState);
@@ -282,18 +290,32 @@
 			return;
 		}
 		gripStartTab = null;
-		// DRAG → snap to the nearest of {full,half,closed}, biased by drag direction so a
-		// deliberate swipe overshoots one state (up = toward full, down = toward closed).
-		const dir = gripMoved < 0 ? -1 : 1; // -1 = swiped up, +1 = swiped down
-		const bias = closedOffset * 0.12 * dir; // shift the decision point with the swipe
-		const pos = sheetDragY + bias;
 		let target: SheetState;
-		const dHalf = Math.abs(pos - halfOffset);
-		const dFull = Math.abs(pos - 0);
-		const dClosed = Math.abs(pos - closedOffset);
-		if (dFull <= dHalf && dFull <= dClosed) target = 'full';
-		else if (dClosed <= dHalf && dClosed <= dFull) target = 'closed';
-		else target = 'half';
+		// FLICK → a fast pointer velocity steps ONE state in the flick direction, regardless
+		// of how far the finger travelled (down = toward closed, up = toward full), clamped at
+		// the ends. v > 0 = moving DOWN, v < 0 = moving UP.
+		const v = gripVel.velocity();
+		if (Math.abs(v) > FLICK_V) {
+			if (v > 0) {
+				// downward flick: full → half → closed (clamp)
+				target = sheetState === 'full' ? 'half' : 'closed';
+			} else {
+				// upward flick: closed → half → full (clamp)
+				target = sheetState === 'closed' ? 'half' : 'full';
+			}
+		} else {
+			// SLOW DRAG → snap to the nearest of {full,half,closed}, biased by drag direction so a
+			// deliberate swipe overshoots one state (up = toward full, down = toward closed).
+			const dir = gripMoved < 0 ? -1 : 1; // -1 = swiped up, +1 = swiped down
+			const bias = closedOffset * 0.12 * dir; // shift the decision point with the swipe
+			const pos = sheetDragY + bias;
+			const dHalf = Math.abs(pos - halfOffset);
+			const dFull = Math.abs(pos - 0);
+			const dClosed = Math.abs(pos - closedOffset);
+			if (dFull <= dHalf && dFull <= dClosed) target = 'full';
+			else if (dClosed <= dHalf && dClosed <= dFull) target = 'closed';
+			else target = 'half';
+		}
 		sheetDragY = offsetFor(target); // animate (transition on now that gripActive=false)
 		if (snapTimer) clearTimeout(snapTimer);
 		snapTimer = setTimeout(() => {

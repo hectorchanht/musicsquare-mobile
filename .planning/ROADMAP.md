@@ -344,4 +344,4 @@ v1.1 dependency chain: 8 → (9, 10) read-only & auth-free first; 11 (auth) befo
 | 11. Signed-call Infrastructure & Auth | 0/TBD | Not started | - |
 | 12. Scrobbling (online-only) | 0/TBD | Not started | - |
 | 13. Loved-Tracks Sync | 0/TBD | Not started | - |
-| 14. Search & Data Responsiveness | 2/2 | Complete   | 2026-06-06 |
+| 14. Search & Data Responsiveness | 2/2 | Complete    | 2026-06-06 |

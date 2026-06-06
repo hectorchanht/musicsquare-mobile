@@ -24,6 +24,7 @@
 	} from '$lib/services/home-layout';
 	import { DISCOVERY_TAGS, DISCOVERY_COUNTRIES } from '$lib/services/discovery';
 	import { dragReorder } from '$lib/actions/dragReorder';
+	import { chipReorder } from '$lib/actions/chipReorder';
 	import { t, type TranslationKey } from '$lib/i18n';
 
 	onMount(() => settings.load());
@@ -67,6 +68,32 @@
 		settings.homeCountries = settings.homeCountries.includes(c)
 			? settings.homeCountries.filter((x) => x !== c)
 			: [...settings.homeCountries, c];
+		settings.save();
+	}
+
+	// Chips render SELECTED-first (in saved order, draggable + reorderable via chipReorder),
+	// then the unselected pool (tap to add). homeTags/homeCountries ARE the order the home
+	// fans out / renders shelves in, so reordering the selected chips reorders the shelves.
+	const selectedTags = $derived(settings.homeTags.filter((x) => DISCOVERY_TAGS.includes(x)));
+	const unselectedTags = $derived(DISCOVERY_TAGS.filter((x) => !settings.homeTags.includes(x)));
+	const selectedCountries = $derived(
+		settings.homeCountries.filter((x) => DISCOVERY_COUNTRIES.includes(x))
+	);
+	const unselectedCountries = $derived(
+		DISCOVERY_COUNTRIES.filter((x) => !settings.homeCountries.includes(x))
+	);
+	function reorderList(list: string[], from: number, to: number): string[] {
+		const next = [...list];
+		const [moved] = next.splice(from, 1);
+		next.splice(to, 0, moved);
+		return next;
+	}
+	function onReorderTag(from: number, to: number) {
+		settings.homeTags = reorderList(selectedTags, from, to);
+		settings.save();
+	}
+	function onReorderCountry(from: number, to: number) {
+		settings.homeCountries = reorderList(selectedCountries, from, to);
 		settings.save();
 	}
 
@@ -131,23 +158,29 @@
 <!-- 2. GENRE TAGS -->
 <section>
 	<h2><Tags size={15} /> {t('settings.homeGenres')}</h2>
-	<div class="chips">
-		{#each DISCOVERY_TAGS as tag (tag)}
-			<button class="chip" class:on={settings.homeTags.includes(tag)} onclick={() => toggleTag(tag)}>{tag}</button>
+	<div class="chips" use:chipReorder={{ onReorder: onReorderTag }}>
+		{#each selectedTags as tag, i (tag)}
+			<button class="chip on" data-chip-index={i} onclick={() => toggleTag(tag)}>{tag}</button>
+		{/each}
+		{#each unselectedTags as tag (tag)}
+			<button class="chip" onclick={() => toggleTag(tag)}>{tag}</button>
 		{/each}
 	</div>
-	{#if tagsShowingAll}<p class="muted">{t('settings.homeShowingAll')}</p>{/if}
+	<p class="muted">{tagsShowingAll ? t('settings.homeShowingAll') : t('settings.homeDragReorderChips')}</p>
 </section>
 
 <!-- 3. COUNTRIES -->
 <section>
 	<h2><Globe size={15} /> {t('settings.homeCountriesLabel')}</h2>
-	<div class="chips">
-		{#each DISCOVERY_COUNTRIES as c (c)}
-			<button class="chip" class:on={settings.homeCountries.includes(c)} onclick={() => toggleCountry(c)}>{c}</button>
+	<div class="chips" use:chipReorder={{ onReorder: onReorderCountry }}>
+		{#each selectedCountries as c, i (c)}
+			<button class="chip on" data-chip-index={i} onclick={() => toggleCountry(c)}>{c}</button>
+		{/each}
+		{#each unselectedCountries as c (c)}
+			<button class="chip" onclick={() => toggleCountry(c)}>{c}</button>
 		{/each}
 	</div>
-	{#if countriesShowingAll}<p class="muted">{t('settings.homeShowingAll')}</p>{/if}
+	<p class="muted">{countriesShowingAll ? t('settings.homeShowingAll') : t('settings.homeDragReorderChips')}</p>
 </section>
 
 <!-- 4. ITEMS PER SHELF -->
@@ -207,6 +240,12 @@
 	.chips { display: flex; flex-wrap: wrap; gap: 8px; }
 	.chip { background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text); padding: 8px 14px; border-radius: 999px; font-size: 13px; cursor: pointer; }
 	.chip.on { background: var(--color-primary); color: #fff; border-color: transparent; }
+	/* Selected chips are draggable to reorder — own the touch gesture so a drag reorders
+	   rather than scrolls the page; lift the chip while dragging. */
+	.chip[data-chip-index] { touch-action: none; cursor: grab; }
+	/* .chip-dragging is added at runtime by use:chipReorder — :global() tells svelte-check the
+	   class is intentional (no false "unused selector"), while .chip keeps it scoped. */
+	.chip:global(.chip-dragging) { cursor: grabbing; z-index: 5; opacity: 0.9; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); }
 	/* Range slider */
 	.range { width: 100%; accent-color: var(--color-primary); }
 	/* Segmented control */

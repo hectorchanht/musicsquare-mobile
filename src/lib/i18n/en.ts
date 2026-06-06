@@ -110,6 +110,7 @@ const en = {
 	'settings.homeGenres': 'Genres',
 	'settings.homeCountriesLabel': 'Countries',
 	'settings.homeShowingAll': 'None selected — showing all',
+	'settings.homeDragReorderChips': 'Tap to toggle · drag a selected chip to reorder',
 	'settings.itemsPerShelf': 'Items per shelf · {n}',
 	'settings.defaultLandingTab': 'Default landing tab',
 	'settings.landingHome': 'Home',

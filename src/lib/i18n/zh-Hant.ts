@@ -111,6 +111,7 @@ const zhHant: Dict = {
 	'settings.homeGenres': '曲風',
 	'settings.homeCountriesLabel': '地區',
 	'settings.homeShowingAll': '未選擇任何項目 — 顯示全部',
+	'settings.homeDragReorderChips': '點按切換 · 拖曳已選項目可重新排序',
 	'settings.itemsPerShelf': '每排項目數 · {n}',
 	'settings.defaultLandingTab': '預設起始分頁',
 	'settings.landingHome': '首頁',

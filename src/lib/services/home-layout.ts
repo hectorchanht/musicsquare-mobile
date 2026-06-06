@@ -17,27 +17,83 @@
 // ---- Discovery pool (the AVAILABLE tags/countries the user subsets from) ---------------
 // Curated genre/mood tags for the per-tag home shelves (DISCO-02). Each becomes one
 // `tag.getTopTracks` shelf. CN-biased + a few Western/utility moods. Editable.
+// World-spanning genre POOL (Last.fm `tag.getTopTracks` tags — lowercase free-form). Broadened
+// to cover the major global listening blocs (~80% of world music lovers): Western pop/rock/
+// hip-hop/r&b/electronic/indie/country/metal, the CJK blocs (mando/canto/k-pop/j-pop), Latin,
+// classical/jazz, reggae/soul/folk/blues, and Afrobeats. The user subsets + reorders these via
+// the home-layout settings; only the selected ones become shelves.
 export const DISCOVERY_TAGS: string[] = [
 	'pop',
 	'rock',
+	'hip-hop',
+	'rnb',
 	'electronic',
-	'lo-fi',
+	'dance',
+	'indie',
+	'k-pop',
+	'j-pop',
 	'mandopop',
 	'cantopop',
+	'latin',
+	'classical',
 	'jazz',
+	'metal',
+	'country',
+	'reggae',
+	'soul',
+	'folk',
+	'afrobeats',
+	'lo-fi',
 	'workout'
 ];
 
-// Curated countries for the per-country home shelves (DISCO-03). Each becomes one
-// `geo.getTopTracks` shelf. CN-biased (China / Taiwan / Hong Kong) + a few others.
-// IMPORTANT: these are ISO 3166-1 NAMES (e.g. `United States`), NOT codes (e.g. `US`).
+// World-spanning country POOL for the per-country home shelves (DISCO-03). Each becomes one
+// `geo.getTopTracks` shelf. ISO 3166-1 NAMES (e.g. `United States`), NOT codes. Covers the
+// largest music markets across regions; the user subsets + reorders.
 export const DISCOVERY_COUNTRIES: string[] = [
+	'China',
+	'Taiwan',
+	'Hong Kong',
+	'Japan',
+	'South Korea',
+	'United States',
+	'United Kingdom',
+	'Canada',
+	'Brazil',
+	'Mexico',
+	'Germany',
+	'France',
+	'Spain',
+	'Italy',
+	'India',
+	'Indonesia',
+	'Philippines',
+	'Australia',
+	'Russia',
+	'Turkey'
+];
+
+// Curated DEFAULT selections (a fresh user sees these as shelves — a manageable subset of the
+// broad pools above, balancing global + CJK). The full pools remain available as toggle chips.
+export const DEFAULT_HOME_TAGS: string[] = [
+	'pop',
+	'hip-hop',
+	'rock',
+	'electronic',
+	'k-pop',
+	'mandopop',
+	'cantopop',
+	'latin'
+];
+export const DEFAULT_HOME_COUNTRIES: string[] = [
 	'China',
 	'Taiwan',
 	'Hong Kong',
 	'United States',
 	'Japan',
-	'South Korea'
+	'South Korea',
+	'United Kingdom',
+	'Brazil'
 ];
 
 // ---- Section order + visibility --------------------------------------------------------

@@ -33,6 +33,7 @@ const zhHans: Dict = {
 	'search.submitting': '…',
 	'search.someFailed': '部分来源没有响应 — 显示其余结果。',
 	'search.searching': '正在搜索所有来源…',
+	'search.loadingMore': '加载更多…',
 	'search.empty': '没有结果。',
 
 	// --- settings ---

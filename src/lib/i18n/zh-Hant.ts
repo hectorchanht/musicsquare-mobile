@@ -33,6 +33,7 @@ const zhHant: Dict = {
 	'search.submitting': '…',
 	'search.someFailed': '部分來源沒有回應 — 顯示其餘結果。',
 	'search.searching': '正在搜尋所有來源…',
+	'search.loadingMore': '載入更多…',
 	'search.empty': '沒有結果。',
 
 	// --- settings ---

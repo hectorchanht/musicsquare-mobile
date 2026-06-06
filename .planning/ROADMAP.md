@@ -20,6 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 5: PWA + Service Worker** - Installable PWA with app-shell precache; audio + `/api` bypass; offline state
 - [ ] **Phase 6: Background Audio + MediaSession** - Lock-screen / notification controls + metadata; real-device iOS validation of the contested background-audio path
 - [ ] **Phase 7: New Sources + Queue Model + Gestures** - Kugou + Migu via the adapter registry; explicit Up-Next queue model; drag-to-reorder and swipe-to-change-track gestures
+- [ ] **Phase 14: Search & Data Responsiveness** - First-load skeleton, cross-nav search-state restore, default 128–160k quality, TTL query cache, past-search suggestions, progressive/streaming results (responsiveness polish; not part of v1.1)
 
 ## Phase Details
 
@@ -289,6 +290,35 @@ Plans:
 **Research flag**: Reconciliation logic is fully specified in ARCHITECTURE.md. Consider `--research-phase` ONLY if CJK normalization edge cases (Traditional/Simplified folding, CJK punctuation variants, "ghost" loved stubs with no playable source) prove complex during planning.
 **Security note**: Inherits Phase 11's CSRF defense on the love POST route. Reconciliation is strictly additive/non-destructive (local action wins for local UI; pulled loves only add) per the local-first boundary (PITFALLS Pitfall 9). Match-key reuse from Phase 8 is the identity bridge between local `uid` and Last.fm `{artist, track}`.
 
+### Phase 14: Search & Data Responsiveness
+
+**Goal**: A user searching for music gets an instant, app-like experience — the first search shows a skeleton immediately, results stream in source-by-source rather than blocking on all four, returning to the Search tab restores the prior query and results with no refetch, past searches are tappable suggestions, repeated/cached queries are instant, and audio resolves faster at a sensible default bitrate.
+**Mode:** standard
+**Depends on**: Phases 1–9 (the shipped search page, `catalog.searchAll`/`dedupeBest`, source adapters, settings/overlays/history store patterns). NOT part of the v1.1 Last.fm milestone — a responsiveness-polish phase over the existing search/data layer.
+**Requirements**: D-01, D-02, D-03, D-04, D-05, D-06 (phase-local decision IDs from 14-CONTEXT.md; no v1/v1.1 REQUIREMENTS row — this is UX/perf polish, not a milestone requirement)
+**Success Criteria** (what must be TRUE):
+
+  1. (D-01) The first/initial search shows the shipped skeleton placeholder rows while loading with no results yet, reduce-motion aware, replaced by real rows on the first batch
+  2. (D-02) Returning to the Search tab shows the SAME query and its already-loaded results instantly with NO network refetch (scroll restored); a new/changed query resets and searches fresh
+  3. (D-03) The default audio-quality preference defaults to 128–160k and the QQ/JOOX/Kuwo ladders honor it (faster-resolving URLs), without removing higher-quality options; JOOX `br=4` proxy constant untouched
+  4. (D-04) A repeated search/discovery query returns instantly from an in-memory TTL cache keyed by query+sources+page, with no re-fan-out, preserving dedupe + cumulative-superset pagination
+  5. (D-05) Past search queries surface as tappable suggestions when the input is focused & empty; tapping re-runs the query (cache-hit instant); persisted, capped, de-duped, clearable
+  6. (D-06) Results render progressively as each source settles (first partial replaces the skeleton); dedupe stays correct as the set grows; a new query mid-stream drops stale partials
+
+**Plans**: 2 plans (2 waves)
+Plans:
+
+**Wave 1**
+
+- [ ] 14-01-PLAN.md — Service layer: D-04 TTL cache wrap of searchAll + D-06 progressive onPartial streaming + D-03 quality wiring (pickByQualityPref, default '128') + D-05 pure search-history logic & runes store (wave 1)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 14-02-PLAN.md — Search page UI: D-01 first-load skeleton + D-02 searchSession cross-nav restore + D-05 tappable suggestions + D-06 progressive wire-up (checkpoint: human-verify) (wave 2)
+
+**Research flag**: Standard in-codebase patterns — no `--research-phase` needed. All four store/cache/quality/streaming patterns have working exemplars in-repo (overlays/history/settings stores, edge TTL cache, source ladders); zero new dependencies.
+**Security note**: Low surface (ASVS L1). Only live concern is SSR module-state leakage in the new `searchSession` + `searchHistory` runes singletons — mitigated by browser-guarded writes mirroring settings/history/overlays. D-03 uses the client-ladder approach (does NOT touch proxy/joox.ts) so the JOOX no-log rule and `br=4` stay intact. No package installs.
+
 ## Progress
 
 **Execution Order:**
@@ -311,3 +341,4 @@ v1.1 dependency chain: 8 → (9, 10) read-only & auth-free first; 11 (auth) befo
 | 11. Signed-call Infrastructure & Auth | 0/TBD | Not started | - |
 | 12. Scrobbling (online-only) | 0/TBD | Not started | - |
 | 13. Loved-Tracks Sync | 0/TBD | Not started | - |
+| 14. Search & Data Responsiveness | 0/2 | Planned | - |

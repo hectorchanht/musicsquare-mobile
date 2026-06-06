@@ -16,6 +16,7 @@
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import TagChips from '$lib/components/TagChips.svelte';
 	import { parseLRC, type LyricLine } from '$lib/services/lrc';
+	import { createVelocityTracker } from '$lib/gestures/velocity';
 	import type { Track } from '$lib/sources/types';
 
 	type Tab = 'queue' | 'lyrics' | 'related';
@@ -60,16 +61,36 @@
 	let lyricsEl = $state<HTMLElement | null>(null);
 	let autoScroll = $state(true);
 	let idleTimer: ReturnType<typeof setTimeout> | null = null;
+	// Touch-presence auto-scroll: pause WHILE a finger is down (or wheel is active), resume a
+	// short grace after release — NOT a blind fixed idle timer. lyricsTouched only pauses;
+	// lyricsReleased schedules the resume.
 	function lyricsTouched() {
 		autoScroll = false;
 		if (idleTimer) clearTimeout(idleTimer);
-		idleTimer = setTimeout(() => (autoScroll = true), 2500);
+	}
+	function lyricsReleased() {
+		if (idleTimer) clearTimeout(idleTimer);
+		idleTimer = setTimeout(() => (autoScroll = true), 600);
+	}
+	function lyricsWheel() {
+		// No release event for a wheel — pause, then schedule the same grace resume.
+		lyricsTouched();
+		lyricsReleased();
 	}
 	$effect(() => {
 		const idx = activeLine;
 		if (tab !== 'lyrics' || !autoScroll || idx < 0 || !lyricsEl) return;
-		const el = lyricsEl.querySelectorAll('p')[idx];
-		if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		const el = lyricsEl.querySelectorAll('p')[idx] as HTMLElement | undefined;
+		// Scope the scroll to the bounded .panel container (the overflow-y:auto scroller) and
+		// move it manually — never the ancestor-walking scroll-into-view API, which yanks the
+		// sheet to full in half mode. Compute the line's offset RELATIVE TO the container via rect deltas
+		// (offsetParent-agnostic), then center it inside the panel without changing sheetState.
+		const container = lyricsEl.closest('.panel') as HTMLElement | null;
+		if (!el || !container) return;
+		const elRect = el.getBoundingClientRect();
+		const cRect = container.getBoundingClientRect();
+		const offsetWithin = elRect.top - cRect.top + container.scrollTop; // line top in container scroll-space
+		container.scrollTo({ top: offsetWithin - container.clientHeight / 2 + el.offsetHeight / 2, behavior: 'smooth' });
 	});
 
 	// ---- lyrics translation ----
@@ -202,6 +223,7 @@
 	let sheetState = $state<SheetState>('closed');
 	let sheetEl = $state<HTMLElement | null>(null);
 	let transportEl = $state<HTMLElement | null>(null); // transport row → live bottom edge for flush half offset
+	let coverEl = $state<HTMLElement | null>(null); // cover banner → its 0.32s reflow must settle before re-measuring halfOffset
 	let sheetDragY = $state(0); // px in full-coordinates (0 = full, closedOffset = closed)
 	let sheetDragging = $state(false); // forces absolute layout while dragging/snapping
 	let gripActive = $state(false); // true only while finger is down (transition off)
@@ -212,6 +234,10 @@
 	let closedOffset = 300; // distance from full-top to closed/peek-top (measured at drag start)
 	let halfOffset = $state(150); // distance from full-top to half-open-top; reactive so the resting-half transform updates when re-measured
 	let snapTimer: ReturnType<typeof setTimeout> | null = null;
+	// Pointer-velocity tracker for the grip drag → a fast flick steps ONE state in the
+	// flick direction even when distance is small (slow-drag falls back to nearest-by-position).
+	const gripVel = createVelocityTracker();
+	const FLICK_V = 0.5; // px/ms threshold that counts as a deliberate flick
 
 	/** translateY (full-coordinate px) for a given resting state. */
 	function offsetFor(s: SheetState): number {
@@ -250,12 +276,15 @@
 		gripStartTab = btn ? (btn.dataset.tab as Tab) : null;
 		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 		if (snapTimer) clearTimeout(snapTimer);
+		gripVel.reset();
+		gripVel.sample(e.clientY, e.timeStamp);
 		measureOffsets();
 		sheetDragging = true;
 		sheetDragY = offsetFor(sheetState);
 	}
 	function gripMove(e: PointerEvent) {
 		if (!gripActive) return;
+		gripVel.sample(e.clientY, e.timeStamp);
 		gripMoved = e.clientY - gripStartY;
 		if (Math.abs(gripMoved) >= 8) subnavMoved = true;
 		const start = offsetFor(sheetState);
@@ -282,18 +311,32 @@
 			return;
 		}
 		gripStartTab = null;
-		// DRAG → snap to the nearest of {full,half,closed}, biased by drag direction so a
-		// deliberate swipe overshoots one state (up = toward full, down = toward closed).
-		const dir = gripMoved < 0 ? -1 : 1; // -1 = swiped up, +1 = swiped down
-		const bias = closedOffset * 0.12 * dir; // shift the decision point with the swipe
-		const pos = sheetDragY + bias;
 		let target: SheetState;
-		const dHalf = Math.abs(pos - halfOffset);
-		const dFull = Math.abs(pos - 0);
-		const dClosed = Math.abs(pos - closedOffset);
-		if (dFull <= dHalf && dFull <= dClosed) target = 'full';
-		else if (dClosed <= dHalf && dClosed <= dFull) target = 'closed';
-		else target = 'half';
+		// FLICK → a fast pointer velocity steps ONE state in the flick direction, regardless
+		// of how far the finger travelled (down = toward closed, up = toward full), clamped at
+		// the ends. v > 0 = moving DOWN, v < 0 = moving UP.
+		const v = gripVel.velocity();
+		if (Math.abs(v) > FLICK_V) {
+			if (v > 0) {
+				// downward flick: full → half → closed (clamp)
+				target = sheetState === 'full' ? 'half' : 'closed';
+			} else {
+				// upward flick: closed → half → full (clamp)
+				target = sheetState === 'closed' ? 'half' : 'full';
+			}
+		} else {
+			// SLOW DRAG → snap to the nearest of {full,half,closed}, biased by drag direction so a
+			// deliberate swipe overshoots one state (up = toward full, down = toward closed).
+			const dir = gripMoved < 0 ? -1 : 1; // -1 = swiped up, +1 = swiped down
+			const bias = closedOffset * 0.12 * dir; // shift the decision point with the swipe
+			const pos = sheetDragY + bias;
+			const dHalf = Math.abs(pos - halfOffset);
+			const dFull = Math.abs(pos - 0);
+			const dClosed = Math.abs(pos - closedOffset);
+			if (dFull <= dHalf && dFull <= dClosed) target = 'full';
+			else if (dClosed <= dHalf && dClosed <= dFull) target = 'closed';
+			else target = 'half';
+		}
 		sheetDragY = offsetFor(target); // animate (transition on now that gripActive=false)
 		if (snapTimer) clearTimeout(snapTimer);
 		snapTimer = setTimeout(() => {
@@ -325,8 +368,35 @@
 	// flush offset whenever the sheet rests in half (and on layout-affecting changes).
 	// SEPARATE from the back-gesture $effect above — measureOffsets() is idempotent and
 	// guards on null refs.
+	//
+	// BUG-2 ROOT CAUSE FIX: the .cover runs a 0.32s width/height/margin reflow when entering
+	// half/full. Measuring transportEl.bottom DURING that transition overshoots by the
+	// cover-shrink delta → a visible dead gap. So defer the measurement until the reflow has
+	// SETTLED: re-measure on the cover's transitionend (one-shot) AND via a double-rAF + a
+	// ~340ms timeout fallback for the cases where no transition fires (already-reflowed tap
+	// into half, or prefers-reduced-motion). All listeners/timers are torn down on cleanup so
+	// nothing leaks or fires after the sheet leaves half.
 	$effect(() => {
-		if (sheetState === 'half' && !sheetDragging) measureOffsets();
+		if (sheetState !== 'half' || sheetDragging) return;
+		// Measure immediately (best-effort) then again once the reflow settles for the flush value.
+		measureOffsets();
+		let raf1 = 0;
+		let raf2 = 0;
+		const onSettled = () => measureOffsets();
+		const cover = coverEl;
+		cover?.addEventListener('transitionend', onSettled, { once: true });
+		// double-rAF: wait two frames so layout has flushed, then re-measure.
+		raf1 = requestAnimationFrame(() => {
+			raf2 = requestAnimationFrame(onSettled);
+		});
+		// timeout fallback (> the 0.32s reflow) for when no transitionend fires at all.
+		const fallback = setTimeout(onSettled, 340);
+		return () => {
+			cover?.removeEventListener('transitionend', onSettled);
+			if (raf1) cancelAnimationFrame(raf1);
+			if (raf2) cancelAnimationFrame(raf2);
+			clearTimeout(fallback);
+		};
 	});
 
 	// ---- Up-Next reorder: custom pointer/touch drag on the far-right grip handle ----
@@ -388,6 +458,7 @@
 		class="cover"
 		role="button"
 		tabindex="0"
+		bind:this={coverEl}
 		aria-label={t('nowplaying.albumArt')}
 		onpointerdown={coverDown}
 		onpointermove={coverMove}
@@ -475,7 +546,7 @@
 			{:else if tab === 'lyrics'}
 				{#if lines.length}
 					{#if translating}<p class="tr-hint">{t('nowplaying.translating')}</p>{/if}
-					<div class="lyrics" role="group" aria-label={t('nowplaying.lyrics')} bind:this={lyricsEl} onpointerdown={lyricsTouched} onwheel={lyricsTouched}>
+					<div class="lyrics" role="group" aria-label={t('nowplaying.lyrics')} bind:this={lyricsEl} onpointerdown={lyricsTouched} onpointerup={lyricsReleased} onpointercancel={lyricsReleased} onwheel={lyricsWheel}>
 						{#each lines as l, i (i)}
 							<p class:active={i === activeLine}>
 								{#if showTr && settings.translateMode === 'replace'}

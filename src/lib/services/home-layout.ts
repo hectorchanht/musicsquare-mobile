@@ -7,6 +7,38 @@
 // page's first paint — they clamp, drop, or fall back to the default that reproduces
 // today's behavior. Every helper here is deterministic, imports NOTHING from stores/$app,
 // and runs in the node Vitest project alongside discovery.test.ts.
+//
+// It also OWNS the discovery POOL constants (DISCOVERY_TAGS/COUNTRIES). They live here —
+// not in discovery.ts — to break a circular import: settings.svelte.ts needs the pools for
+// its default subsets, and discovery.ts already imports settings (inside resolveStub). Since
+// home-layout imports nothing, `settings → home-layout` and `discovery → home-layout` are
+// safe one-way edges; discovery.ts re-exports the pools so existing consumers are unchanged.
+
+// ---- Discovery pool (the AVAILABLE tags/countries the user subsets from) ---------------
+// Curated genre/mood tags for the per-tag home shelves (DISCO-02). Each becomes one
+// `tag.getTopTracks` shelf. CN-biased + a few Western/utility moods. Editable.
+export const DISCOVERY_TAGS: string[] = [
+	'pop',
+	'rock',
+	'electronic',
+	'lo-fi',
+	'mandopop',
+	'cantopop',
+	'jazz',
+	'workout'
+];
+
+// Curated countries for the per-country home shelves (DISCO-03). Each becomes one
+// `geo.getTopTracks` shelf. CN-biased (China / Taiwan / Hong Kong) + a few others.
+// IMPORTANT: these are ISO 3166-1 NAMES (e.g. `United States`), NOT codes (e.g. `US`).
+export const DISCOVERY_COUNTRIES: string[] = [
+	'China',
+	'Taiwan',
+	'Hong Kong',
+	'United States',
+	'Japan',
+	'South Korea'
+];
 
 // ---- Section order + visibility --------------------------------------------------------
 

@@ -7,10 +7,11 @@ import {
 	DEFAULT_SECTION_ORDER,
 	clampShelfSize,
 	SHELF_DEFAULT,
+	DISCOVERY_TAGS,
+	DISCOVERY_COUNTRIES,
 	type HomeDensity,
 	type HomeLandingTab
 } from '$lib/services/home-layout';
-import { DISCOVERY_TAGS, DISCOVERY_COUNTRIES } from '$lib/services/discovery';
 
 export type LyricsLang = 'off' | 'zh-Hant' | 'zh-Hans' | 'en' | 'ja' | 'ko';
 export type TranslateMode = 'replace' | 'below';

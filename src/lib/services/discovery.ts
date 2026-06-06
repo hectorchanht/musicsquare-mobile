@@ -54,39 +54,12 @@ export async function resolveStub(artist: string, title: string): Promise<Track 
 }
 
 // ---- Curated discovery sets (Phase 9, D-02 / CONTEXT discretion) ------------------
-// Small, EDITABLE defaults consumed by the home tag/country shelves. Keep these short:
-// every entry becomes one fanned-out shelf request, so trimming the list directly
-// reduces the home page's Last.fm fan-out (Pitfall 11). Edit freely to taste.
-
-/**
- * Curated genre/mood tags for the per-tag home shelves (DISCO-02). Each tag becomes one
- * `tag.getTopTracks` shelf. CN-biased + a few Western/utility moods. Editable.
- */
-export const DISCOVERY_TAGS: string[] = [
-	'pop',
-	'rock',
-	'electronic',
-	'lo-fi',
-	'mandopop',
-	'cantopop',
-	'jazz',
-	'workout'
-];
-
-/**
- * Curated countries for the per-country home shelves (DISCO-03). Each becomes one
- * `geo.getTopTracks` shelf. CN-biased (China / Taiwan / Hong Kong) + a few others.
- * IMPORTANT: these are ISO 3166-1 NAMES (e.g. `United States`), NOT codes (e.g. `US`) —
- * the geo builder takes the country name (see getGeoTopTracks / FEATURES.md). Editable.
- */
-export const DISCOVERY_COUNTRIES: string[] = [
-	'China',
-	'Taiwan',
-	'Hong Kong',
-	'United States',
-	'Japan',
-	'South Korea'
-];
+// The DISCOVERY_TAGS / DISCOVERY_COUNTRIES pools moved to the PURE home-layout module
+// (quick-260606-w87) to break a circular import: settings.svelte.ts needs the pools for
+// its default subsets but discovery.ts imports settings (inside resolveStub above). We
+// RE-EXPORT them here so every existing consumer (and discovery.test.ts) keeps importing
+// from `$lib/services/discovery` unchanged. Edit the pools in home-layout.ts.
+export { DISCOVERY_TAGS, DISCOVERY_COUNTRIES } from '$lib/services/home-layout';
 
 // ---- Randomize variation primitives (VX2) ----------------------------------------
 // Two PURE helpers used by the home page's 隨機推薦 / Randomize button to genuinely VARY

@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { onMount, type Component } from 'svelte';
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import { House, Search, Library, Play, Pause, Loader } from '@lucide/svelte';
 	import { player } from '$lib/stores/player.svelte';
 	import { library } from '$lib/stores/library.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
+	import { LANDING_PATHS } from '$lib/services/home-layout';
 	import { names } from '$lib/stores/names.svelte';
 	import { overlays } from '$lib/stores/overlays.svelte';
 	import { t, type TranslationKey } from '$lib/i18n';
@@ -15,6 +17,23 @@
 	onMount(() => {
 		library.load();
 		settings.load();
+
+		// w87: default landing-tab redirect. onMount is client-only (SSR-safe) and runs ONCE,
+		// so a later manual nav back to '/' never re-triggers. Guards (all must hold):
+		//  - path is EXACTLY '/' (don't hijack a deep route),
+		//  - NO ?play= token present (don't break a shared deep link — the home page's own
+		//    onMount still receives + plays it),
+		//  - the chosen landing tab is not 'home' (else there's nothing to redirect).
+		// The target is taken from the fixed LANDING_PATHS record, never the raw stored string
+		// (T-w87-05 — no open-redirect). replaceState so Back doesn't bounce to '/'.
+		if (
+			location.pathname === '/' &&
+			!new URLSearchParams(location.search).get('play') &&
+			settings.homeLandingTab !== 'home'
+		) {
+			goto(LANDING_PATHS[settings.homeLandingTab], { replaceState: true });
+		}
+
 		// Single back-gesture popstate listener for the whole app (overlays back-to-close).
 		const teardownOverlays = overlays.init();
 		return teardownOverlays;

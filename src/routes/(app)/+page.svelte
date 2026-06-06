@@ -20,6 +20,12 @@
 		DISCOVERY_TAGS,
 		DISCOVERY_COUNTRIES
 	} from '$lib/services/discovery';
+	import {
+		resolveSectionOrder,
+		resolveSubset,
+		clampShelfSize
+	} from '$lib/services/home-layout';
+	import { settings } from '$lib/stores/settings.svelte';
 	import { caaReleaseGroupCover } from '$lib/services/cover-art';
 	import { getCachedCover, getCachedArtistCover } from '$lib/services/cover-cache';
 	import { backfillCovers, backfillArtistCovers } from '$lib/services/cover-backfill';
@@ -37,10 +43,15 @@
 	let menuOpen = $state(false);
 
 	const PICK_COUNT = 9;
-	const PER_SHELF = 18;
+	// w87: items-per-shelf is now the user setting (clampShelfSize(settings.homeShelfSize)),
+	// read inside refresh(); the old hardcoded PER_SHELF=18 is gone (18 is still the default).
 	const FANOUT_CAP = 4; // ≤4 in-flight tag/country shelf fetches (Pitfall 11 / DISCO-04)
 	// Bumped to v2: the cache now holds the four Last.fm discovery shelves (D-01/D-02),
 	// not the flat v1 buildDiversePicks list. A stale v1 entry is simply ignored.
+	// w87: the cache is keyed by CACHE_KEY ONLY (NOT by the home-layout config). A config
+	// change (subset / shelf size) is reconciled by the background refresh(false,true) that
+	// runs after applyCache — it re-fetches with the CURRENT config and overwrites the cache,
+	// so the next paint reflects the change without adding config to the key.
 	const CACHE_KEY = 'openmusic:top-picks:v2';
 
 	// A labelled tag/country row paired with its heading.
@@ -220,19 +231,27 @@
 		if (!background) loading = true;
 		error = null;
 		try {
+			// w87: per-shelf tile count is the user setting, clamped to [6,24] (T-w87-01 — a
+			// poisoned/old value can never produce a giant or NaN page size). Tag/country
+			// fan-out runs over the SELECTED subset (resolveSubset falls back to the full pool
+			// when none/garbage are selected, T-w87-03), so config can only NARROW the
+			// surface — fan-out width stays ≤ the pool size, behind FANOUT_CAP (Pitfall 11).
+			const perShelf = clampShelfSize(settings.homeShelfSize);
+			const tagPool = resolveSubset(settings.homeTags, DISCOVERY_TAGS);
+			const countryPool = resolveSubset(settings.homeCountries, DISCOVERY_COUNTRIES);
 			// Shelves 1+2 (chart) + the capped tag/country fan-out (shelves 3+4). All
 			// builders never throw (→ [] on failure / absent key), so this never rejects.
 			// On a randomize press, draw a fresh random page PER call so different shelves
 			// pull from different pages; on a normal call pass page 1 (cache-friendly).
 			const pg = () => (randomize ? pickRandomPage(RANDOM_PAGE_BOUND) : 1);
 			const [rawHits, rawArtists, tagRows, countryRows] = await Promise.all([
-				getChartTopTracks(PER_SHELF, pg()),
-				getChartTopArtists(PER_SHELF),
-				mapWithConcurrency(DISCOVERY_TAGS, FANOUT_CAP, (tag) =>
-					getTagTopTracks(tag, PER_SHELF, pg())
+				getChartTopTracks(perShelf, pg()),
+				getChartTopArtists(perShelf),
+				mapWithConcurrency(tagPool, FANOUT_CAP, (tag) =>
+					getTagTopTracks(tag, perShelf, pg())
 				),
-				mapWithConcurrency(DISCOVERY_COUNTRIES, FANOUT_CAP, (c) =>
-					getGeoTopTracks(c, PER_SHELF, pg())
+				mapWithConcurrency(countryPool, FANOUT_CAP, (c) =>
+					getGeoTopTracks(c, perShelf, pg())
 				)
 			]);
 			if (gen !== refreshGen) return; // superseded by a newer refresh (WR-04)
@@ -243,13 +262,13 @@
 			const artists = randomize ? shuffle(rawArtists) : rawArtists;
 
 			// Build the tag/country shelves; on randomize also shuffle the tile order WITHIN
-			// each shelf. The tag/country LISTS stay the fixed DISCOVERY_* constants — only
-			// ORDER varies (the upcoming user-config task owns making the lists configurable).
-			let tags: Shelf[] = DISCOVERY_TAGS.map((label, i) => ({
+			// each shelf. w87: map over the resolved SUBSET (tagPool/countryPool) so the
+			// shelves match the rows we fetched above — a deselected tag simply has no shelf.
+			let tags: Shelf[] = tagPool.map((label, i) => ({
 				label,
 				tracks: randomize ? shuffle(tagRows[i] ?? []) : (tagRows[i] ?? [])
 			})).filter((s) => s.tracks.length);
-			let countries: Shelf[] = DISCOVERY_COUNTRIES.map((label, i) => ({
+			let countries: Shelf[] = countryPool.map((label, i) => ({
 				label,
 				tracks: randomize ? shuffle(countryRows[i] ?? []) : (countryRows[i] ?? [])
 			})).filter((s) => s.tracks.length);
@@ -326,6 +345,10 @@
 	}
 
 	onMount(() => {
+		// w87: ensure the home-layout config is loaded before cache/refresh reads it. load()
+		// is idempotent (its own `loaded` guard), so the layout's onMount call is harmless.
+		settings.load();
+
 		// Shared link: /?play=<token> → reconstruct the track stub and play it.
 		const token = new URLSearchParams(location.search).get('play');
 		if (token) {
@@ -362,14 +385,18 @@
 	<button class="gear" aria-label={t('home.settings')} onclick={() => goto('/settings')}><Settings size={20} /></button>
 </header>
 
-<button class="searchpill" onclick={() => goto('/search')}>
-	<Search size={16} /> <span>{t('home.searchPill')}</span>
-</button>
+{#if settings.homeShowSearchPill}
+	<button class="searchpill" onclick={() => goto('/search')}>
+		<Search size={16} /> <span>{t('home.searchPill')}</span>
+	</button>
+{/if}
 
-<section class="section">
+<section class="section" class:compact={settings.homeDensity === 'compact'}>
 	<div class="head">
 		<h2>{t('home.topPicks')}</h2>
-		<button class="more" onclick={() => refresh(true, false, true)} disabled={loading}><RotateCw size={13} /> {loading ? t('home.loadingPicks') : t('home.randomize')}</button>
+		{#if settings.homeShowRandomize}
+			<button class="more" onclick={() => refresh(true, false, true)} disabled={loading}><RotateCw size={13} /> {loading ? t('home.loadingPicks') : t('home.randomize')}</button>
+		{/if}
 	</div>
 
 	{#if loading && !useFallback && !topHits.length && !topArtists.length && !tagShelves.length && !countryShelves.length && !fallbackSongs.length}
@@ -394,68 +421,90 @@
 			{/each}
 		</div>
 	{:else}
-		<!-- PRIMARY: the four Last.fm discovery shelves (D-01/D-02). -->
-		{#if topHits.length}
-			<div class="subhead">{t('home.topHits')}</div>
-			<div class="albumrow" use:dragScroll>
-				{#each topHits as item (item.artist + ' ' + item.title)}
-					<button class="album" onclick={() => playStub(item)}>
-						<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
-							{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
-						</span>
-						<span class="al-name" use:marquee>{names.dnTitle(item.title)}</span>
-						<span class="al-count" use:marquee>{names.dnArtist(item.artist)}</span>
-					</button>
-				{/each}
-			</div>
-		{/if}
-
-		{#if topArtists.length}
-			<div class="subhead">{t('home.topArtists')}</div>
-			<div class="albumrow" use:dragScroll>
-				{#each topArtists as a (a.name)}
-					{@const artistCover = tileCover({ image: a.image, mbid: a.mbid, artistName: a.name })}
-					<button class="album" onclick={() => goto('/artist/' + encodeURIComponent(a.name))}>
-						<span class="al-cover round" style:background-image={fallbackCover(a.name)}>
-							{#if artistCover}<img class="al-cover-img" src={artistCover} loading="lazy" alt="" onerror={hideOnError} />{/if}
-						</span>
-						<span class="al-name center" use:marquee>{names.dnArtist(a.name)}</span>
-					</button>
-				{/each}
-			</div>
-		{/if}
-
-		{#each tagShelves as shelf (shelf.label)}
-			<div class="subhead">{t('home.tagShelf', { tag: shelf.label })}</div>
-			<div class="albumrow" use:dragScroll>
-				{#each shelf.tracks as item (item.artist + ' ' + item.title)}
-					<button class="album" onclick={() => playStub(item)}>
-						<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
-							{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
-						</span>
-						<span class="al-name" use:marquee>{names.dnTitle(item.title)}</span>
-						<span class="al-count" use:marquee>{names.dnArtist(item.artist)}</span>
-					</button>
-				{/each}
-			</div>
-		{/each}
-
-		{#each countryShelves as shelf (shelf.label)}
-			<div class="subhead">{t('home.countryShelf', { country: shelf.label })}</div>
-			<div class="albumrow" use:dragScroll>
-				{#each shelf.tracks as item (item.artist + ' ' + item.title)}
-					<button class="album" onclick={() => playStub(item)}>
-						<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
-							{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
-						</span>
-						<span class="al-name" use:marquee>{names.dnTitle(item.title)}</span>
-						<span class="al-count" use:marquee>{names.dnArtist(item.artist)}</span>
-					</button>
-				{/each}
-			</div>
+		<!-- PRIMARY: the four Last.fm discovery shelves (D-01/D-02). w87: render each
+		     section block in the user's RESOLVED order (resolveSectionOrder drops unknown /
+		     appends missing known ids, so a corrupt saved order never blanks the home),
+		     skipping any id in settings.homeHidden. The per-section markup lives in the
+		     snippets below; only ORDER + the hidden-skip are new. -->
+		{#each resolveSectionOrder(settings.homeSectionOrder) as id (id)}
+			{#if !settings.homeHidden.includes(id)}
+				{#if id === 'top-hits'}{@render topHitsBlock()}
+				{:else if id === 'top-artists'}{@render topArtistsBlock()}
+				{:else if id === 'tags'}{@render tagsBlock()}
+				{:else if id === 'countries'}{@render countriesBlock()}
+				{/if}
+			{/if}
 		{/each}
 	{/if}
 </section>
+
+{#snippet topHitsBlock()}
+	{#if topHits.length}
+		<div class="subhead">{t('home.topHits')}</div>
+		<div class="albumrow" use:dragScroll>
+			{#each topHits as item (item.artist + ' ' + item.title)}
+				<button class="album" onclick={() => playStub(item)}>
+					<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
+						{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
+					</span>
+					<span class="al-name" use:marquee>{names.dnTitle(item.title)}</span>
+					<span class="al-count" use:marquee>{names.dnArtist(item.artist)}</span>
+				</button>
+			{/each}
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet topArtistsBlock()}
+	{#if topArtists.length}
+		<div class="subhead">{t('home.topArtists')}</div>
+		<div class="albumrow" use:dragScroll>
+			{#each topArtists as a (a.name)}
+				{@const artistCover = tileCover({ image: a.image, mbid: a.mbid, artistName: a.name })}
+				<button class="album" onclick={() => goto('/artist/' + encodeURIComponent(a.name))}>
+					<span class="al-cover round" style:background-image={fallbackCover(a.name)}>
+						{#if artistCover}<img class="al-cover-img" src={artistCover} loading="lazy" alt="" onerror={hideOnError} />{/if}
+					</span>
+					<span class="al-name center" use:marquee>{names.dnArtist(a.name)}</span>
+				</button>
+			{/each}
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet tagsBlock()}
+	{#each tagShelves as shelf (shelf.label)}
+		<div class="subhead">{t('home.tagShelf', { tag: shelf.label })}</div>
+		<div class="albumrow" use:dragScroll>
+			{#each shelf.tracks as item (item.artist + ' ' + item.title)}
+				<button class="album" onclick={() => playStub(item)}>
+					<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
+						{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
+					</span>
+					<span class="al-name" use:marquee>{names.dnTitle(item.title)}</span>
+					<span class="al-count" use:marquee>{names.dnArtist(item.artist)}</span>
+				</button>
+			{/each}
+		</div>
+	{/each}
+{/snippet}
+
+{#snippet countriesBlock()}
+	{#each countryShelves as shelf (shelf.label)}
+		<div class="subhead">{t('home.countryShelf', { country: shelf.label })}</div>
+		<div class="albumrow" use:dragScroll>
+			{#each shelf.tracks as item (item.artist + ' ' + item.title)}
+				<button class="album" onclick={() => playStub(item)}>
+					<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
+						{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
+					</span>
+					<span class="al-name" use:marquee>{names.dnTitle(item.title)}</span>
+					<span class="al-count" use:marquee>{names.dnArtist(item.artist)}</span>
+				</button>
+			{/each}
+		</div>
+	{/each}
+{/snippet}
 
 <TrackMenu track={menuTrack} open={menuOpen} onclose={() => (menuOpen = false)} />
 
@@ -486,6 +535,13 @@
 	.album:active { transform: scale(0.96); }
 	.al-cover { position: relative; overflow: hidden; width: 130px; height: 130px; border-radius: 10px; background-size: cover; background-position: center; background-color: var(--color-surface-2); }
 	.al-cover.round { border-radius: 50%; }
+	/* w87: COMPACT density — tighter tiles + gaps so more fit per shelf row. Comfortable
+	   (the default) keeps the values above. The class is set on .section from
+	   settings.homeDensity, so toggling the setting re-sizes every shelf/grid live. */
+	.section.compact .albumrow { gap: 8px; }
+	.section.compact .album { flex-basis: 96px; }
+	.section.compact .al-cover { width: 96px; height: 96px; }
+	.section.compact .grid { gap: 8px; grid-template-columns: repeat(4, 1fr); }
 	/* FIX-B: real cover (Last.fm or CAA) layered over the gradient span; onerror hides it
 	   (a 404 → the gradient shows). inherit border-radius so the round variant clips it. */
 	.al-cover-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }

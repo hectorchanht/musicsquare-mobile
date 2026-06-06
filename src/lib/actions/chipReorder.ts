@@ -57,7 +57,9 @@ export const chipReorder: Action<HTMLElement, ChipReorderOpts> = (node, opts) =>
 		startX = e.clientX;
 		startY = e.clientY;
 		dragging = false;
-		node.setPointerCapture?.(e.pointerId);
+		// NOTE: do NOT setPointerCapture here. Capturing on pointerdown retargets the trailing
+		// `click` to the container, so a plain TAP never reaches the chip's onclick → the chip
+		// could not be toggled off. Capture only once a DRAG actually starts (below).
 	}
 
 	function onMove(e: PointerEvent) {
@@ -67,6 +69,9 @@ export const chipReorder: Action<HTMLElement, ChipReorderOpts> = (node, opts) =>
 		if (!dragging && Math.hypot(dx, dy) > THRESHOLD) {
 			dragging = true;
 			chip.classList.add('chip-dragging');
+			// Capture now (mid-drag) so pointer events keep flowing even past the container edge;
+			// the post-drag click is suppressed in onUp, so retargeting is harmless here.
+			node.setPointerCapture?.(e.pointerId);
 		}
 		if (dragging) {
 			e.preventDefault();

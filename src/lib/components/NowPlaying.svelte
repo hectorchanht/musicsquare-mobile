@@ -11,6 +11,7 @@
 	import { searchAll } from '$lib/services/catalog';
 	import { dedupeBest } from '$lib/services/dedupe';
 	import { translateLines } from '$lib/services/translate';
+	import { shouldTranslate } from '$lib/i18n/detect';
 	import { enrichTrack, type EnrichResult } from '$lib/services/lastfm';
 	import { longpress } from '$lib/actions/longpress';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
@@ -99,15 +100,35 @@
 	let trKey = '';
 	$effect(() => {
 		const lang = settings.lyricsLang;
+		const skip = settings.lyricsSkip;
 		const t = player.current;
 		const n = lines.length;
 		if (tab !== 'lyrics' || lang === 'off' || !n || !t) return;
-		const key = `${t.uid}:${lang}:${n}`;
+		// Per-line whitelist: only the lines whose detected source is NOT whitelisted (and
+		// is not already in the target) get sent to /api/translate. Skipped lines keep
+		// their ORIGINAL text in the corresponding output slot so index alignment +
+		// showTr/translateMode (below/replace) render unchanged. Include skip in the key so
+		// toggling the whitelist re-runs the effect.
+		const key = `${t.uid}:${lang}:${n}:${skip.slice().sort().join(',')}`;
 		if (trKey === key) return;
 		trKey = key;
 		translating = true;
-		translateLines(lines.map((l) => l.text), lang)
-			.then((out) => { if (trKey === key) translated = out; })
+		const sendIdx: number[] = [];
+		const sendText: string[] = [];
+		for (let i = 0; i < lines.length; i++) {
+			if (shouldTranslate(lines[i].text, lang, skip)) {
+				sendIdx.push(i);
+				sendText.push(lines[i].text);
+			}
+		}
+		const stitch = (out: string[]) => lines.map((l, i) => {
+			const pos = sendIdx.indexOf(i);
+			return pos === -1 ? l.text : (out[pos] ?? l.text);
+		});
+		// Nothing to translate (every line whitelisted/already-target): keep originals.
+		const work = sendText.length ? translateLines(sendText, lang) : Promise.resolve([] as string[]);
+		work
+			.then((out) => { if (trKey === key) translated = stitch(out); })
 			.catch(() => { if (trKey === key) translated = []; })
 			.finally(() => { if (trKey === key) translating = false; });
 	});
@@ -468,8 +489,8 @@
 	></div>
 
 	<div class="meta">
-		<div class="title">{player.current ? names.dn(player.current.title) : ''}</div>
-		<button class="artist" onclick={openArtist}>{player.current ? names.dn(player.current.artist) : ''}</button>
+		<div class="title">{player.current ? names.dnTitle(player.current.title) : ''}</div>
+		<button class="artist" onclick={openArtist}>{player.current ? names.dnArtist(player.current.artist) : ''}</button>
 	</div>
 
 	<TagChips tags={enrich?.tags ?? []} />
@@ -527,8 +548,8 @@
 								style:transform={i === dragFrom && rowDragY ? `translateY(${rowDragY}px)` : undefined}
 							>
 								<button class="row q-row" class:playing={track.uid === player.current?.uid} use:longpress onlongpress={() => openMenu(track)} onclick={() => player.play(track, { fresh: true })}>
-									<span class="r-title">{names.dn(track.title)}</span>
-									<span class="r-artist">{names.dn(track.artist)}</span>
+									<span class="r-title">{names.dnTitle(track.title)}</span>
+									<span class="r-artist">{names.dnArtist(track.artist)}</span>
 								</button>
 								<button
 									class="grip-handle"
@@ -563,7 +584,7 @@
 				{#if related.length}
 					<ul class="list">
 						{#each related as track (track.uid)}
-							<li><button class="row" use:longpress onlongpress={() => openMenu(track)} onclick={() => player.play(track, { fresh: true })}><span class="r-title">{names.dn(track.title)}</span><span class="r-artist">{names.dn(track.artist)}</span></button></li>
+							<li><button class="row" use:longpress onlongpress={() => openMenu(track)} onclick={() => player.play(track, { fresh: true })}><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-artist">{names.dnArtist(track.artist)}</span></button></li>
 						{/each}
 					</ul>
 				{:else}<p class="empty">{t('nowplaying.loadingRelated')}</p>{/if}

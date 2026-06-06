@@ -104,14 +104,14 @@
 <header class="hero">
 	<a class="back" href="/">{t('artist.back')}</a>
 	<div class="herocover" style:background-image={heroImg ? `url(${heroImg})` : 'linear-gradient(145deg,#3a2d63,#1a1326)'}></div>
-	<h1>{names.dn(name)}</h1>
+	<h1>{names.dnArtist(name)}</h1>
 	<p class="note">{t('artist.derived', { count: songs.length })}</p>
 
 	{#if enrich?.tags?.length}
 		<div class="herotags"><TagChips tags={enrich.tags} /></div>
 	{/if}
 
-	<!-- Bio (D-07: English-as-is, HTML-stripped — NOT run through names.dn). Gated on
+	<!-- Bio (D-07: English-as-is, HTML-stripped — NOT translated). Gated on
 	     BOTH bio AND bioUrl so the required attribution link is never missing (D-08). -->
 	{#if enrich?.bio && enrich?.bioUrl}
 		<section class="bio">
@@ -129,7 +129,7 @@
 			{#each albums as al (al.name)}
 				<button class="album" onclick={() => goto('/album/' + encodeURIComponent(al.name) + '?artist=' + encodeURIComponent(name))}>
 					<span class="al-cover" style:background-image={al.image ? `url(${al.image})` : fallbackCoverSeed(al.name)}></span>
-					<span class="al-name">{names.dn(al.name)}</span>
+					<span class="al-name">{names.dnTitle(al.name)}</span>
 					<span class="al-count">{t('artist.albumLabel')}</span>
 				</button>
 			{/each}
@@ -138,7 +138,7 @@
 {/if}
 
 {#if loading}
-	<p class="muted">{t('artist.loading', { name: names.dn(name) })}</p>
+	<p class="muted">{t('artist.loading', { name: names.dnArtist(name) })}</p>
 {:else}
 	<section>
 		<h2>{t('artist.hitSongs')}</h2>
@@ -149,12 +149,12 @@
 						<button class="row" use:longpress onlongpress={() => { menuTrack = track; menuOpen = true; }} onclick={() => { player.setQueue(songs); player.play(track); }}>
 							<span class="rank">{i + 1}</span>
 							<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
-							<span class="meta"><span class="r-title">{names.dn(track.title)}</span><span class="r-sub">{names.dn(track.album || track.artist)}</span></span>
+							<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.album || track.artist)}</span></span>
 						</button>
 					</li>
 				{/each}
 			</ul>
-		{:else}<p class="muted">{t('artist.noSongs', { name: names.dn(name) })}</p>{/if}
+		{:else}<p class="muted">{t('artist.noSongs', { name: names.dnArtist(name) })}</p>{/if}
 	</section>
 {/if}
 

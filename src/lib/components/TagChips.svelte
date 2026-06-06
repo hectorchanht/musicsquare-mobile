@@ -3,8 +3,12 @@
 	// Built Phase-9-ready: pass `onTagClick` to make the chips tappable→discovery
 	// WITHOUT a rewrite — when provided each chip renders as a <button>, otherwise as
 	// a non-interactive <span> styled identically. Renders NOTHING when tags is empty
-	// (no empty row). Tag labels are display strings (not run through names.dn).
+	// (no empty row). The DISPLAYED label is gated through names.dnLastfm (lastfmLang +
+	// lastfmSkip): target=off ⇒ original tag, else non-whitelisted tags translate when
+	// results arrive (originals shown immediately). The ORIGINAL tag is still used for
+	// onTagClick/aria/keying so discovery searches the real tag string.
 	import { t } from '$lib/i18n';
+	import { names } from '$lib/stores/names.svelte';
 
 	interface Props {
 		tags: string[];
@@ -22,9 +26,9 @@
 		{#each shown as tag (tag)}
 			<span class="chip-item" role="listitem">
 				{#if onTagClick}
-					<button class="chip" type="button" aria-label={tag} onclick={() => onTagClick?.(tag)}>{tag}</button>
+					<button class="chip" type="button" aria-label={tag} onclick={() => onTagClick?.(tag)}>{names.dnLastfm(tag)}</button>
 				{:else}
-					<span class="chip" aria-label={tag}>{tag}</span>
+					<span class="chip" aria-label={tag}>{names.dnLastfm(tag)}</span>
 				{/if}
 			</span>
 		{/each}

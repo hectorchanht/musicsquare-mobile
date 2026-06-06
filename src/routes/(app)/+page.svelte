@@ -292,8 +292,8 @@
 					{#if track.qualityLabel || track.quality}<span class="q">{track.qualityLabel ?? track.quality}</span>{/if}
 					<div class="scrim"></div>
 					<div class="label">
-						<div class="t-title">{names.dn(track.title)}</div>
-						<div class="t-artist">{names.dn(track.artist)}</div>
+						<div class="t-title">{names.dnTitle(track.title)}</div>
+						<div class="t-artist">{names.dnArtist(track.artist)}</div>
 					</div>
 				</button>
 			{/each}
@@ -308,8 +308,8 @@
 						<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
 							{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
 						</span>
-						<span class="al-name">{names.dn(item.title)}</span>
-						<span class="al-count">{names.dn(item.artist)}</span>
+						<span class="al-name">{names.dnTitle(item.title)}</span>
+						<span class="al-count">{names.dnArtist(item.artist)}</span>
 					</button>
 				{/each}
 			</div>
@@ -323,7 +323,7 @@
 						<span class="al-cover round" style:background-image={fallbackCover(a.name)}>
 							{#if tileCover(a)}<img class="al-cover-img" src={tileCover(a)} loading="lazy" alt="" onerror={hideOnError} />{/if}
 						</span>
-						<span class="al-name center">{names.dn(a.name)}</span>
+						<span class="al-name center">{names.dnArtist(a.name)}</span>
 					</button>
 				{/each}
 			</div>
@@ -337,8 +337,8 @@
 						<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
 							{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
 						</span>
-						<span class="al-name">{names.dn(item.title)}</span>
-						<span class="al-count">{names.dn(item.artist)}</span>
+						<span class="al-name">{names.dnTitle(item.title)}</span>
+						<span class="al-count">{names.dnArtist(item.artist)}</span>
 					</button>
 				{/each}
 			</div>
@@ -352,8 +352,8 @@
 						<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
 							{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
 						</span>
-						<span class="al-name">{names.dn(item.title)}</span>
-						<span class="al-count">{names.dn(item.artist)}</span>
+						<span class="al-name">{names.dnTitle(item.title)}</span>
+						<span class="al-count">{names.dnArtist(item.artist)}</span>
 					</button>
 				{/each}
 			</div>

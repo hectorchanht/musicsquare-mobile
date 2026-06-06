@@ -72,8 +72,8 @@
 				<button class="row" use:longpress onlongpress={() => { menuTrack = t; menuOpen = true; }} onclick={() => { player.setQueue(results); player.play(t); }}>
 					<span class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></span>
 					<span class="meta">
-						<span class="r-title">{names.dn(t.title)}</span>
-						<span class="r-artist">{names.dn(t.artist)}</span>
+						<span class="r-title">{names.dnTitle(t.title)}</span>
+						<span class="r-artist">{names.dnArtist(t.artist)}</span>
 					</span>
 				</button>
 			</li>

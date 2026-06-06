@@ -76,6 +76,48 @@ describe('resolveStub — Last.fm {artist,title} stub → playable Track', () =>
 	});
 });
 
+describe('resolveStub — scored best-match pick (LFSRC-03 / D-02)', () => {
+	it('returns the CLEAN track even when a karaoke/翻唱 variant is ordered first', async () => {
+		// searchAll surfaces the 翻唱 (cover) variant BEFORE the clean studio cut. The two
+		// titles normalize to DIFFERENT dedupe keys (稻香翻唱 vs 稻香) so both survive dedupeBest;
+		// without scoring, dedupeBest[0] would be the variant. scoreMatch must beat that.
+		const variant = mk('netease', 'variant', '周杰伦', { title: '稻香 翻唱' });
+		const clean = mk('qq', 'clean', '周杰伦', { title: '稻香' });
+		vi.spyOn(catalog, 'searchAll').mockResolvedValue(result([variant, clean]));
+
+		const out = await resolveStub('周杰伦', '稻香');
+		expect(out?.uid).toBe(clean.uid);
+	});
+
+	it('returns the CLEAN track over an English cover variant ordered first', async () => {
+		const cover = mk('netease', 'cover', 'X', { title: 'Song Cover' });
+		const clean = mk('qq', 'clean', 'X', { title: 'Song' });
+		vi.spyOn(catalog, 'searchAll').mockResolvedValue(result([cover, clean]));
+
+		const out = await resolveStub('X', 'Song');
+		expect(out?.uid).toBe(clean.uid);
+	});
+
+	it('falls back to dedupeBest order (preferredSource/quality) among equal-scored candidates', async () => {
+		// Two clean same-song candidates → equal scoreMatch. The stable max keeps the earlier
+		// dedupeBest position, so dedupeBest's quality/preferredSource ranking is the tie-break.
+		const first = mk('netease', 'first', '周杰伦', { title: '稻香' });
+		const second = mk('qq', 'second', '周杰伦', { title: '稻香' });
+		vi.spyOn(catalog, 'searchAll').mockResolvedValue(result([first, second]));
+
+		const out = await resolveStub('周杰伦', '稻香');
+		expect(out?.uid).toBe(first.uid);
+	});
+
+	it('still returns null on zero results and never throws (posture preserved)', async () => {
+		vi.spyOn(catalog, 'searchAll').mockResolvedValue(result([]));
+		await expect(resolveStub('Nobody', 'Nothing')).resolves.toBeNull();
+
+		vi.spyOn(catalog, 'searchAll').mockRejectedValue(new Error('search down'));
+		await expect(resolveStub('X', 'Y')).resolves.toBeNull();
+	});
+});
+
 describe('mapWithConcurrency — order-preserving capped async pool (Pitfall 11)', () => {
 	it('runs at most `limit` calls in flight and preserves input order', async () => {
 		const items = [0, 1, 2, 3, 4, 5];

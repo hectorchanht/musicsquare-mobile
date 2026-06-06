@@ -14,10 +14,10 @@
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import TagChips from '$lib/components/TagChips.svelte';
 	import { enrichArtist, type EnrichResult } from '$lib/services/lastfm';
+	import type { Track } from '$lib/sources/types';
 
 	let menuTrack = $state<Track | null>(null);
 	let menuOpen = $state(false);
-	import type { Track } from '$lib/sources/types';
 
 	const name = $derived(decodeURIComponent(page.params.name ?? ''));
 

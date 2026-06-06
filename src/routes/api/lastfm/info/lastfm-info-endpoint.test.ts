@@ -240,6 +240,43 @@ describe('/api/lastfm/info — Last.fm key injected upstream, ABSENT from client
 		expect(parsed.tags).toEqual(['pop', 'mandopop']);
 		expect(parsed.listeners).toBe(999);
 	});
+
+	// CR-01 (security): bioUrl is rendered as href on the artist page; Svelte does NOT
+	// sanitize href bindings, so a javascript:/data:/off-domain href would be a clickable
+	// XSS vector. The edge must hand the client only an https:// last.fm URL.
+	it('rejects a non-https / off-domain attribution href (bioUrl: null), bio text still returned', async () => {
+		const cases = [
+			'javascript:alert(document.cookie)//',
+			'data:text/html,<script>alert(1)</script>',
+			'https://evil.example.com/last.fm-phish',
+			'http://www.last.fm/music/X' // http (not https) — rejected
+		];
+		for (const href of cases) {
+			vi.stubGlobal(
+				'fetch',
+				vi.fn(
+					async () =>
+						new Response(
+							JSON.stringify({
+								artist: {
+									bio: { summary: `Real bio text here. <a href="${href}">Read more on Last.fm</a>.` }
+								}
+							}),
+							{ status: 200 }
+						)
+				)
+			);
+			const event = fakeEvent(
+				{ method: 'artist.getinfo', artist: 'X' },
+				{ JOOX_TOKEN: 'x', LASTFM_KEY: FAKE_KEY }
+			);
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const res = await GET(event as any);
+			const parsed = JSON.parse(await res.text()) as Info;
+			expect(parsed.bioUrl, `href should be rejected: ${href}`).toBeNull();
+			expect(parsed.bio).toContain('Real bio text here'); // bio body still surfaced
+		}
+	});
 });
 
 describe('/api/lastfm/info — CORS preflight', () => {

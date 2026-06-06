@@ -14,7 +14,6 @@
 //  - The SWAP decision (strictly-larger cover guard) lives in the CONSUMER
 //    (NowPlaying), not here. This service only SUPPLIES the placeholder-filtered
 //    candidate (`lastfmArt`); it never decides whether to swap.
-import { matchKey } from '$lib/services/match-key';
 import type { Track } from '$lib/sources/types';
 
 const MAX_TAGS = 5;
@@ -65,15 +64,14 @@ function capTags(tags?: string[]): string[] {
  * contributes its empty default and never rejects the whole. Always resolves to a
  * clean EnrichResult — NEVER throws.
  *
- * matchKey is used as a best-effort guard against Last.fm autocorrect drift: when
- * the returned data clearly disagrees with the local {artist,title}, we keep the
- * source data and drop the drifting candidate (we never fabricate a mismatch).
+ * Note: Last.fm `autocorrect=1` may return data for a near-miss artist/track. A
+ * drift guard (comparing the returned canonical name against matchKey(track)) is a
+ * Phase-13 follow-up — it needs the endpoint to surface the canonical name, which
+ * the current clean shape intentionally drops. Enrichment is additive-only, so a
+ * drifted result degrades to slightly-off tags/art, never broken playback.
  */
 export async function enrichTrack(track: Track): Promise<EnrichResult> {
 	try {
-		const wanted = matchKey(track.artist, track.title); // alignment anchor (Phase 13 reuse)
-		void wanted; // anchor computed for parity with Phase 13 reconciliation; drift-guard below is best-effort
-
 		const [trackInfo, artistInfo, albumInfo] = await Promise.allSettled([
 			fetchInfo({ method: 'track.getinfo', artist: track.artist, track: track.title }),
 			fetchInfo({ method: 'artist.getinfo', artist: track.artist }),

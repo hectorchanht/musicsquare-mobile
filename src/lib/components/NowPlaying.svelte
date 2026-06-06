@@ -137,17 +137,30 @@
 	// (ENRICH-02 overrides D-03). Best-effort + async — never blocks first paint.
 	function maybeSwapCover(art: string, forTrack: Track) {
 		if (typeof Image === 'undefined') return; // SSR guard
-		const img = new Image();
-		img.onload = () => {
-			if (player.current?.uid !== forTrack.uid) return; // track changed — abort
-			const sourceMissing = !forTrack.cover;
-			// "strictly larger": Last.fm extralarge/mega is ~300-600px; require a
-			// reasonably hi-res image so we never downgrade a good source cover.
-			const hiRes = img.naturalWidth >= 300;
-			if (sourceMissing || hiRes) swappedCover = art;
+		// Adopt the Last.fm art only when its real width exceeds the source cover's
+		// (D-04 g3: STRICTLY larger — never downgrade a good cover). `srcWidth = 0`
+		// means the source is missing/broken, so any valid art is an improvement.
+		const adopt = (srcWidth: number) => {
+			const img = new Image();
+			img.onload = () => {
+				if (player.current?.uid !== forTrack.uid) return; // track changed — abort
+				if (img.naturalWidth > srcWidth) swappedCover = art;
+			};
+			img.onerror = () => {}; // broken candidate → keep the source cover
+			img.src = art;
 		};
-		img.onerror = () => {}; // broken candidate → keep the source cover
-		img.src = art;
+		if (!forTrack.cover) {
+			adopt(0); // no source cover → any non-placeholder Last.fm art wins
+			return;
+		}
+		// Measure the source cover first (naturalWidth needs a load) so the swap is a
+		// genuine resolution upgrade, not a same-size/smaller regression (WR-03).
+		const src = new Image();
+		src.onload = () => {
+			if (player.current?.uid === forTrack.uid) adopt(src.naturalWidth);
+		};
+		src.onerror = () => adopt(0); // source cover broken → Last.fm art beats nothing
+		src.src = forTrack.cover;
 	}
 
 	// Effective now-playing cover: the swapped hi-res Last.fm art when adopted, else

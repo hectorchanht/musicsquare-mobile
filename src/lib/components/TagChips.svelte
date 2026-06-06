@@ -20,11 +20,13 @@
 {#if shown.length}
 	<div class="chips" role="list" aria-label={t('nowplaying.lastfmTags')}>
 		{#each shown as tag (tag)}
-			{#if onTagClick}
-				<button class="chip" type="button" aria-label={tag} onclick={() => onTagClick?.(tag)}>{tag}</button>
-			{:else}
-				<span class="chip" role="listitem" aria-label={tag}>{tag}</span>
-			{/if}
+			<span class="chip-item" role="listitem">
+				{#if onTagClick}
+					<button class="chip" type="button" aria-label={tag} onclick={() => onTagClick?.(tag)}>{tag}</button>
+				{:else}
+					<span class="chip" aria-label={tag}>{tag}</span>
+				{/if}
+			</span>
 		{/each}
 	</div>
 {/if}
@@ -35,6 +37,12 @@
 		flex-wrap: wrap;
 		gap: 6px;
 		margin: 6px 2px 0;
+	}
+	/* Semantic listitem wrapper (ARIA: direct child of role=list). Sizes to its chip. */
+	.chip-item {
+		display: inline-flex;
+		max-width: 100%;
+		min-width: 0;
 	}
 	.chip {
 		display: inline-flex;

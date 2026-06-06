@@ -132,13 +132,33 @@ function firstSentences(text: string, max = 3): string {
 		.trim();
 }
 
+/**
+ * Validate an attribution href before it leaves the edge (CR-01).
+ * The bio HTML comes from Last.fm's API, but defense-in-depth: only ever hand the
+ * client an `https://` URL on the last.fm domain. A `javascript:`/`data:`/off-domain
+ * href (malicious or unexpected upstream content) would be a clickable XSS vector
+ * once rendered as `href={bioUrl}` (Svelte does not sanitize href bindings).
+ */
+function safeLastfmUrl(raw: string | null | undefined): string | null {
+	if (!raw) return null;
+	try {
+		const u = new URL(raw);
+		if (u.protocol !== 'https:') return null;
+		const host = u.hostname.toLowerCase();
+		if (host !== 'last.fm' && !host.endsWith('.last.fm')) return null;
+		return u.href;
+	} catch {
+		return null;
+	}
+}
+
 /** Extract bio summary text (HTML-stripped, first sentences) + the attribution URL. */
 function pickBio(wiki?: LfmWiki): { bio: string | null; bioUrl: string | null } {
 	const raw = wiki?.summary ?? wiki?.content;
 	if (!raw) return { bio: null, bioUrl: null };
 	// Attribution link: the <a href> inside the summary (Last.fm appends "Read more on Last.fm").
 	const hrefMatch = raw.match(/<a\b[^>]*href=["']([^"']+)["']/i);
-	const bioUrl = hrefMatch ? hrefMatch[1] : null;
+	const bioUrl = safeLastfmUrl(hrefMatch ? hrefMatch[1] : null); // CR-01: reject javascript:/off-domain
 	const stripped = stripHtml(raw);
 	const bio = stripped ? firstSentences(stripped) : null;
 	return { bio: bio || null, bioUrl };

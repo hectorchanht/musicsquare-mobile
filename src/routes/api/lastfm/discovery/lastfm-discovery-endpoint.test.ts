@@ -27,8 +27,16 @@ function fakeEvent(search: Record<string, string>, env?: Env) {
 	};
 }
 
-type ListItem = { artist?: string; title?: string; name?: string; image: string | null };
+type ListItem = {
+	artist?: string;
+	title?: string;
+	name?: string;
+	image: string | null;
+	mbid?: string | null;
+};
 type List = { items: ListItem[] };
+
+const JAY_MBID = 'b1a9c0e9-d987-4042-ae91-78d6a3267d69';
 
 const CHART_TRACKS_PAYLOAD = JSON.stringify({
 	tracks: {
@@ -36,6 +44,7 @@ const CHART_TRACKS_PAYLOAD = JSON.stringify({
 			{
 				name: '稻香',
 				artist: { name: '周杰伦' },
+				mbid: JAY_MBID, // FIX-B: surfaced through the reshape for the client CAA cover
 				image: [
 					{ '#text': 'https://lastfm.freetls.fastly.net/small.png', size: 'small' },
 					{ '#text': 'https://lastfm.freetls.fastly.net/extralarge.png', size: 'extralarge' }
@@ -44,6 +53,7 @@ const CHART_TRACKS_PAYLOAD = JSON.stringify({
 			{
 				name: 'Shape of You',
 				artist: { name: 'Ed Sheeran' },
+				mbid: '', // empty upstream mbid → reshaped to null
 				image: [{ '#text': 'https://lastfm.freetls.fastly.net/ed.png', size: 'large' }]
 			}
 		]
@@ -53,16 +63,17 @@ const CHART_TRACKS_PAYLOAD = JSON.stringify({
 const CHART_ARTISTS_PAYLOAD = JSON.stringify({
 	artists: {
 		artist: [
-			{ name: '周杰伦', image: [{ '#text': 'https://lastfm.freetls.fastly.net/jay.png', size: 'extralarge' }] },
+			{ name: '周杰伦', mbid: JAY_MBID, image: [{ '#text': 'https://lastfm.freetls.fastly.net/jay.png', size: 'extralarge' }] },
 			{ name: 'Taylor Swift', image: [{ '#text': 'https://lastfm.freetls.fastly.net/ts.png', size: 'large' }] }
 		]
 	}
 });
 
+const ALBUM1_MBID = 'c2b9d1f0-aaaa-bbbb-cccc-78d6a3267d70';
 const TOP_ALBUMS_PAYLOAD = JSON.stringify({
 	topalbums: {
 		album: [
-			{ name: '魔杰座', image: [{ '#text': 'https://lastfm.freetls.fastly.net/album1.png', size: 'extralarge' }] },
+			{ name: '魔杰座', mbid: ALBUM1_MBID, image: [{ '#text': 'https://lastfm.freetls.fastly.net/album1.png', size: 'extralarge' }] },
 			{ name: '叶惠美', image: [{ '#text': 'https://lastfm.freetls.fastly.net/album2.png', size: 'large' }] }
 		]
 	}
@@ -99,15 +110,18 @@ describe('/api/lastfm/discovery — Last.fm key injected upstream, ABSENT from c
 		const headerBlob = JSON.stringify([...res.headers.entries()]);
 		expect(headerBlob).not.toContain(FAKE_KEY);
 
-		// returns a clean { items } list, image picked largest, placeholder-filtered
+		// returns a clean { items } list, image picked largest, placeholder-filtered, with the
+		// FIX-B mbid surfaced (real → kept, empty upstream → null).
 		const parsed = JSON.parse(body) as List;
 		expect(parsed.items).toHaveLength(2);
 		expect(parsed.items[0]).toEqual({
 			artist: '周杰伦',
 			title: '稻香',
-			image: 'https://lastfm.freetls.fastly.net/extralarge.png'
+			image: 'https://lastfm.freetls.fastly.net/extralarge.png',
+			mbid: JAY_MBID
 		});
 		expect(parsed.items[1].artist).toBe('Ed Sheeran');
+		expect(parsed.items[1].mbid).toBeNull(); // empty upstream mbid → null
 	});
 
 	it('encodes a non-ASCII passthrough param (tag) into the upstream URL', async () => {
@@ -213,8 +227,9 @@ describe('/api/lastfm/discovery — list reshapers per method', () => {
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const res = await GET(event as any);
 		const parsed = JSON.parse(await res.text()) as List;
-		expect(parsed.items[0]).toEqual({ name: '周杰伦', image: 'https://lastfm.freetls.fastly.net/jay.png' });
+		expect(parsed.items[0]).toEqual({ name: '周杰伦', image: 'https://lastfm.freetls.fastly.net/jay.png', mbid: JAY_MBID });
 		expect(parsed.items[1].name).toBe('Taylor Swift');
+		expect(parsed.items[1].mbid).toBeNull(); // no upstream mbid → null
 	});
 
 	it('artist.gettopalbums reshapes to { name, image } items', async () => {
@@ -226,8 +241,41 @@ describe('/api/lastfm/discovery — list reshapers per method', () => {
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const res = await GET(event as any);
 		const parsed = JSON.parse(await res.text()) as List;
-		expect(parsed.items[0]).toEqual({ name: '魔杰座', image: 'https://lastfm.freetls.fastly.net/album1.png' });
+		expect(parsed.items[0]).toEqual({ name: '魔杰座', image: 'https://lastfm.freetls.fastly.net/album1.png', mbid: ALBUM1_MBID });
 		expect(parsed.items).toHaveLength(2);
+	});
+
+	// FIX-B: the per-item MusicBrainz `mbid` is surfaced through the reshape (client builds a
+	// CAA cover URL from it). A real mbid is kept; an empty / absent upstream mbid → null so a
+	// no-mbid tile keeps the gradient. mbid is a public id — the no-leak test still holds.
+	it('surfaces a real mbid and reshapes empty/absent upstream mbid to null', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({
+							tracks: {
+								track: [
+									{ name: 'Has', artist: { name: 'A' }, mbid: JAY_MBID },
+									{ name: 'EmptyMbid', artist: { name: 'B' }, mbid: '   ' },
+									{ name: 'NoMbid', artist: { name: 'C' } }
+								]
+							}
+						}),
+						{ status: 200 }
+					)
+			)
+		);
+		const event = fakeEvent({ method: 'chart.gettoptracks' }, { JOOX_TOKEN: 'x', LASTFM_KEY: FAKE_KEY });
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const res = await GET(event as any);
+		const parsed = JSON.parse(await res.text()) as List;
+		expect(parsed.items[0].mbid).toBe(JAY_MBID); // real id kept
+		expect(parsed.items[1].mbid).toBeNull(); // whitespace-only → null
+		expect(parsed.items[2].mbid).toBeNull(); // absent → null
+		// no-leak invariant holds: the key is not the mbid and never appears.
+		expect(JSON.stringify(parsed)).not.toContain(FAKE_KEY);
 	});
 
 	it('placeholder filter: grey-star hash image on a track item → image null', async () => {
@@ -264,7 +312,7 @@ describe('/api/lastfm/discovery — list reshapers per method', () => {
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const res = await GET(event as any);
 		const parsed = JSON.parse(await res.text()) as List;
-		expect(parsed.items[0]).toEqual({ artist: 'Nobody', title: 'No Art', image: null });
+		expect(parsed.items[0]).toEqual({ artist: 'Nobody', title: 'No Art', image: null, mbid: null });
 	});
 
 	// CR-01 (security): image URLs are interpolated into CSS `background-image: url(...)`.

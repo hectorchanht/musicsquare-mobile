@@ -18,6 +18,7 @@
 		DISCOVERY_TAGS,
 		DISCOVERY_COUNTRIES
 	} from '$lib/services/discovery';
+	import { caaReleaseGroupCover } from '$lib/services/cover-art';
 	import { decodeTrack } from '$lib/services/share';
 	import { player } from '$lib/stores/player.svelte';
 	import { names } from '$lib/stores/names.svelte';
@@ -73,6 +74,18 @@
 	function fallbackCover(seed: string): string {
 		const h = (seed.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 47) % 360;
 		return `linear-gradient(145deg, hsl(${h} 55% 32%), hsl(${(h + 40) % 360} 55% 18%))`;
+	}
+
+	// FIX-B: prefer a real cover for a discovery item — the Last.fm image if any, else a
+	// client-built Cover Art Archive URL from the item's MusicBrainz mbid. Rendered as a
+	// lazy <img> layered over the gradient (NOT a CSS background) so a 404/no-art degrades
+	// to the gradient via onerror; null → no <img> (gradient only). Off the critical path.
+	function tileCover(item: { image: string | null; mbid: string | null }): string | null {
+		return item.image ?? caaReleaseGroupCover(item.mbid);
+	}
+	// Hide a cover <img> on load error so the gradient underneath shows (no broken-image icon).
+	function hideOnError(e: Event) {
+		(e.currentTarget as HTMLImageElement).style.display = 'none';
 	}
 
 	// Has at least one Last.fm shelf returned anything? Drives the D-06 fallback decision.
@@ -292,7 +305,9 @@
 			<div class="albumrow">
 				{#each topHits as item (item.artist + ' ' + item.title)}
 					<button class="album" onclick={() => playStub(item)}>
-						<span class="al-cover" style:background-image={item.image ? `url(${item.image})` : fallbackCover(item.artist + item.title)}></span>
+						<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
+							{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
+						</span>
 						<span class="al-name">{names.dn(item.title)}</span>
 						<span class="al-count">{names.dn(item.artist)}</span>
 					</button>
@@ -305,7 +320,9 @@
 			<div class="albumrow">
 				{#each topArtists as a (a.name)}
 					<button class="album" onclick={() => goto('/artist/' + encodeURIComponent(a.name))}>
-						<span class="al-cover round" style:background-image={a.image ? `url(${a.image})` : fallbackCover(a.name)}></span>
+						<span class="al-cover round" style:background-image={fallbackCover(a.name)}>
+							{#if tileCover(a)}<img class="al-cover-img" src={tileCover(a)} loading="lazy" alt="" onerror={hideOnError} />{/if}
+						</span>
 						<span class="al-name center">{names.dn(a.name)}</span>
 					</button>
 				{/each}
@@ -317,7 +334,9 @@
 			<div class="albumrow">
 				{#each shelf.tracks as item (item.artist + ' ' + item.title)}
 					<button class="album" onclick={() => playStub(item)}>
-						<span class="al-cover" style:background-image={item.image ? `url(${item.image})` : fallbackCover(item.artist + item.title)}></span>
+						<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
+							{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
+						</span>
 						<span class="al-name">{names.dn(item.title)}</span>
 						<span class="al-count">{names.dn(item.artist)}</span>
 					</button>
@@ -330,7 +349,9 @@
 			<div class="albumrow">
 				{#each shelf.tracks as item (item.artist + ' ' + item.title)}
 					<button class="album" onclick={() => playStub(item)}>
-						<span class="al-cover" style:background-image={item.image ? `url(${item.image})` : fallbackCover(item.artist + item.title)}></span>
+						<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
+							{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
+						</span>
 						<span class="al-name">{names.dn(item.title)}</span>
 						<span class="al-count">{names.dn(item.artist)}</span>
 					</button>
@@ -367,8 +388,11 @@
 	.albumrow { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; }
 	.album { flex: 0 0 130px; background: none; border: none; padding: 0; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 4px; transition: transform 0.12s ease; }
 	.album:active { transform: scale(0.96); }
-	.al-cover { width: 130px; height: 130px; border-radius: 10px; background-size: cover; background-position: center; background-color: var(--color-surface-2); }
+	.al-cover { position: relative; overflow: hidden; width: 130px; height: 130px; border-radius: 10px; background-size: cover; background-position: center; background-color: var(--color-surface-2); }
 	.al-cover.round { border-radius: 50%; }
+	/* FIX-B: real cover (Last.fm or CAA) layered over the gradient span; onerror hides it
+	   (a 404 → the gradient shows). inherit border-radius so the round variant clips it. */
+	.al-cover-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 	.al-cover.skeleton { background: linear-gradient(110deg, #1a1a22 30%, #24242f 50%, #1a1a22 70%); background-size: 200% 100%; animation: sk 1.2s infinite; }
 	@keyframes sk { to { background-position: -200% 0; } }
 	.al-name { font-size: 12px; font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

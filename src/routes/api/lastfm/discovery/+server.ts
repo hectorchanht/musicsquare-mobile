@@ -58,11 +58,16 @@ export interface DiscoveryTrackItem {
 	artist: string;
 	title: string;
 	image: string | null;
+	/** Upstream MusicBrainz release/release-group id (often empty → null). Used CLIENT-SIDE
+	    to build a Cover Art Archive cover URL (FIX-B). A public id, not secret (T-nza-01). */
+	mbid: string | null;
 }
 /** An artist/album item (chart top artists, artist.getTopAlbums). */
 export interface DiscoveryNamedItem {
 	name: string;
 	image: string | null;
+	/** Upstream MusicBrainz id (often empty → null); client-side CAA cover source (FIX-B). */
+	mbid: string | null;
 }
 export type DiscoveryItem = DiscoveryTrackItem | DiscoveryNamedItem;
 
@@ -106,10 +111,12 @@ interface LfmTrack {
 	name?: string;
 	artist?: { name?: string } | string;
 	image?: LfmImage[];
+	mbid?: string;
 }
 interface LfmNamed {
 	name?: string;
 	image?: LfmImage[];
+	mbid?: string;
 }
 
 const SIZE_RANK: Record<string, number> = {
@@ -172,12 +179,20 @@ function reshapeTracks(arr: LfmTrack[]): DiscoveryTrackItem[] {
 	return arr.map((t) => ({
 		artist: artistName(t.artist),
 		title: (t.name ?? '').trim(),
-		image: pickImage(t.image)
+		image: pickImage(t.image),
+		// mbid is a plain MusicBrainz id (NOT a URL, NOT interpolated into CSS), so no
+		// safeImageUrl allow-list applies — the client builds the CAA <img src> from it
+		// (T-nza-02). Empty/whitespace → null so a no-mbid item keeps the gradient.
+		mbid: (t.mbid ?? '').trim() || null
 	}));
 }
 
 function reshapeNamed(arr: LfmNamed[]): DiscoveryNamedItem[] {
-	return arr.map((n) => ({ name: (n.name ?? '').trim(), image: pickImage(n.image) }));
+	return arr.map((n) => ({
+		name: (n.name ?? '').trim(),
+		image: pickImage(n.image),
+		mbid: (n.mbid ?? '').trim() || null
+	}));
 }
 
 interface LfmDiscoveryResponse {

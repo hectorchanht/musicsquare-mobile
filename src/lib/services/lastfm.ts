@@ -150,11 +150,15 @@ export interface DiscoveryTrack {
 	artist: string;
 	title: string;
 	image: string | null;
+	/** MusicBrainz id surfaced by the edge reshape; client builds a CAA cover URL (FIX-B). */
+	mbid: string | null;
 }
 /** A top-artist item. */
 export interface DiscoveryArtist {
 	name: string;
 	image: string | null;
+	/** MusicBrainz id surfaced by the edge reshape; client builds a CAA cover URL (FIX-B). */
+	mbid: string | null;
 }
 /** An artist top-album item. */
 export interface DiscoveryAlbum {

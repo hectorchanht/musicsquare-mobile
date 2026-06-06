@@ -151,7 +151,11 @@ Connects the standalone aggregator to Last.fm across four cross-cutting capabili
   3. A track with no Last.fm match (error 6) still displays and plays exactly as before — enrichment is silent best-effort, never a hard failure, and never blocks or delays the moment audio starts
   4. With `LASTFM_KEY` absent (e.g. plain `vite dev`), the app behaves identically minus enrichment — no errors, no broken UI — proving graceful degradation
   5. The same normalized `{artist}+{title}` match-key used to align Last.fm data with local tracks is available as a reusable primitive (consumed later by Phase 13's loved-sync reconciliation)
-**Plans**: TBD
+**Plans**: 3 plans (2 waves)
+Plans:
+- [ ] 08-01-PLAN.md — Edge /api/lastfm/info read proxy + match-key primitive + Track enrich fields + enrichment service + now-playing tag chips & higher-res cover swap (wave 1)
+- [ ] 08-02-PLAN.md — Artist page: Last.fm bio snippet + tags + better hero image, always-present attribution link (wave 2)
+- [ ] 08-03-PLAN.md — Album page: higher-res Last.fm cover + listeners/playcount info (wave 2)
 **Research flag**: Standard patterns — mirrors the existing `/api/similar` edge route; placeholder filter and merge rules fully specified in research. No `--research-phase` needed.
 **Security note**: Owns the enrichment-overwrite / placeholder-art pitfalls (PITFALLS Pitfall 8) — enrichment stays additive, async, and off the playback critical path. Also owns first-endpoint `platform?.env` plumbing (absent-key graceful state) and lays the UTF-8 foundation reused by Phase 11.
 
@@ -242,7 +246,7 @@ v1.1 dependency chain: 8 → (9, 10) read-only & auth-free first; 11 (auth) befo
 | 5. PWA + Service Worker | 0/TBD | Not started | - |
 | 6. Background Audio + MediaSession | 0/TBD | Not started | - |
 | 7. New Sources + Queue Model + Gestures | 0/TBD | Not started | - |
-| 8. Last.fm Read Foundation & Metadata Enrichment | 0/TBD | Not started | - |
+| 8. Last.fm Read Foundation & Metadata Enrichment | 0/3 | Planned | - |
 | 9. Discovery / Hot-Picks Tab | 0/TBD | Not started | - |
 | 10. Last.fm-searchable Source | 0/TBD | Not started | - |
 | 11. Signed-call Infrastructure & Auth | 0/TBD | Not started | - |

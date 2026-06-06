@@ -6,6 +6,7 @@
 	import { library } from '$lib/stores/library.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { names } from '$lib/stores/names.svelte';
+	import { overlays } from '$lib/stores/overlays.svelte';
 	import { t, type TranslationKey } from '$lib/i18n';
 	import NowPlaying from '$lib/components/NowPlaying.svelte';
 
@@ -14,6 +15,9 @@
 	onMount(() => {
 		library.load();
 		settings.load();
+		// Single back-gesture popstate listener for the whole app (overlays back-to-close).
+		const teardownOverlays = overlays.init();
+		return teardownOverlays;
 	});
 
 	// Store a translation KEY per tab (not the literal) so the nav re-renders when appLang changes.

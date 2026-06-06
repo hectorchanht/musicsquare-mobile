@@ -6,6 +6,7 @@
 	import { player, fmtTime } from '$lib/stores/player.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { names } from '$lib/stores/names.svelte';
+	import { overlays } from '$lib/stores/overlays.svelte';
 	import { t } from '$lib/i18n';
 	import { searchAll } from '$lib/services/catalog';
 	import { dedupeBest } from '$lib/services/dedupe';
@@ -110,6 +111,17 @@
 		}
 	}
 
+	// ---- back-gesture: NowPlaying only renders while player.expanded, so mount == overlay
+	// open. The back gesture runs player.collapse() (→ unmount → cleanup dismisses); the
+	// header ChevronDown, cover drag-collapse, and openArtist all also call player.collapse(),
+	// so they route through the SAME single dismiss path (the $effect cleanup). History depth
+	// stays balanced: open pushes 1 state, cleanup's dismiss() pops it (or back-gesture's
+	// closeTop already popped it → dismiss is a no-op).
+	$effect(() => {
+		overlays.open('nowplaying', () => player.collapse());
+		return () => overlays.dismiss('nowplaying');
+	});
+
 	// ---- cover drag-down to collapse ----
 	let dragY = $state(0);
 	let dragging = $state(false);
@@ -118,55 +130,110 @@
 	function coverMove(e: PointerEvent) { if (dragging) dragY = Math.max(0, e.clientY - startY); }
 	function coverUp() { if (!dragging) return; dragging = false; if (dragY > 120) player.collapse(); dragY = 0; }
 
-	// ---- grip: live vertical drag (translateY follows finger), snaps + settles ----
-	let panelFull = $state(false);
+	// ---- sheet: 3-state snap machine (closed / half / full) ----
+	// translateY is measured in "full coordinates": 0 = full (sheet fills .np),
+	// halfOffset = half-open (~50% down), closedOffset = closed/peek (sheet at its
+	// resting peek height). The grip AND the subnav row both drive this via the same
+	// gripDown/gripMove/gripUp pointer handlers. Mirrors the old live-drag idiom.
+	type SheetState = 'closed' | 'half' | 'full';
+	let sheetState = $state<SheetState>('closed');
 	let sheetEl = $state<HTMLElement | null>(null);
-	let sheetDragY = $state(0); // px in full-coordinates (0 = full, peekOffset = peek)
+	let sheetDragY = $state(0); // px in full-coordinates (0 = full, closedOffset = closed)
 	let sheetDragging = $state(false); // forces absolute layout while dragging/snapping
 	let gripActive = $state(false); // true only while finger is down (transition off)
+	let subnavMoved = $state(false); // set true when the gesture passed the 8px drag threshold
 	let gripStartY = 0;
 	let gripMoved = 0;
-	let peekOffset = 300; // distance from full-top to peek-top (measured at drag start)
+	let closedOffset = 300; // distance from full-top to closed/peek-top (measured at drag start)
+	let halfOffset = 150; // distance from full-top to half-open-top (measured at drag start)
 	let snapTimer: ReturnType<typeof setTimeout> | null = null;
+
+	/** translateY (full-coordinate px) for a given resting state. */
+	function offsetFor(s: SheetState): number {
+		return s === 'full' ? 0 : s === 'half' ? halfOffset : closedOffset;
+	}
+
+	/** Measure closed/half offsets from the live layout at drag/tap start. */
+	function measureOffsets() {
+		const np = sheetEl?.closest('.np') as HTMLElement | null;
+		if (!sheetEl || !np) return;
+		const npRect = np.getBoundingClientRect();
+		// When closed the sheet is in normal flow → real peek distance. When half/full it
+		// is absolute, so derive a sensible peek height from the container instead.
+		if (sheetState === 'closed') {
+			closedOffset = Math.max(80, sheetEl.getBoundingClientRect().top - npRect.top);
+		} else {
+			closedOffset = Math.max(80, npRect.height * 0.72);
+		}
+		halfOffset = Math.round(npRect.height * 0.5);
+		// Keep ordering sane: half must sit between full(0) and closed.
+		halfOffset = Math.max(20, Math.min(closedOffset - 20, halfOffset));
+	}
 
 	function gripDown(e: PointerEvent) {
 		gripActive = true;
+		subnavMoved = false;
 		gripStartY = e.clientY;
 		gripMoved = 0;
 		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 		if (snapTimer) clearTimeout(snapTimer);
-		const np = sheetEl?.closest('.np') as HTMLElement | null;
-		if (sheetEl && np && !panelFull) {
-			peekOffset = Math.max(80, sheetEl.getBoundingClientRect().top - np.getBoundingClientRect().top);
-		}
+		measureOffsets();
 		sheetDragging = true;
-		sheetDragY = panelFull ? 0 : peekOffset;
+		sheetDragY = offsetFor(sheetState);
 	}
 	function gripMove(e: PointerEvent) {
 		if (!gripActive) return;
 		gripMoved = e.clientY - gripStartY;
-		const start = panelFull ? 0 : peekOffset;
-		sheetDragY = Math.max(0, Math.min(peekOffset, start + gripMoved));
+		if (Math.abs(gripMoved) >= 8) subnavMoved = true;
+		const start = offsetFor(sheetState);
+		sheetDragY = Math.max(0, Math.min(closedOffset, start + gripMoved));
 	}
 	function gripUp() {
 		if (!gripActive) return;
 		gripActive = false;
 		if (Math.abs(gripMoved) < 8) {
-			// tap → toggle, no live offset
+			// TAP → single predictable step: closed→half, half→closed, full→half.
 			sheetDragging = false;
 			sheetDragY = 0;
-			panelFull = !panelFull;
+			sheetState = sheetState === 'closed' ? 'half' : sheetState === 'full' ? 'half' : 'closed';
 			return;
 		}
-		const threshold = peekOffset * 0.25;
-		const toFull = panelFull ? !(gripMoved > threshold) : -gripMoved > threshold;
-		sheetDragY = toFull ? 0 : peekOffset; // animate (transition on now that gripActive=false)
+		// DRAG → snap to the nearest of {full,half,closed}, biased by drag direction so a
+		// deliberate swipe overshoots one state (up = toward full, down = toward closed).
+		const dir = gripMoved < 0 ? -1 : 1; // -1 = swiped up, +1 = swiped down
+		const bias = closedOffset * 0.12 * dir; // shift the decision point with the swipe
+		const pos = sheetDragY + bias;
+		let target: SheetState;
+		const dHalf = Math.abs(pos - halfOffset);
+		const dFull = Math.abs(pos - 0);
+		const dClosed = Math.abs(pos - closedOffset);
+		if (dFull <= dHalf && dFull <= dClosed) target = 'full';
+		else if (dClosed <= dHalf && dClosed <= dFull) target = 'closed';
+		else target = 'half';
+		sheetDragY = offsetFor(target); // animate (transition on now that gripActive=false)
 		if (snapTimer) clearTimeout(snapTimer);
 		snapTimer = setTimeout(() => {
-			panelFull = toFull;
+			sheetState = target;
 			sheetDragging = false;
 			sheetDragY = 0;
 		}, 290);
+	}
+
+	/** Grip keyboard step (Enter/Space): mirrors the TAP single-step. */
+	function gripKey(e: KeyboardEvent) {
+		if (e.key !== 'Enter' && e.key !== ' ') return;
+		e.preventDefault();
+		sheetState = sheetState === 'closed' ? 'half' : sheetState === 'full' ? 'half' : 'closed';
+	}
+
+	/** Subnav item tap: switch tab; open to half from closed. Suppressed if it was a drag. */
+	function selectTab(next: Tab) {
+		if (subnavMoved) {
+			subnavMoved = false;
+			return; // gesture was a drag on the subnav row — don't switch tabs
+		}
+		tab = next;
+		if (sheetState === 'closed') sheetState = 'half';
 	}
 
 	// ---- Up-Next reorder: custom pointer/touch drag on the far-right grip handle ----
@@ -213,6 +280,7 @@
 
 <section
 	class="np"
+	class:reflow={sheetState !== 'closed'}
 	transition:fly={{ y: 600, duration: 320, easing: cubicOut }}
 	style:transform={dragY ? `translateY(${dragY}px)` : undefined}
 	style:transition={dragging ? 'none' : 'transform 0.28s cubic-bezier(.22,1,.36,1)'}
@@ -263,22 +331,23 @@
 
 	<div
 		class="sheet"
-		class:full={panelFull}
+		class:full={sheetState !== 'closed'}
 		class:dragging={sheetDragging}
 		bind:this={sheetEl}
 		style:transform={sheetDragging ? `translateY(${sheetDragY}px)` : undefined}
 		style:transition={gripActive ? 'none' : 'transform 0.28s cubic-bezier(.22,1,.36,1)'}
 	>
-		<div class="grip" role="button" tabindex="0" aria-label={panelFull ? t('nowplaying.collapsePanel') : t('nowplaying.expandPanel')}
+		<div class="grip" role="button" tabindex="0" aria-label={sheetState === 'closed' ? t('nowplaying.expandPanel') : t('nowplaying.collapsePanel')}
 			onpointerdown={gripDown} onpointermove={gripMove} onpointerup={gripUp} onpointercancel={gripUp}
-			onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') panelFull = !panelFull; }}>
+			onkeydown={gripKey}>
 			<span class="handle"></span>
 		</div>
 
-		<nav class="subnav">
-			<button class:active={tab === 'queue'} onclick={() => (tab = 'queue')}>{t('nowplaying.upNext')}</button>
-			<button class:active={tab === 'lyrics'} onclick={() => (tab = 'lyrics')}>{t('nowplaying.lyrics')}</button>
-			<button class:active={tab === 'related'} onclick={() => (tab = 'related')}>{t('nowplaying.related')}</button>
+		<nav class="subnav"
+			onpointerdown={gripDown} onpointermove={gripMove} onpointerup={gripUp} onpointercancel={gripUp}>
+			<button class:active={tab === 'queue'} onclick={() => selectTab('queue')}>{t('nowplaying.upNext')}</button>
+			<button class:active={tab === 'lyrics'} onclick={() => selectTab('lyrics')}>{t('nowplaying.lyrics')}</button>
+			<button class:active={tab === 'related'} onclick={() => selectTab('related')}>{t('nowplaying.related')}</button>
 		</nav>
 
 		<div class="panel">
@@ -345,9 +414,16 @@
 	.bar .ctx { font-size: 12px; color: var(--color-text-muted); }
 	.icon { background: none; border: none; color: var(--color-text); cursor: pointer; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; }
 	.icon:hover { background: var(--color-surface-2); }
-	.cover { width: min(72vw, 320px); aspect-ratio: 1/1; margin: 10px auto; border-radius: 16px; background-size: cover; background-position: center; box-shadow: 0 18px 50px rgba(0,0,0,0.5); cursor: grab; touch-action: none; }
+	.cover { position: relative; z-index: 1; width: min(72vw, 320px); height: auto; aspect-ratio: 1/1; margin: 10px auto; border-radius: 16px; background-size: cover; background-position: center; box-shadow: 0 18px 50px rgba(0,0,0,0.5); cursor: grab; touch-action: none; transition: width 0.32s cubic-bezier(.22,1,.36,1), height 0.32s cubic-bezier(.22,1,.36,1), margin 0.32s cubic-bezier(.22,1,.36,1), border-radius 0.32s cubic-bezier(.22,1,.36,1); }
 	.cover:active { cursor: grabbing; }
-	.meta { margin: 4px 2px 12px; }
+	.meta { margin: 4px 2px 12px; transition: margin 0.32s cubic-bezier(.22,1,.36,1); }
+	/* Reflow (sheet half/full): cover becomes a full-bleed YT-Music banner that the
+	   header overlaps at the top and the meta overlaps at the bottom. */
+	.np.reflow .cover { width: auto; aspect-ratio: auto; height: 30vh; margin: 0 -18px; border-radius: 0; }
+	.np.reflow .cover::before { content: ''; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 28%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.35) 100%); }
+	.np.reflow .bar { position: relative; z-index: 2; }
+	.np.reflow .meta { position: relative; z-index: 2; margin-top: -42px; padding: 0 2px; }
+	.np.reflow .title { text-shadow: 0 1px 6px rgba(0,0,0,0.6); }
 	.title { font-size: 1.5rem; font-weight: 800; line-height: 1.2; }
 	.artist { background: none; border: none; padding: 0; color: var(--color-text-muted); font-size: 1rem; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 	.prog { margin: 4px 0 10px; }
@@ -360,13 +436,13 @@
 	.t { background: none; border: none; color: var(--color-text); cursor: pointer; opacity: 0.85; display: grid; place-items: center; }
 	.t.on { color: var(--color-primary); opacity: 1; }
 	.play { width: 62px; height: 62px; border-radius: 50%; border: none; background: #fff; color: #000; cursor: pointer; display: grid; place-items: center; }
-	.sheet { display: flex; flex-direction: column; flex: 1; min-height: 0; border-top: 1px solid var(--color-border); will-change: transform; }
+	.sheet { display: flex; flex-direction: column; flex: 1; min-height: 0; border-top: 1px solid var(--color-border); will-change: transform; user-select: none; -webkit-user-select: none; }
 	.sheet.full, .sheet.dragging { position: absolute; inset: 0; z-index: 5; background: var(--color-bg); border-top: none; padding: 8px 18px env(safe-area-inset-bottom); }
-	.grip { display: flex; justify-content: center; padding: 10px 0 6px; cursor: grab; touch-action: none; }
+	.grip { display: flex; justify-content: center; padding: 10px 0 6px; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
 	.grip:active { cursor: grabbing; }
 	.handle { width: 44px; height: 5px; border-radius: 999px; background: var(--color-text-muted); opacity: 0.6; }
-	.subnav { display: flex; justify-content: space-around; padding-bottom: 6px; }
-	.subnav button { background: none; border: none; color: var(--color-text-muted); font-size: 13px; padding: 6px 4px; cursor: pointer; border-bottom: 2px solid transparent; }
+	.subnav { display: flex; justify-content: space-around; padding-bottom: 6px; touch-action: none; user-select: none; -webkit-user-select: none; }
+	.subnav button { background: none; border: none; color: var(--color-text-muted); font-size: 13px; min-height: 40px; padding: 8px 12px; cursor: pointer; border-bottom: 2px solid transparent; }
 	.subnav button.active { color: var(--color-text); border-bottom-color: var(--color-primary); }
 	.panel { flex: 1; overflow-y: auto; padding: 8px 0 16px; }
 	.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }

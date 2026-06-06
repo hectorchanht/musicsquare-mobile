@@ -138,14 +138,16 @@
 	type SheetState = 'closed' | 'half' | 'full';
 	let sheetState = $state<SheetState>('closed');
 	let sheetEl = $state<HTMLElement | null>(null);
+	let transportEl = $state<HTMLElement | null>(null); // transport row → live bottom edge for flush half offset
 	let sheetDragY = $state(0); // px in full-coordinates (0 = full, closedOffset = closed)
 	let sheetDragging = $state(false); // forces absolute layout while dragging/snapping
 	let gripActive = $state(false); // true only while finger is down (transition off)
 	let subnavMoved = $state(false); // set true when the gesture passed the 8px drag threshold
 	let gripStartY = 0;
 	let gripMoved = 0;
+	let gripStartTab: Tab | null = null; // gesture-transient: the subnav tab the gesture started on (null = grip/empty)
 	let closedOffset = 300; // distance from full-top to closed/peek-top (measured at drag start)
-	let halfOffset = 150; // distance from full-top to half-open-top (measured at drag start)
+	let halfOffset = $state(150); // distance from full-top to half-open-top; reactive so the resting-half transform updates when re-measured
 	let snapTimer: ReturnType<typeof setTimeout> | null = null;
 
 	/** translateY (full-coordinate px) for a given resting state. */
@@ -165,7 +167,11 @@
 		} else {
 			closedOffset = Math.max(80, npRect.height * 0.72);
 		}
-		halfOffset = Math.round(npRect.height * 0.5);
+		// Flush half-open: the panel top sits exactly at the bottom edge of the transport
+		// row (no dead gap). Fall back to the old fraction only when the ref isn't mounted.
+		halfOffset = transportEl
+			? Math.round(transportEl.getBoundingClientRect().bottom - npRect.top)
+			: Math.round(npRect.height * 0.5);
 		// Keep ordering sane: half must sit between full(0) and closed.
 		halfOffset = Math.max(20, Math.min(closedOffset - 20, halfOffset));
 	}
@@ -175,6 +181,10 @@
 		subnavMoved = false;
 		gripStartY = e.clientY;
 		gripMoved = 0;
+		// Remember which subnav tab (if any) the gesture started on, so a TAP switches that
+		// tab with priority over the generic grip toggle. null = grip handle / empty nav area.
+		const btn = (e.target as HTMLElement).closest('.subnav button') as HTMLElement | null;
+		gripStartTab = btn ? (btn.dataset.tab as Tab) : null;
 		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 		if (snapTimer) clearTimeout(snapTimer);
 		measureOffsets();
@@ -192,12 +202,23 @@
 		if (!gripActive) return;
 		gripActive = false;
 		if (Math.abs(gripMoved) < 8) {
-			// TAP → single predictable step: closed→half, half→closed, full→half.
+			// TAP → reset transient drag state regardless of branch taken below.
 			sheetDragging = false;
 			sheetDragY = 0;
+			if (gripStartTab) {
+				// Tap originated on a subnav item → switch to that tab (+ half-open from
+				// closed) with priority over the generic toggle.
+				selectTab(gripStartTab);
+				gripStartTab = null;
+				return;
+			}
+			// Tap on the grip handle / empty nav area → generic single step:
+			// closed→half, half→closed, full→half.
 			sheetState = sheetState === 'closed' ? 'half' : sheetState === 'full' ? 'half' : 'closed';
+			gripStartTab = null;
 			return;
 		}
+		gripStartTab = null;
 		// DRAG → snap to the nearest of {full,half,closed}, biased by drag direction so a
 		// deliberate swipe overshoots one state (up = toward full, down = toward closed).
 		const dir = gripMoved < 0 ? -1 : 1; // -1 = swiped up, +1 = swiped down
@@ -235,6 +256,15 @@
 		tab = next;
 		if (sheetState === 'closed') sheetState = 'half';
 	}
+
+	// Resting half reads halfOffset for its transform, but tap/keyboard paths enter half
+	// without going through measureOffsets() (only the drag path measures). Recompute the
+	// flush offset whenever the sheet rests in half (and on layout-affecting changes).
+	// SEPARATE from the back-gesture $effect above — measureOffsets() is idempotent and
+	// guards on null refs.
+	$effect(() => {
+		if (sheetState === 'half' && !sheetDragging) measureOffsets();
+	});
 
 	// ---- Up-Next reorder: custom pointer/touch drag on the far-right grip handle ----
 	// (NOT native HTML5 DnD — poor on touch). On drop we call player.reorderQueue,
@@ -319,7 +349,7 @@
 		</div>
 	</div>
 
-	<div class="transport">
+	<div class="transport" bind:this={transportEl}>
 		<button class="t" class:on={shuffle} aria-label={t('nowplaying.shuffle')} onclick={() => (shuffle = !shuffle)}><Shuffle size={20} /></button>
 		<button class="t" aria-label={t('nowplaying.previous')} onclick={() => player.prev()}><SkipBack size={26} /></button>
 		<button class="play" aria-label={t('nowplaying.playPause')} onclick={() => player.toggle()}>
@@ -334,7 +364,7 @@
 		class:full={sheetState !== 'closed'}
 		class:dragging={sheetDragging}
 		bind:this={sheetEl}
-		style:transform={sheetDragging ? `translateY(${sheetDragY}px)` : undefined}
+		style:transform={sheetDragging ? `translateY(${sheetDragY}px)` : sheetState === 'half' ? `translateY(${halfOffset}px)` : undefined}
 		style:transition={gripActive ? 'none' : 'transform 0.28s cubic-bezier(.22,1,.36,1)'}
 	>
 		<div class="grip" role="button" tabindex="0" aria-label={sheetState === 'closed' ? t('nowplaying.expandPanel') : t('nowplaying.collapsePanel')}
@@ -345,9 +375,9 @@
 
 		<nav class="subnav"
 			onpointerdown={gripDown} onpointermove={gripMove} onpointerup={gripUp} onpointercancel={gripUp}>
-			<button class:active={tab === 'queue'} onclick={() => selectTab('queue')}>{t('nowplaying.upNext')}</button>
-			<button class:active={tab === 'lyrics'} onclick={() => selectTab('lyrics')}>{t('nowplaying.lyrics')}</button>
-			<button class:active={tab === 'related'} onclick={() => selectTab('related')}>{t('nowplaying.related')}</button>
+			<button data-tab="queue" class:active={tab === 'queue'} onclick={() => selectTab('queue')}>{t('nowplaying.upNext')}</button>
+			<button data-tab="lyrics" class:active={tab === 'lyrics'} onclick={() => selectTab('lyrics')}>{t('nowplaying.lyrics')}</button>
+			<button data-tab="related" class:active={tab === 'related'} onclick={() => selectTab('related')}>{t('nowplaying.related')}</button>
 		</nav>
 
 		<div class="panel">
@@ -421,7 +451,7 @@
 	   header overlaps at the top and the meta overlaps at the bottom. */
 	.np.reflow .cover { width: auto; aspect-ratio: auto; height: 30vh; margin: 0 -18px; border-radius: 0; }
 	.np.reflow .cover::before { content: ''; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 28%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.35) 100%); }
-	.np.reflow .bar { position: relative; z-index: 2; }
+	.np.reflow .bar { position: absolute; top: 0; left: 18px; right: 18px; z-index: 2; }
 	.np.reflow .meta { position: relative; z-index: 2; margin-top: -42px; padding: 0 2px; }
 	.np.reflow .title { text-shadow: 0 1px 6px rgba(0,0,0,0.6); }
 	.title { font-size: 1.5rem; font-weight: 800; line-height: 1.2; }

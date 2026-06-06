@@ -72,6 +72,14 @@ class Player {
 	private audio: HTMLAudioElement | null = null;
 	private growing = false;
 	/**
+	 * uid of the track whose details are currently being pre-resolved by prefetchNext().
+	 * A plain field (NOT $state) — it must not trigger reactivity; it is a pure in-flight
+	 * dedupe guard so a second prefetchNext() for the same next track is a no-op.
+	 */
+	private prefetchingUid: string | null = null;
+	/** Aborts the in-flight prefetch when a newer one supersedes it (stale-resolve guard). */
+	private prefetchController: AbortController | null = null;
+	/**
 	 * Uids the user pinned as "manual" (Play Next / Add to Queue / reordered). These
 	 * survive a fresh-play regeneration; auto-grown + similar-generated tracks do not.
 	 * Plain Set (not $state) so Track objects stay clean — no origin field on Track.
@@ -225,6 +233,65 @@ class Player {
 	}
 
 	/**
+	 * Pre-resolve the track next() WOULD pick next, so a later next()/track-end starts
+	 * instantly (the user-felt latency on advance is the per-source proxy round-trip inside
+	 * ensureTrackDetails, NOT byte buffering). Because ensureTrackDetails is idempotent (its
+	 * readiness guard short-circuits a detailsLoaded track) and play() syncs the resolved
+	 * track back into queue[i], pre-resolving the next entry means the later play() hits a
+	 * no-op resolve = instant start.
+	 *
+	 * Best-effort, fired as `void this.prefetchNext()` from play() — mirrors ensureAhead()/
+	 * regenerate(): never blocks the current play(), never throws, no second <audio> element
+	 * (audio byte-warming is out of scope; the iOS single-element constraint stands).
+	 *
+	 * Target = queue[indexOf(current)+1] — EXACTLY what next() selects (no play-mode branching).
+	 * Guards: silent no-op at end of queue / no current; skip an already-complete target;
+	 * dedupe a second prefetch of the same uid in flight; abort + discard a stale resolve if
+	 * `current` changes mid-resolve (so a stale result never clobbers the queue).
+	 */
+	private async prefetchNext() {
+		const i = this.indexOf(this.current);
+		if (i < 0) return; // no current track in the queue — nothing to prefetch from
+		const nextIndex = i + 1;
+		if (nextIndex >= this.queue.length) return; // at end of queue — silent no-op (growth is ensureAhead's job)
+		const target = this.queue[nextIndex];
+		// Already complete? The readiness guard would no-op anyway — skip without a resolve.
+		if (target.detailsLoaded && target.audioUrl && (target.lrc || !target.lrcUrl)) return;
+		// In-flight dedupe: already prefetching this exact track — do not start a second resolve.
+		if (this.prefetchingUid === target.uid) return;
+
+		// Supersede any prior in-flight prefetch (different target) before claiming this one.
+		this.prefetchController?.abort();
+		this.prefetchingUid = target.uid;
+		this.prefetchController = new AbortController();
+		const sig = this.prefetchController.signal;
+		const seedUid = this.current?.uid; // stale-guard: current must not change away
+
+		try {
+			const resolved = await ensureTrackDetails(target, sig);
+			// Stale-guard: only write back when `current` hasn't changed AND the queue still
+			// holds this target at the slot right after the (recomputed) current position.
+			// Otherwise discard silently — never clobber a newer prefetch / moved queue.
+			if (this.current?.uid === seedUid) {
+				const j = this.indexOf(this.current);
+				const slot = j + 1;
+				if (j >= 0 && this.queue[slot]?.uid === target.uid) {
+					this.queue[slot] = resolved; // same in-place sync play() does — later play() no-ops
+				}
+			}
+		} catch {
+			/* best-effort — abort or proxy failure leaves the queue as-is */
+		} finally {
+			// Clear the in-flight guard only if it still points at THIS target (a superseding
+			// prefetch may have already claimed a newer uid).
+			if (this.prefetchingUid === target.uid) {
+				this.prefetchingUid = null;
+				this.prefetchController = null;
+			}
+		}
+	}
+
+	/**
 	 * Optimistic resolve-on-tap (FIX-A). A discovery tile is a Last.fm {artist,title} stub,
 	 * NOT a Track — resolveStub re-searches it through searchAll+dedupeBest (~5-10s). This
 	 * makes that feel instant + native:
@@ -339,6 +406,11 @@ class Player {
 			// playback). Otherwise just keep the queue topped up via auto-grow.
 			if (opts?.fresh) void this.regenerate(resolved);
 			else void this.ensureAhead();
+			// Pre-resolve the NEXT track so next()/track-end starts instantly. Best-effort,
+			// non-blocking (like ensureAhead/regenerate above). Fired AFTER ensureAhead so a
+			// freshly-grown tail exists to be prefetched on the next play()/tick; prefetchNext
+			// itself never grows the queue.
+			void this.prefetchNext();
 		} catch (e) {
 			this.error = e instanceof Error ? e.message : String(e);
 		} finally {

@@ -607,8 +607,8 @@
 		}
 	}
 	@keyframes marquee-scroll {
-		0%, 25% { text-indent: 0; } /* hold at start so the beginning is readable */
-		75%, 100% { text-indent: calc(-1 * var(--marquee-dx, 0px)); } /* hold fully revealed */
+		0%, 12% { text-indent: 0; } /* brief start hold — motion begins quickly, not frozen */
+		88%, 100% { text-indent: calc(-1 * var(--marquee-dx, 0px)); } /* hold fully revealed */
 	}
 	/* Fallback grid (D-06). */
 	.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }

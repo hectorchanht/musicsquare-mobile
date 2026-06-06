@@ -34,8 +34,8 @@ function prefersReducedMotion(): boolean {
 // a 2-3px crawl reads as a twitch). SPEED_PX_PER_S: scroll speed (lower = slower/calmer).
 // HOLD_S: total time held at the start + end so the text rests fully revealed before reversing.
 const MIN_OVERFLOW_PX = 8;
-const SPEED_PX_PER_S = 16;
-const HOLD_S = 3;
+const SPEED_PX_PER_S = 38; // scroll speed — visibly moving but still calm/readable
+const HOLD_S = 1.8; // total of the short start + end holds (keyframe % below)
 
 export const marquee: Action<HTMLElement> = (node) => {
 	let observer: ResizeObserver | null = null;

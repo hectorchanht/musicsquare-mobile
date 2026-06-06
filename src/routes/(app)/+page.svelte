@@ -601,14 +601,15 @@
 		.al-name:global(.marquee-on),
 		.al-count:global(.marquee-on) {
 			text-overflow: clip;
-			/* LINEAR (no ease wobble) + duration set by the action ∝ overflow (constant slow
-			   speed). alternate = reveal to the end, hold, glide back. */
-			animation: marquee-scroll var(--marquee-dur, 6s) linear infinite alternate;
+			/* SIMPLE fixed 8s loop, LINEAR (no wobble): 0–2s hold at start (25%), 2–6s slowly
+			   scroll left to reveal the end, 6–8s hold revealed, then `alternate` glides back.
+			   Fixed duration → a guaranteed ~2s readable pause regardless of text length. */
+			animation: marquee-scroll 8s linear infinite alternate;
 		}
 	}
 	@keyframes marquee-scroll {
-		0%, 12% { text-indent: 0; } /* brief start hold — motion begins quickly, not frozen */
-		88%, 100% { text-indent: calc(-1 * var(--marquee-dx, 0px)); } /* hold fully revealed */
+		0%, 25% { text-indent: 0; } /* ~2s hold at the start */
+		75%, 100% { text-indent: calc(-1 * var(--marquee-dx, 0px)); } /* reveal + hold the end */
 	}
 	/* Fallback grid (D-06). */
 	.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }

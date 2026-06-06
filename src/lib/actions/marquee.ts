@@ -34,8 +34,6 @@ function prefersReducedMotion(): boolean {
 // a 2-3px crawl reads as a twitch). SPEED_PX_PER_S: scroll speed (lower = slower/calmer).
 // HOLD_S: total time held at the start + end so the text rests fully revealed before reversing.
 const MIN_OVERFLOW_PX = 8;
-const SPEED_PX_PER_S = 38; // scroll speed — visibly moving but still calm/readable
-const HOLD_S = 1.8; // total of the short start + end holds (keyframe % below)
 
 export const marquee: Action<HTMLElement> = (node) => {
 	let observer: ResizeObserver | null = null;
@@ -51,19 +49,14 @@ export const marquee: Action<HTMLElement> = (node) => {
 		// Only animate a MEANINGFUL overflow. A few px of clipping is not worth a marquee and
 		// reads as a twitch; below the threshold keep the static ellipsis.
 		if (overflow > MIN_OVERFLOW_PX) {
-			// Distance the text must travel to reveal its hidden tail.
+			// Distance the text must travel to reveal its hidden tail. The CSS owns the timing
+			// (a fixed 8s loop: ~2s start hold → linear scroll → hold), so all the action does is
+			// expose the overflow distance + toggle the class.
 			node.style.setProperty('--marquee-dx', `${overflow}px`);
-			// Constant-ish SLOW speed: the scroll time scales with distance (+ fixed end holds),
-			// so a short 11px overflow and a long 80px one both crawl smoothly at the same pace
-			// instead of a fixed 5s that looked like a jitter on short labels. Paired with a
-			// LINEAR timing function in the CSS so there is no ease-in/out wobble at the turns.
-			const dur = overflow / SPEED_PX_PER_S + HOLD_S;
-			node.style.setProperty('--marquee-dur', `${dur.toFixed(1)}s`);
 			node.classList.add('marquee-on');
 		} else {
 			node.classList.remove('marquee-on');
 			node.style.removeProperty('--marquee-dx');
-			node.style.removeProperty('--marquee-dur');
 		}
 	}
 

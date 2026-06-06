@@ -22,7 +22,7 @@
 	import type { Track } from '$lib/sources/types';
 
 	type Tab = 'queue' | 'lyrics' | 'related';
-	let tab = $state<Tab>('queue');
+	let tab = $state<Tab>('lyrics');
 	let shuffle = $state(false);
 	let repeat = $state(false);
 

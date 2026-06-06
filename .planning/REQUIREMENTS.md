@@ -59,9 +59,9 @@ Milestone v1.1 (Last.fm Integration). Optional/additive — local-first still wo
 
 ### Last.fm Metadata Enrichment
 
-- [ ] **ENRICH-01**: Playing or viewing a track enriches it with Last.fm metadata (track/artist/album.getInfo) — top tags, artist bio snippet, and higher-resolution cover art — layered on without overwriting good per-source data
-- [ ] **ENRICH-02**: Last.fm placeholder / grey-star images (hash `2a96cbd8b46e442fc41c2b86b821562f`) and empty image entries are detected and discarded, falling back to the existing per-source cover
-- [ ] **ENRICH-03**: All Last.fm read calls route through a server-side edge proxy (LASTFM_KEY injected on the edge, never in the client bundle); a missing key degrades gracefully and enrichment never blocks or delays playback
+- [x] **ENRICH-01**: Playing or viewing a track enriches it with Last.fm metadata (track/artist/album.getInfo) — top tags, artist bio snippet, and higher-resolution cover art — layered on without overwriting good per-source data
+- [x] **ENRICH-02**: Last.fm placeholder / grey-star images (hash `2a96cbd8b46e442fc41c2b86b821562f`) and empty image entries are detected and discarded, falling back to the existing per-source cover
+- [x] **ENRICH-03**: All Last.fm read calls route through a server-side edge proxy (LASTFM_KEY injected on the edge, never in the client bundle); a missing key degrades gracefully and enrichment never blocks or delays playback
 
 ### Discovery / Hot Picks
 
@@ -179,9 +179,9 @@ Each v1.1 requirement maps to exactly one phase (8–13). See `.planning/ROADMAP
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ENRICH-01 | Phase 8 | Pending |
-| ENRICH-02 | Phase 8 | Pending |
-| ENRICH-03 | Phase 8 | Pending |
+| ENRICH-01 | Phase 8 | Complete |
+| ENRICH-02 | Phase 8 | Complete |
+| ENRICH-03 | Phase 8 | Complete |
 | DISCO-01 | Phase 9 | Pending |
 | DISCO-02 | Phase 9 | Pending |
 | DISCO-03 | Phase 9 | Pending |

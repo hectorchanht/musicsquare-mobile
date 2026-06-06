@@ -4,14 +4,14 @@ milestone: v1.1
 milestone_name: Last.fm Integration
 status: executing
 stopped_at: Phase 8 context gathered
-last_updated: "2026-06-06T04:25:38.912Z"
-last_activity: 2026-06-06 -- Phase 8 execution started
+last_updated: "2026-06-06T04:36:41.953Z"
+last_activity: 2026-06-06
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 3
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 33
 ---
 
 # Project State
@@ -27,27 +27,27 @@ See: .planning/PROJECT.md (updated 2026-06-05)
 
 Milestone: v1.1 — Last.fm Integration (Phases 8–13)
 Phase: 8 (Last.fm Read Foundation & Metadata Enrichment) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 8
-Last activity: 2026-06-06 -- Phase 8 execution started
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-06-06
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0
-- Average duration: — min
-- Total execution time: 0.0 hours
+- Total plans completed: 1
+- Average duration: 7 min
+- Total execution time: 0.1 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 8 | 1 | 7 min | 7 min |
 
 **Recent Trend:**
 
-- Last 5 plans: —
+- Last 5 plans: 08-01 (7 min)
 - Trend: —
 
 *Updated after each plan completion*
@@ -59,6 +59,8 @@ Last activity: 2026-06-06 -- Phase 8 execution started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- [Phase 8-01]: Read-proxy route shape = DEDICATED `/api/lastfm/info` route (mirrors `/api/similar`), NOT the `/api/[source]/[...path]` catch-all — avoids widening `SourceId` to `'lastfm'` (which breaks `SOURCES: Record<SourceId, SourceAdapter>` until a Phase-10 client source exists) and gets the absent-key-is-200-clean-empty posture for free.
+- [Phase 8-01]: Enriched fields = OPTIONAL fields on `Track` (tags?/bio?/bioUrl?/lastfmArt?), NOT a side cache. No `serializeTrack` whitelist on the library path; fields persist JSON-safe with no migration. Deliberately NOT added to `HistoryEntry`/`toEntry` (re-enrich on replay). `matchKey` is artist-first (`norm(artist)|norm(title)`, Pitfall 9); `dedupe.ts` keeps its legacy title|artist order and is left untouched.
 - [Roadmap v1.1]: Read-only-first phase order — enrichment (8), discovery (9), source (10) ship value with zero auth surface before the highest-risk signed-call infrastructure + auth lands once (11), then scrobble (12) and loved-sync (13) layer on top. Auth cannot move earlier: scrobble/loved-sync hard-depend on the `sk` cookie.
 - [Roadmap v1.1]: Last.fm-searchable source resolves via the EXISTING CN-source re-search resolver (searchAll + dedupeBest + best-match scoring). GD Studio `ytmusic` is OUT of v1.1 (deferred to v2 / LFSRC-FB-01); would need its own feasibility spike if pulled in.
 - [Roadmap v1.1]: `LASTFM_SECRET` + session key stay edge-only; sk in an httpOnly+Secure+SameSite cookie, never localStorage, never in a response body (JOOX_TOKEN parity / threats T-lfm-01/02/03). The match-key normalization primitive lands in Phase 8 and is reused by Phase 13 reconciliation.
@@ -118,6 +120,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-06T04:00:57.109Z
+Last session: 2026-06-06T04:36:41.947Z
 Stopped at: Phase 8 context gathered
 Resume: `/gsd:plan-phase 8` (Last.fm Read Foundation & Metadata Enrichment)

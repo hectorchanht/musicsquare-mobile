@@ -182,7 +182,7 @@ Connects the standalone aggregator to Last.fm across four cross-cutting capabili
 Plans:
 **Wave 1**
 
-- [ ] 08-01-PLAN.md — Edge /api/lastfm/info read proxy + match-key primitive + Track enrich fields + enrichment service + now-playing tag chips & higher-res cover swap (wave 1)
+- [x] 08-01-PLAN.md — Edge /api/lastfm/info read proxy + match-key primitive + Track enrich fields + enrichment service + now-playing tag chips & higher-res cover swap (wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -293,7 +293,7 @@ v1.1 dependency chain: 8 → (9, 10) read-only & auth-free first; 11 (auth) befo
 | 5. PWA + Service Worker | 0/TBD | Not started | - |
 | 6. Background Audio + MediaSession | 0/TBD | Not started | - |
 | 7. New Sources + Queue Model + Gestures | 0/TBD | Not started | - |
-| 8. Last.fm Read Foundation & Metadata Enrichment | 0/3 | Planned | - |
+| 8. Last.fm Read Foundation & Metadata Enrichment | 1/3 | In Progress|  |
 | 9. Discovery / Hot-Picks Tab | 0/TBD | Not started | - |
 | 10. Last.fm-searchable Source | 0/TBD | Not started | - |
 | 11. Signed-call Infrastructure & Auth | 0/TBD | Not started | - |

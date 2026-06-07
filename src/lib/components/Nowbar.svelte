@@ -84,6 +84,30 @@
 		z-index: 20;
 		overflow: hidden;
 	}
+	.nowbar::before {
+		content: "";
+		position: absolute;
+		top: -10px;
+		left: -10px;
+		right: -10px;
+		bottom: -10px;
+		
+		/* Your background logic (e.g., using inherited or static image) */
+		background: rgba(40, 32, 60, 0.55);
+		background-repeat: no-repeat;
+		background-size: cover;
+		filter: blur(14px);
+		
+		/* Crucial fixes */
+		z-index: -1;             /* Keeps it behind the button text/icons */
+		pointer-events: none;    /* PASSES CLICK EVENTS THROUGH TO BUTTONS */
+	}
+
+	/* Ensure child content stays interactive and on top */
+	.nowbar > * {
+		position: relative;
+		z-index: 2;
+	}
 	/* Embed variant: same visual shell, no fixed positioning. Parent (.np.fullshrink) owns
 	   the placement so this bar can sit at the top of the now-playing view. */
 	.nowbar.embed {

@@ -581,7 +581,7 @@
 	{/if}
 	<header class="bar">
 		<button class="icon" aria-label={t('nowplaying.collapse')} onclick={() => player.collapse()}><ChevronDown /></button>
-		<span class="ctx">{t('nowplaying.nowPlaying')}</span>
+		<!-- <span class="ctx">{t('nowplaying.nowPlaying')}</span> -->
 		<button class="icon" aria-label={t('nowplaying.options')} onclick={() => openMenu(player.current)}><MoreVertical /></button>
 	</header>
 
@@ -750,7 +750,7 @@
 	   the absolute-positioned sheet so the top bar isn't painted over. The 76px = Nowbar height
 	   (var(--nowbar-h)) + .np's own padding-top (8px); pinned numerically here because .np.fullshrink
 	   adds no extra padding-top and the sheet is `position:absolute` with explicit inset. */
-	.np.fullshrink .sheet.full { inset: calc(var(--nowbar-h) + 16px) 0 0 0; }
+	.np.fullshrink .sheet.full { inset: calc(var(--nowbar-h) + 4px) 0 0 0; }
 	/* .np.fullshrink :global(.nowbar.embed) { margin-bottom: 0px; } */
 	/* Title + Artist sit on top of the album cover (.reflow mode), so they need a solid box to
 	   stay legible against any cover. The box bg tracks the theme (`--color-bg` = near-black

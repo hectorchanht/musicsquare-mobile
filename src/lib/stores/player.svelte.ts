@@ -10,6 +10,7 @@
 // when unsupported. The throw-prone artwork/position/state logic lives in the pure,
 // node-tested media-session.ts; this store is a thin caller of those helpers.
 import { ensureTrackDetails } from '$lib/services/catalog';
+import { tryFallback } from '$lib/services/fallback';
 import { buildDiversePicks } from '$lib/services/picks';
 import { buildSimilarQueue } from '$lib/services/similar';
 import { dedupeBest } from '$lib/services/dedupe';
@@ -64,6 +65,18 @@ class Player {
 	expanded = $state(false);
 	/** Lightweight "Up-Next" — the result set the current track came from (Phase 7 = real queue). */
 	queue = $state<Track[]>([]);
+
+	/** Shuffle on: toggling true randomizes queue tail (current pinned). Off = no auto-shuffle on
+	 * next play, but the already-shuffled queue stays as is (gte: user-specified, no unshuffle). */
+	shuffle = $state(false);
+	/** Tri-state repeat (gte): 'off' = today; 'one' = loop the current track on ended; 'all' = wrap
+	 * the queue when next() hits the end. Cycle: off → one → all → off. */
+	repeatMode = $state<'off' | 'one' | 'all'>('off');
+
+	/** Monotonic play generation (gte): bumped at the top of every play() so the cross-source
+	 * fallback can detect a newer play() and abort its in-flight retries. Plain field — no $state
+	 * reactivity (it's an internal supersedence guard, like pendingGen). */
+	private playGen = 0;
 
 	currentTime = $state(0);
 	/** 0 until loadedmetadata; never NaN. */
@@ -147,12 +160,31 @@ class Player {
 		el.addEventListener('ended', () => {
 			this.playing = false;
 			this.syncPlaybackState();
+			// Repeat-one (gte): loop the current track without advancing. The `ended` event
+			// already paused the element; rewind + play(). 'all' is handled inside next() so
+			// the end-of-queue branch wraps; 'off' is today's straight advance.
+			if (this.repeatMode === 'one' && this.audio) {
+				this.audio.currentTime = 0;
+				void this.audio.play().catch(() => {
+					/* autoplay may require gesture — controls still work */
+				});
+				return;
+			}
 			this.next();
 		});
 		el.addEventListener('error', () => {
-			this.error = 'playback failed (source may be region-locked or expired)';
+			// Cross-source fallback (gte / SRC-FB-01): rather than surface the error immediately,
+			// try the same {artist,title} on the remaining enabled sources. Only after every
+			// source is exhausted does the existing error surface. Generation-guarded so a
+			// newer play() supersedes a stale retry.
 			this.playing = false;
-			this.clearMedia();
+			const failed = this.current;
+			if (!failed) {
+				this.error = 'playback failed (source may be region-locked or expired)';
+				this.clearMedia();
+				return;
+			}
+			void this.runFallback(failed);
 		});
 
 		// Register OS media transport + seek handlers ONCE (MS-03). They reuse the
@@ -358,7 +390,7 @@ class Player {
 	 * manual entries. `next()`, `prev()`, and auto-advance (ended) call the NON-fresh
 	 * path, so they never regenerate.
 	 */
-	async play(track: Track, opts?: { fresh?: boolean }) {
+	async play(track: Track, opts?: { fresh?: boolean; fromFallback?: boolean }) {
 		// A direct play() (queue/auto-advance/share link) supersedes any optimistic overlay,
 		// so a stale pending bar never lingers once a real track takes over.
 		this.pendingTrack = null;
@@ -368,9 +400,15 @@ class Player {
 		this.current = track;
 		this.currentTime = 0;
 		this.duration = 0;
+		// Bump the play-generation so any older in-flight fallback bails (gte). Skipped on a
+		// fallback continuation — the fallback IS the continuation of the user's original intent
+		// and must not invalidate itself.
+		if (!opts?.fromFallback) this.playGen++;
 		// One-way edge: record the play BEFORE resolution so it lands even if audio
 		// resolution later errors. history imports nothing back (no circular dep).
-		history.record(track);
+		// Fallback continuations DO NOT re-record — history reflects user intent, not the
+		// resolved source we ended up playing.
+		if (!opts?.fromFallback) history.record(track);
 		if (settings.autoExpandOnPlay) this.expanded = true;
 		try {
 			const resolved = await ensureTrackDetails(track);
@@ -379,6 +417,13 @@ class Player {
 			const i = this.indexOf(track);
 			if (i >= 0) this.queue[i] = resolved;
 			if (!resolved.audioUrl) {
+				// Cross-source fallback (gte): try other enabled sources before surfacing the
+				// error. On success, runFallback() calls play() again with fromFallback:true.
+				if (!opts?.fromFallback) {
+					this.loading = false;
+					void this.runFallback(resolved);
+					return;
+				}
 				this.error = 'no playable audio for this track';
 				this.clearMedia(); // nothing playable — clear the OS media UI (MS-05)
 				return;
@@ -447,6 +492,11 @@ class Player {
 		if (i >= 0 && i + 1 < this.queue.length) {
 			this.play(this.queue[i + 1]);
 		} else {
+			// Repeat-all (gte): wrap to the start of the existing queue instead of growing.
+			if (this.repeatMode === 'all' && this.queue.length > 0) {
+				this.play(this.queue[0]);
+				return;
+			}
 			// at/near the end — grow the queue, then advance to the freshly-added track
 			void this.ensureAhead().then(() => {
 				const j = this.indexOf(this.current);
@@ -464,6 +514,71 @@ class Player {
 		const i = this.indexOf(this.current);
 		if (i > 0) this.play(this.queue[i - 1]);
 		else if (this.audio) this.audio.currentTime = 0;
+	}
+
+	/**
+	 * Toggle shuffle (gte). Turning ON: Fisher-Yates the queue slice AFTER indexOf(current)+1.
+	 * Current track + everything before it (history) stay pinned. Turning OFF: leave the queue
+	 * as-is (user-specified — we do NOT restore the original order). Idempotent on empty/single
+	 * queues. Bumps reactivity via a fresh array reference.
+	 */
+	toggleShuffle() {
+		const next = !this.shuffle;
+		this.shuffle = next;
+		if (!next) return;
+		const i = this.indexOf(this.current);
+		const start = (i >= 0 ? i : -1) + 1; // shuffle everything strictly after current
+		if (start >= this.queue.length - 1) return; // nothing to shuffle
+		const arr = [...this.queue];
+		// Fisher-Yates over [start, arr.length). Use ((Date.now() ^ idx) % range) is not a real
+		// CSPRNG — but Math.random() is fine for queue-shuffle UX.
+		for (let k = arr.length - 1; k > start; k--) {
+			const j = start + Math.floor(Math.random() * (k - start + 1));
+			[arr[k], arr[j]] = [arr[j], arr[k]];
+		}
+		this.queue = arr;
+	}
+
+	/** Cycle the repeat mode (gte): off → one → all → off. */
+	cycleRepeat() {
+		this.repeatMode = this.repeatMode === 'off' ? 'one' : this.repeatMode === 'one' ? 'all' : 'off';
+	}
+
+	/**
+	 * Cross-source fallback driver (gte / SRC-FB-01). Capture the generation at the moment
+	 * we start the fallback; abort + bail if a newer play() bumps it (e.g. user tapped the
+	 * next song). On success, recurse play() with fromFallback:true so the inner play() does
+	 * NOT re-record history and does NOT bump the generation. On exhaustion, surface the
+	 * existing error. Never throws — tryFallback() is defensively wrapped.
+	 */
+	private async runFallback(failed: Track) {
+		const gen = this.playGen;
+		this.loading = true;
+		this.error = null;
+		const ac = new AbortController();
+		// If a newer play() bumps the gen mid-search, abort the in-flight searchAll +
+		// ensureTrackDetails so we don't burn the network on a stale attempt. The next
+		// gen-check below stops us from clobbering the newer track.
+		const watchdog = setInterval(() => {
+			if (this.playGen !== gen) ac.abort();
+		}, 200);
+		try {
+			const swap = await tryFallback(failed, settings.preferredSource, ac.signal);
+			if (this.playGen !== gen) return; // a newer play() supersedes — discard silently
+			if (swap) {
+				// Sync the queue slot too so next()/prev() walk the resolved track.
+				const i = this.indexOf(failed);
+				if (i >= 0) this.queue[i] = swap;
+				await this.play(swap, { fromFallback: true });
+				return;
+			}
+			// Every remaining source exhausted — surface the error as before.
+			this.error = 'playback failed (source may be region-locked or expired)';
+			this.clearMedia();
+		} finally {
+			clearInterval(watchdog);
+			if (this.playGen === gen) this.loading = false;
+		}
 	}
 
 	/**

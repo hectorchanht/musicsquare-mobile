@@ -140,6 +140,7 @@
 		margin: 0 auto;
 		z-index: 20;
 		overflow: hidden;
+		backdrop-filter: blur(2px);
 	}
 	.np-prog {
 		position: absolute;

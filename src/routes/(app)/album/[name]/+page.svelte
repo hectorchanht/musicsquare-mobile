@@ -170,10 +170,11 @@
 		}
 	}
 
-	// Download the album → resolve all + re-resolve each at the DOWNLOAD quality (transient
-	// settings swap, same idiom as the track menu) + add to the library Downloads tab. Unlike a
-	// single track we do NOT trigger N browser file-saves (one prompt per track is hostile); the
-	// Downloads tab re-streams (the app's download model).
+	// Download the album → resolve all + re-resolve each at the DOWNLOAD quality + trigger a
+	// real browser file save for EACH track (matches the per-track TrackMenu doDownload path)
+	// AND add each to the library Downloads tab so they re-stream from the library. hvu: the
+	// previous implementation only added to library; user wanted actual on-device files. We
+	// stagger the saves slightly so the browser doesn't dedupe simultaneous anchor.click()s.
 	async function downloadAlbum() {
 		if (!tracks.length || albumBusy) return;
 		albumBusy = true;
@@ -182,30 +183,62 @@
 			const resolved = await resolveAll();
 			const prevQuality = settings.defaultQuality;
 			settings.defaultQuality = settings.downloadQuality;
+			let saved = 0;
 			try {
 				for (const tr of resolved) {
 					const full = await ensureTrackDetails({ ...tr, detailsLoaded: false, audioUrl: null, lrc: null }).catch(
 						() => tr
 					);
 					library.addDownload(full);
+					if (!full.audioUrl) continue;
+					try {
+						const resp = await fetch(full.audioUrl);
+						const blob = await resp.blob();
+						const ext = (full.audioUrl.split('?')[0].match(/\.(mp3|flac|m4a|aac|ogg|wav)$/i)?.[1] ?? 'mp3').toLowerCase();
+						const a = document.createElement('a');
+						a.href = URL.createObjectURL(blob);
+						a.download = `${full.artist} - ${full.title}.${ext}`.replace(/[/\\?%*:|"<>]/g, '_');
+						a.click();
+						URL.revokeObjectURL(a.href);
+						saved++;
+					} catch {
+						/* network / CORS — skip; the track is already in the library Downloads tab */
+					}
+					// Stagger so browser doesn't squash concurrent downloads / hit per-origin caps.
+					await new Promise((r) => setTimeout(r, 250));
 				}
 			} finally {
 				settings.defaultQuality = prevQuality;
 			}
-			toast(resolved.length ? t('toast.downloaded') : t('album.unplayable'));
+			toast(saved > 0 ? t('toast.downloaded') : resolved.length ? t('toast.noAudio') : t('album.unplayable'));
 		} finally {
 			albumBusy = false;
 		}
 	}
 
-	// Like the album → resolve all + add every not-yet-liked track to Liked songs.
+	// Like the album → resolve all + apply idempotent like-all (gte: AskUserQuestion):
+	// if any track is unliked → like the missing ones; if EVERY track is already liked →
+	// unlike them all (so the user has an undo). The resolveAll fan-out can take ~10s for a
+	// long album so we flash a "loading" toast immediately for visible feedback.
 	async function likeAlbum() {
 		if (!tracks.length || albumBusy) return;
 		albumBusy = true;
+		toast(t('toast.preparingDownload')); // generic "working on it" — reused across actions
 		try {
 			const resolved = await resolveAll();
-			for (const tr of resolved) if (!library.isLiked(tr.uid)) library.toggleLike(tr);
-			toast(resolved.length ? t('menu.liked') : t('album.unplayable'));
+			if (!resolved.length) {
+				toast(t('album.unplayable'));
+				return;
+			}
+			const allLiked = resolved.every((tr) => library.isLiked(tr.uid));
+			if (allLiked) {
+				// All already liked → toggle each one off (toggleLike removes when isLiked).
+				for (const tr of resolved) library.toggleLike(tr);
+				toast(t('menu.like')); // "Like" label = action available again
+			} else {
+				for (const tr of resolved) if (!library.isLiked(tr.uid)) library.toggleLike(tr);
+				toast(t('menu.liked'));
+			}
 		} finally {
 			albumBusy = false;
 		}
@@ -228,10 +261,13 @@
 	}
 
 	// Add the whole album to a playlist (existing or new) → resolve all + add each.
+	// resolveAll is ~10s for long albums; flash a "working on it" toast immediately so the
+	// user gets visible feedback while the fan-out runs (hvu).
 	async function addAlbumToPlaylist(id: string) {
 		pickerOpen = false;
 		if (albumBusy) return;
 		albumBusy = true;
+		toast(t('toast.preparingDownload'));
 		try {
 			const resolved = await resolveAll();
 			for (const tr of resolved) library.addToPlaylist(id, tr);

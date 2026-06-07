@@ -808,8 +808,8 @@
 		display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 18px;
 	}
 	.section .head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
-	.section h2 { font-size: 1.1rem; margin: 0; }
-	.subhead { font-size: 0.95rem; font-weight: 700; margin: 14px 0 8px; color: var(--color-text); }
+	.section h2 { font-size: calc(1.1rem * var(--fs-title, 1)); margin: 0; }
+	.subhead { font-size: calc(0.95rem * var(--fs-title, 1)); font-weight: 700; margin: 14px 0 8px; color: var(--color-text); }
 	.more, .retry {
 		background: none; border: 1px solid var(--color-border); color: var(--color-text-muted);
 		padding: 5px 12px; border-radius: 999px; font-size: 12px; cursor: pointer;

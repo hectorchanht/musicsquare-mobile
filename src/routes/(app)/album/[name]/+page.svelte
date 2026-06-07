@@ -442,7 +442,7 @@
 	.hero { padding: 14px 0 18px; text-align: center; position: relative; }
 	.back { position: absolute; left: 0; top: 8px; background: none; border: none; color: var(--color-text); cursor: pointer; display: grid; place-items: center; width: 36px; height: 36px; }
 	.cover { width: 160px; height: 160px; border-radius: 12px; margin: 8px auto 12px; background-size: cover; background-position: center; box-shadow: 0 12px 34px rgba(0,0,0,0.5); }
-	.hero h1 { font-size: 1.5rem; margin: 0; }
+	.hero h1 { font-size: calc(1.5rem * var(--fs-title, 1)); margin: 0; }
 	.artist { color: var(--color-text); font-size: calc(14px * var(--fs-artist, 1)); margin: 4px 0 0; opacity: 0.85; }
 	.note { color: var(--color-text-muted); font-size: 12px; margin-top: 4px; }
 	.info { color: var(--color-text-muted); font-size: 12px; margin-top: 6px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }

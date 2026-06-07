@@ -239,7 +239,7 @@
 
 <style>
 	.head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 16px 0 12px; flex-wrap: wrap; }
-	.head h1 { font-size: 1.4rem; margin: 0; min-width: 0; }
+	.head h1 { font-size: calc(1.4rem * var(--fs-title, 1)); margin: 0; min-width: 0; }
 	.tab-sub { color: var(--color-text-muted); font-weight: 400; font-size: 0.95rem; margin-left: 8px; }
 	.edit-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text); padding: 6px 12px; border-radius: 999px; font-size: 13px; cursor: pointer; }
 	.edit-btn[aria-pressed='true'] { background: var(--color-primary); color: #fff; border-color: transparent; }

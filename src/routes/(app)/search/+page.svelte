@@ -406,7 +406,7 @@
 <TrackMenu track={menuTrack} open={menuOpen} onclose={() => (menuOpen = false)} />
 
 <style>
-	.head h1 { font-size: 1.4rem; margin: 16px 0 12px; }
+	.head h1 { font-size: calc(1.4rem * var(--fs-title, 1)); margin: 16px 0 12px; }
 	.bar { display: flex; gap: 8px; margin-bottom: 14px; }
 	.bar input {
 		flex: 1; min-width: 0; background: var(--color-surface-2); border: 1px solid var(--color-border);

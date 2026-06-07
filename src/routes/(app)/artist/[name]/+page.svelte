@@ -365,7 +365,7 @@
 	.back { display: grid; place-items: center; width: 36px; height: 36px; background: none; border: none; color: var(--color-text); cursor: pointer; margin: 0 0 8px; padding: 0; }
 	.back:hover { background: var(--color-surface-2); border-radius: 50%; }
 	.herocover { width: 150px; height: 150px; border-radius: 50%; margin: 8px auto 12px; background-size: cover; background-position: center; box-shadow: 0 12px 34px rgba(0,0,0,0.5); }
-	.hero h1 { font-size: 1.7rem; margin: 0; }
+	.hero h1 { font-size: calc(1.7rem * var(--fs-title, 1)); margin: 0; }
 	.note { color: var(--color-text-muted); font-size: 12px; margin-top: 4px; }
 	.herotags { display: flex; justify-content: center; margin-top: 8px; }
 	/* kmn: action bar — three pill buttons centered under the hero title/note. Mirrors the
@@ -379,11 +379,11 @@
 	.act.primary:hover { filter: brightness(1.06); }
 	.toast { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text); padding: 8px 14px; border-radius: 999px; font-size: 13px; z-index: 80; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
 	.bio { text-align: left; margin: 16px 0 0; }
-	.bio h2 { font-size: 1.1rem; margin: 0 0 8px; }
+	.bio h2 { font-size: calc(1.1rem * var(--fs-title, 1)); margin: 0 0 8px; }
 	.bio p { color: var(--color-text-muted); font-size: 13px; line-height: 1.55; margin: 0; }
 	.readmore { display: inline-block; margin-top: 8px; color: var(--color-primary); font-size: 13px; }
 	section { margin: 18px 0; }
-	section h2 { font-size: 1.1rem; margin: 0 0 12px; }
+	section h2 { font-size: calc(1.1rem * var(--fs-title, 1)); margin: 0 0 12px; }
 	.albumrow { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; }
 	/* min-width:0 + max-width:130px lock the tile width even when a long artist/album name's
 	   intrinsic content-width would otherwise stretch it. flex-basis alone is a hint — the

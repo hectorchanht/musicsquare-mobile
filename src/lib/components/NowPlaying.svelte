@@ -692,7 +692,7 @@
 </section>
 
 <style>
-	.np { position: fixed; inset: 0; z-index: 50; background: radial-gradient(130% 60% at 50% 0%, #241a3a 0%, var(--color-bg) 60%); display: flex; flex-direction: column; padding: 8px 18px env(safe-area-inset-bottom); overflow: hidden; }
+	.np { position: fixed; inset: 0; z-index: 50; background: radial-gradient(130% 60% at 50% 0%, #241a3a 0%, var(--color-bg) 60%); display: flex; flex-direction: column; padding: 0px 18px env(safe-area-inset-bottom); overflow: hidden; }
 	.bar { display: flex; align-items: center; justify-content: space-between; }
 	.bar .ctx { font-size: 12px; color: var(--color-text-muted); }
 	.icon { background: none; border: none; color: var(--color-text); cursor: pointer; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; }
@@ -723,7 +723,7 @@
 	   (var(--nowbar-h)) + .np's own padding-top (8px); pinned numerically here because .np.fullshrink
 	   adds no extra padding-top and the sheet is `position:absolute` with explicit inset. */
 	.np.fullshrink .sheet.full { inset: calc(var(--nowbar-h) + 16px) 0 0 0; }
-	.np.fullshrink :global(.nowbar.embed) { margin-bottom: 8px; }
+	/* .np.fullshrink :global(.nowbar.embed) { margin-bottom: 0px; } */
 	.title { font-size: calc(1.5rem * var(--fs-title, 1)); font-weight: 800; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.artist { display: inline-block; max-width: 100%; vertical-align: bottom; background: black; border: none; padding: 2px; border-radius: 4px; color: var(--color-text-muted); font-size: calc(1rem * var(--fs-artist, 1)); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	/* Marquee lives globally in app.css (transform-based .marquee-inner). The .title/.artist
@@ -741,7 +741,7 @@
 	.t.on { color: var(--color-primary); opacity: 1; }
 	.play { width: 62px; height: 62px; border-radius: 50%; border: none; background: #fff; color: #000; cursor: pointer; display: grid; place-items: center; }
 	.sheet { display: flex; flex-direction: column; flex: 1; min-height: 0; will-change: transform; user-select: none; -webkit-user-select: none; }
-	.sheet.full, .sheet.dragging { position: absolute; inset: 0; z-index: 5; background: var(--color-bg); padding: 8px 18px env(safe-area-inset-bottom); }
+	.sheet.full, .sheet.dragging { position: absolute; inset: 0; z-index: 5; background: var(--color-bg); padding: 4px 18px env(safe-area-inset-bottom); }
 	.grip { display: flex; justify-content: center; padding: 10px 0 6px; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
 	.grip:active { cursor: grabbing; }
 	.handle { width: 44px; height: 5px; border-radius: 999px; background: var(--color-text-muted); opacity: 0.6; }

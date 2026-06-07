@@ -232,6 +232,7 @@ const es: Dict = {
 	'library.noFavArtists': 'Aún no hay artistas favoritos. Toca el corazón en la página de un artista.',
 	"library.emptyPlaylist": "Lista de reproducción vacía.",
 	"library.deletePlaylist": "Eliminar lista de reproducción",
+	'library.playAll': 'Reproducir todo',
 	"library.edit": "Editar",
 	"library.remove": "Quitar",
 	"library.downloadsNote": "Los archivos descargados se guardan en su dispositivo. Esta lista hace referencia a ellos y los vuelve a transmitir al instante (las aplicaciones web no pueden reproducir archivos arbitrarios guardados sin conexión).",

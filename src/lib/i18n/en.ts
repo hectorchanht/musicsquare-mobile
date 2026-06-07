@@ -257,6 +257,7 @@ const en = {
 	'library.noFavArtists': 'No favourite artists yet. Tap the heart on an artist page.',
 	'library.emptyPlaylist': 'Empty playlist.',
 	'library.deletePlaylist': 'Delete playlist',
+	'library.playAll': 'Play all',
 	'library.edit': 'Edit',
 	'library.remove': 'Remove',
 	'library.downloadsNote':

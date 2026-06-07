@@ -232,6 +232,7 @@ const vi: Dict = {
 	'library.noFavArtists': 'Chưa có nghệ sĩ yêu thích. Nhấn vào trái tim trên trang nghệ sĩ.',
 	"library.emptyPlaylist": "Danh sách phát trống.",
 	"library.deletePlaylist": "Xóa danh sách phát",
+	'library.playAll': 'Phát tất cả',
 	"library.edit": "Sửa",
 	"library.remove": "Xóa",
 	"library.downloadsNote": "Các tập tin đã tải xuống sẽ được lưu vào thiết bị của bạn. Danh sách này tham chiếu chúng và phát lại khi nhấn (ứng dụng web không thể phát lại các tệp đã lưu tùy ý khi ngoại tuyến).",

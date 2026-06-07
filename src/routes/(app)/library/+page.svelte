@@ -130,6 +130,8 @@
 		<button class="edit-btn" aria-pressed={editMode} onclick={() => (editMode = !editMode)}>
 			{#if editMode}<Check size={16} /> {t('common.done')}{:else}<Pencil size={16} /> {t('library.edit')}{/if}
 		</button>
+	{:else if tab === 'history' && history.entries.length}
+		<button class="edit-btn danger" onclick={() => history.clear()}><Trash2 size={16} /> {t('history.clear')}</button>
 	{/if}
 </header>
 
@@ -164,7 +166,11 @@
 			<section class="pl">
 				<div class="pl-head">
 					<h2>{pl.name} <span class="count">{pl.tracks.length}</span></h2>
-					<button class="del" aria-label={t('library.deletePlaylist')} onclick={() => library.deletePlaylist(pl.id)}><Trash2 size={16} /></button>
+					{#if editMode}
+						<button class="del" aria-label={t('library.deletePlaylist')} onclick={() => library.deletePlaylist(pl.id)}><Trash2 size={16} /></button>
+					{:else if pl.tracks.length}
+						<button class="del" aria-label={t('library.playAll')} title={t('library.playAll')} onclick={() => playList(pl.tracks, pl.tracks[0])}><Play size={16} /></button>
+					{/if}
 				</div>
 				{#if pl.tracks.length}
 					<ul class="list">
@@ -226,7 +232,6 @@
 				</li>
 			{/each}
 		</ul>
-		<button class="clear-history" onclick={() => history.clear()}><Trash2 size={16} /> {t('history.clear')}</button>
 	{:else}<p class="empty"><Clock size={28} /><span>{t('history.empty')}</span></p>{/if}
 {/if}
 
@@ -238,6 +243,8 @@
 	.tab-sub { color: var(--color-text-muted); font-weight: 400; font-size: 0.95rem; margin-left: 8px; }
 	.edit-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text); padding: 6px 12px; border-radius: 999px; font-size: 13px; cursor: pointer; }
 	.edit-btn[aria-pressed='true'] { background: var(--color-primary); color: #fff; border-color: transparent; }
+	.edit-btn.danger { color: #ff7a90; }
+	.edit-btn.danger:hover { background: rgba(255, 122, 144, 0.12); }
 	.edit-row { color: #ff7a90; }
 	.edit-row:hover { background: rgba(255, 122, 144, 0.08); }
 	.tabs { display: flex; gap: 8px; margin-bottom: 14px; }
@@ -258,7 +265,6 @@
 	.empty { display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--color-text-muted); padding: 48px 16px; text-align: center; font-size: 14px; }
 	.empty-sm { color: var(--color-text-muted); font-size: 13px; padding: 4px 8px; }
 	.note { color: var(--color-text-muted); font-size: 11px; margin-top: 12px; }
-	.clear-history { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; background: var(--color-surface-2); border: 1px solid var(--color-border); color: #ff7a90; padding: 10px 14px; border-radius: 12px; font-size: 14px; cursor: pointer; }
 	/* kyf: fav-artists tab grid — responsive round-avatar tiles. */
 	.fav-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 14px; }
 	.fav-tile { position: relative; background: none; border: none; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--color-text); border-radius: 12px; }

@@ -258,6 +258,7 @@ const zhHans: Dict = {
 	'library.noFavArtists': '还没有收藏的歌手。在歌手页面点击爱心。',
 	'library.emptyPlaylist': '空的播放列表。',
 	'library.deletePlaylist': '删除播放列表',
+	'library.playAll': '全部播放',
 	'library.edit': '编辑',
 	'library.remove': '移除',
 	'library.downloadsNote': '已下载的文件保存在你的设备上。此列表会引用并在点击时重新流式播放（网页应用无法离线播放任意已保存的文件）。',

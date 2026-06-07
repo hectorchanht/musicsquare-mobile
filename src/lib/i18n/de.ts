@@ -232,6 +232,7 @@ const de: Dict = {
 	'library.noFavArtists': 'Noch keine Lieblingskünstler. Tippe auf das Herz auf einer Künstlerseite.',
 	"library.emptyPlaylist": "Leere Playlist.",
 	"library.deletePlaylist": "Playlist löschen",
+	'library.playAll': 'Alle abspielen',
 	"library.edit": "Bearbeiten",
 	"library.remove": "Entfernen",
 	"library.downloadsNote": "Heruntergeladene Dateien werden auf Ihrem Gerät gespeichert. Diese Liste verweist auf sie und streamt bei Bedarf erneut (Web-Apps können keine beliebigen gespeicherten Dateien offline wiedergeben).",

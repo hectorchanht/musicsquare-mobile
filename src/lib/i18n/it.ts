@@ -232,6 +232,7 @@ const it: Dict = {
 	'library.noFavArtists': 'Nessun artista preferito. Tocca il cuore nella pagina di un artista.',
 	"library.emptyPlaylist": "Playlist vuota.",
 	"library.deletePlaylist": "Elimina playlist",
+	'library.playAll': 'Riproduci tutto',
 	"library.edit": "Modifica",
 	"library.remove": "Rimuovi",
 	"library.downloadsNote": "I file scaricati vengono salvati sul tuo dispositivo. Questo elenco fa riferimento a loro e li riproduce in streaming alla spina (le app Web non possono riprodurre file salvati arbitrariamente offline).",

@@ -232,6 +232,7 @@ const fr: Dict = {
 	'library.noFavArtists': "Aucun artiste favori. Appuyez sur le coeur sur la page d'un artiste.",
 	"library.emptyPlaylist": "Liste de lecture vide.",
 	"library.deletePlaylist": "Supprimer la liste de lecture",
+	'library.playAll': 'Tout lire',
 	"library.edit": "Modifier",
 	"library.remove": "Supprimer",
 	"library.downloadsNote": "Les fichiers téléchargés sont enregistrés sur votre appareil. Cette liste les référence et les rediffuse en direct (les applications Web ne peuvent pas relire les fichiers enregistrés arbitrairement hors ligne).",

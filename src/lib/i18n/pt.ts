@@ -232,6 +232,7 @@ const pt: Dict = {
 	'library.noFavArtists': 'Ainda sem artistas favoritos. Toque no coração na página de um artista.',
 	"library.emptyPlaylist": "Lista de reprodução vazia.",
 	"library.deletePlaylist": "Excluir lista de reprodução",
+	'library.playAll': 'Tocar tudo',
 	"library.edit": "Editar",
 	"library.remove": "Remover",
 	"library.downloadsNote": "Os arquivos baixados são salvos no seu dispositivo. Esta lista faz referência a eles e retransmite quando você toca (os aplicativos da web não podem reproduzir arquivos salvos arbitrariamente off-line).",

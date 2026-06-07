@@ -232,6 +232,7 @@ const id: Dict = {
 	'library.noFavArtists': 'Belum ada artis favorit. Ketuk hati di halaman artis.',
 	"library.emptyPlaylist": "Daftar putar kosong.",
 	"library.deletePlaylist": "Hapus daftar putar",
+	'library.playAll': 'Putar semua',
 	"library.edit": "Edit",
 	"library.remove": "Hapus",
 	"library.downloadsNote": "File yang diunduh disimpan ke perangkat Anda. Daftar ini mereferensikannya dan melakukan streaming ulang saat diketuk (aplikasi web tidak dapat memutar ulang file yang disimpan secara offline).",

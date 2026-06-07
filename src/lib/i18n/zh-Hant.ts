@@ -258,6 +258,7 @@ const zhHant: Dict = {
 	'library.noFavArtists': '尚未收藏歌手。在歌手頁面點擊愛心。',
 	'library.emptyPlaylist': '空的播放清單。',
 	'library.deletePlaylist': '刪除播放清單',
+	'library.playAll': '全部播放',
 	'library.edit': '編輯',
 	'library.remove': '移除',
 	'library.downloadsNote': '已下載的檔案儲存在你的裝置上。此清單會引用並在點擊時重新串流（網頁應用無法離線播放任意已儲存的檔案）。',

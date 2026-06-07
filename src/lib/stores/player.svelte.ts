@@ -85,6 +85,14 @@ class Player {
 	 * play prevents Object-URL leaks across long sessions. */
 	private cachedBlobUrl: string | null = null;
 
+	/** Timestamp (Date.now()) of the most recent seekFraction() call. The audio.error handler
+	 *  ignores errors that fire within SEEK_ERROR_WINDOW_MS of a seek — seeking past the
+	 *  buffered range on some CDNs raises an error the browser recovers from, but our
+	 *  cross-source fallback was treating that as a playback failure + calling play() again,
+	 *  which reset currentTime to 0 (visible to user as "seek restarted the song"). */
+	private lastSeekAt = 0;
+	private static SEEK_ERROR_WINDOW_MS = 1500;
+
 	currentTime = $state(0);
 	/** 0 until loadedmetadata; never NaN. */
 	duration = $state(0);
@@ -180,6 +188,14 @@ class Player {
 			this.next();
 		});
 		el.addEventListener('error', () => {
+			// lw9-followup: if the error fires WITHIN the seek window, the user just clicked the
+			// progress bar past the buffered range — the browser recovers on its own. Treating
+			// this as a playback failure (running runFallback → play()) resets currentTime to 0,
+			// which the user sees as "click on progress bar restarted the song". Suppress the
+			// fallback in that window; a genuine playback failure (no recent seek) still routes
+			// through the cross-source path.
+			const sinceSeek = Date.now() - this.lastSeekAt;
+			if (sinceSeek < Player.SEEK_ERROR_WINDOW_MS) return;
 			// Cross-source fallback (gte / SRC-FB-01): rather than surface the error immediately,
 			// try the same {artist,title} on the remaining enabled sources. Only after every
 			// source is exhausted does the existing error surface. Generation-guarded so a
@@ -207,11 +223,13 @@ class Player {
 		ms.setActionHandler('nexttrack', () => this.next());
 		ms.setActionHandler('seekbackward', (details) => {
 			const offset = Number.isFinite(details.seekOffset) ? (details.seekOffset as number) : 10;
+			this.lastSeekAt = Date.now();
 			el.currentTime = Math.max(0, el.currentTime - offset);
 		});
 		ms.setActionHandler('seekforward', (details) => {
 			const offset = Number.isFinite(details.seekOffset) ? (details.seekOffset as number) : 10;
 			const cap = Number.isFinite(el.duration) ? el.duration : el.currentTime + offset;
+			this.lastSeekAt = Date.now();
 			el.currentTime = Math.min(cap, el.currentTime + offset);
 		});
 		ms.setActionHandler('seekto', (details) => {
@@ -623,6 +641,9 @@ class Player {
 	/** Seek to a fraction [0,1] of the track. */
 	seekFraction(frac: number) {
 		if (!this.audio || !Number.isFinite(this.audio.duration)) return;
+		// lw9-followup: stamp the seek time so a sympathetic audio.error fired by the same
+		// seek (past-buffered-range on a non-range-capable CDN) doesn't kick off runFallback().
+		this.lastSeekAt = Date.now();
 		this.audio.currentTime = Math.max(0, Math.min(1, frac)) * this.audio.duration;
 	}
 

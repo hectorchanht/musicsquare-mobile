@@ -232,6 +232,7 @@ const tr: Dict = {
 	'library.noFavArtists': 'Henüz favori sanatçı yok. Bir sanatçı sayfasında kalbe dokunun.',
 	"library.emptyPlaylist": "Çalma listesini boşalt.",
 	"library.deletePlaylist": "Çalma listesini sil",
+	'library.playAll': 'Tümünü oynat',
 	"library.edit": "Düzenle",
 	"library.remove": "Kaldır",
 	"library.downloadsNote": "İndirilen dosyalar cihazınıza kaydedilir. Bu liste bunlara referans verir ve dokunulduğunda yeniden akış sağlar (web uygulamaları rastgele kaydedilen dosyaları çevrimdışı olarak yeniden oynatamaz).",

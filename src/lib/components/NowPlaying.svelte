@@ -83,11 +83,37 @@
 	let autoScroll = $state(true);
 	let idleTimer: ReturnType<typeof setTimeout> | null = null;
 	// Touch-presence auto-scroll: pause WHILE a finger is down (or wheel is active), resume a
-	// short grace after release — NOT a blind fixed idle timer. lyricsTouched only pauses;
-	// lyricsReleased schedules the resume.
-	function lyricsTouched() {
+	// short grace after release.
+	//
+	// The browser fires `pointercancel` on a touch that the page's scroll gesture has claimed
+	// — this used to be treated as a release, which scheduled the resume timer + flipped
+	// autoScroll back to true while the user's finger was STILL on the panel scrolling away
+	// from the active line. Fix: only true `pointerup` releases. Track active pointers in a
+	// Set so multi-touch (and the lost-pointer case where the element never sees pointerup
+	// because the scroll claimed it) still resolves — a window-level pointerup capture-phase
+	// listener catches the real finger-lift even after pointercancel stole it from the panel.
+	const pressedPointers = new Set<number>();
+	function lyricsTouched(e: PointerEvent) {
 		autoScroll = false;
 		if (idleTimer) clearTimeout(idleTimer);
+		pressedPointers.add(e.pointerId);
+		if (typeof window !== 'undefined') {
+			window.addEventListener('pointerup', windowPointerUp, { capture: true });
+			window.addEventListener('pointercancel', windowPointerUp, { capture: true });
+		}
+	}
+	function windowPointerUp(e: PointerEvent) {
+		// `pointerup` is the real finger-lift — release; `pointercancel` from the window means
+		// the OS truly cancelled (app backgrounded, etc.), also release. The element-local
+		// `pointercancel` handler is dropped from the JSX below precisely because it fires
+		// during a scroll-gesture takeover even though the finger is still down.
+		if (!pressedPointers.has(e.pointerId)) return;
+		pressedPointers.delete(e.pointerId);
+		if (pressedPointers.size === 0) {
+			window.removeEventListener('pointerup', windowPointerUp, { capture: true });
+			window.removeEventListener('pointercancel', windowPointerUp, { capture: true });
+			lyricsReleased();
+		}
 	}
 	function lyricsReleased() {
 		if (idleTimer) clearTimeout(idleTimer);
@@ -95,7 +121,8 @@
 	}
 	function lyricsWheel() {
 		// No release event for a wheel — pause, then schedule the same grace resume.
-		lyricsTouched();
+		autoScroll = false;
+		if (idleTimer) clearTimeout(idleTimer);
 		lyricsReleased();
 	}
 	$effect(() => {
@@ -661,7 +688,7 @@
 			{:else if tab === 'lyrics'}
 				{#if lines.length}
 					{#if translating}<p class="tr-hint">{t('nowplaying.translating')}</p>{/if}
-					<div class="lyrics" role="group" aria-label={t('nowplaying.lyrics')} bind:this={lyricsEl} onpointerdown={lyricsTouched} onpointerup={lyricsReleased} onpointercancel={lyricsReleased} onwheel={lyricsWheel}>
+					<div class="lyrics" role="group" aria-label={t('nowplaying.lyrics')} bind:this={lyricsEl} onpointerdown={lyricsTouched} onwheel={lyricsWheel}>
 						{#each lines as l, i (i)}
 							<p class:active={i === activeLine}>
 								{#if showTr && settings.translateMode === 'replace'}

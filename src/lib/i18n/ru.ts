@@ -50,6 +50,8 @@ const ru: Dict = {
 	"settings.translateMode": "Режим перевода",
 	"settings.translateModeOffNote": "Выберите язык выше, чтобы включить.",
 	"settings.translateModeOnNote": "Для перевода используется онлайн-сервис; качество варьируется.",
+	'settings.lyricsHideParenTranslation': 'Скрыть переводы в скобках',
+	'settings.lyricsHideParenTranslationNote': 'Когда строка содержит фразу в (скобках) — часто встроенный перевод — она выносится в отдельную строку, а её дальнейший перевод скрывается.',
 	"settings.defaultQuality": "Качество песни по умолчанию",
 	"settings.defaultQualityNote": "Максимум усилий — не все источники указывают битрейт; выбор предубеждений, если они известны.",
 	"settings.downloadQuality": "Качество загрузки",

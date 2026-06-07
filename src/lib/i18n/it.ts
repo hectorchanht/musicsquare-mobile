@@ -50,6 +50,8 @@ const it: Dict = {
 	"settings.translateMode": "Modalità traduzione",
 	"settings.translateModeOffNote": "Scegli una lingua qui sopra per abilitare.",
 	"settings.translateModeOnNote": "La traduzione utilizza un servizio online; la qualità varia.",
+	'settings.lyricsHideParenTranslation': 'Nascondi traduzioni tra parentesi',
+	'settings.lyricsHideParenTranslationNote': 'Quando una riga di testo contiene una clausola tra (parentesi) — spesso una traduzione incorporata — viene spostata su una riga propria e la sua ulteriore traduzione viene nascosta.',
 	"settings.defaultQuality": "Qualità del brano predefinita",
 	"settings.defaultQualityNote": "Miglior sforzo: le fonti non espongono tutte il bitrate; selezione dei pregiudizi, ove noto.",
 	"settings.downloadQuality": "Scarica la qualità",

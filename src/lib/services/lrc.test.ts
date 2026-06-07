@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseLRC, inferQualityFromUrl } from './lrc';
+import { parseLRC, inferQualityFromUrl, splitParenLines } from './lrc';
 
 describe('parseLRC', () => {
 	// Test 1: sorted ascending by time, blank lines dropped.
@@ -52,5 +52,33 @@ describe('inferQualityFromUrl', () => {
 			tag: 'lossless',
 			label: 'LOSSLESS'
 		});
+	});
+});
+
+describe('splitParenLines', () => {
+	it('splits a line with one ASCII parens clause into two entries sharing the timestamp', () => {
+		const out = splitParenLines([{ time: 10, text: 'or never (我们可以一同去往世界各地)' }]);
+		expect(out).toEqual([
+			{ time: 10, text: 'or never' },
+			{ time: 10, text: '我们可以一同去往世界各地', fromParen: true }
+		]);
+	});
+
+	it('recognises full-width parens too', () => {
+		const out = splitParenLines([{ time: 5, text: '愛 (love) ／ 永遠（forever）' }]);
+		expect(out[0]).toEqual({ time: 5, text: '愛 ／ 永遠' });
+		expect(out[1]).toEqual({ time: 5, text: 'love', fromParen: true });
+		expect(out[2]).toEqual({ time: 5, text: 'forever', fromParen: true });
+		expect(out).toHaveLength(3);
+	});
+
+	it('passes lines without parens through untouched (no fromParen)', () => {
+		const out = splitParenLines([{ time: 0, text: 'plain line' }]);
+		expect(out).toEqual([{ time: 0, text: 'plain line' }]);
+	});
+
+	it('treats a whole-line parens (no other text) as a single line, no split', () => {
+		const out = splitParenLines([{ time: 1, text: '(only this)' }]);
+		expect(out).toEqual([{ time: 1, text: '(only this)' }]);
 	});
 });

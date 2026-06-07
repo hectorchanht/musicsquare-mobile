@@ -19,7 +19,7 @@
 	import { marquee } from '$lib/actions/marquee';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import Nowbar from '$lib/components/Nowbar.svelte';
-	import { parseLRC, type LyricLine } from '$lib/services/lrc';
+	import { parseLRC, splitParenLines, type LyricLine } from '$lib/services/lrc';
 	import { createVelocityTracker } from '$lib/gestures/velocity';
 	import type { Track } from '$lib/sources/types';
 
@@ -73,7 +73,13 @@
 	}
 
 	// ---- lyrics ----
-	const lines = $derived<LyricLine[]>(player.current?.lrc ? parseLRC(player.current.lrc) : []);
+	// Lyrics pipeline: parse the LRC, then split any line carrying a `(...)` clause into its
+	// own entry so each part (main text + parenthesised clause) flows through the per-line
+	// translate path independently. The split entries carry `fromParen:true` so the renderer
+	// can suppress their translations when settings.lyricsHideParenTranslation is on.
+	const lines = $derived<LyricLine[]>(
+		player.current?.lrc ? splitParenLines(parseLRC(player.current.lrc)) : []
+	);
 	const activeLine = $derived.by(() => {
 		let idx = -1;
 		for (let i = 0; i < lines.length; i++) if (lines[i].time <= player.currentTime) idx = i;
@@ -739,12 +745,13 @@
 					{#if translating}<p class="tr-hint">{t('nowplaying.translating')}</p>{/if}
 					<div class="lyrics" role="group" aria-label={t('nowplaying.lyrics')} bind:this={lyricsEl} onpointerdown={lyricsTouched} onwheel={lyricsWheel}>
 						{#each lines as l, i (i)}
-							<p class:active={i === activeLine}>
-								{#if showTr && settings.translateMode === 'replace'}
+							{@const hideTrForLine = l.fromParen && settings.lyricsHideParenTranslation}
+							<p class:active={i === activeLine} class:paren={l.fromParen}>
+								{#if showTr && settings.translateMode === 'replace' && !hideTrForLine}
 									{translated[i]}
 								{:else}
 									{l.text}
-									{#if showTr}<span class="tr">{translated[i]}</span>{/if}
+									{#if showTr && !hideTrForLine}<span class="tr">{translated[i]}</span>{/if}
 								{/if}
 							</p>
 						{/each}
@@ -851,6 +858,9 @@
 	.lyrics { text-align: center; line-height: 2.1; }
 	.lyrics p { font-size: calc(1rem * var(--fs-lyrics, 1)); color: var(--color-text-muted); transition: color 0.2s ease, transform 0.2s ease; margin: 0; }
 	.lyrics p.active { color: var(--color-text); font-weight: 700; transform: scale(1.04); }
+	/* paren-derived sibling line — slightly smaller / lower contrast than the parent so the
+	   reader can tell "this is the embedded-translation part" at a glance. */
+	.lyrics p.paren { font-size: calc(0.9rem * var(--fs-lyrics, 1)); opacity: 0.85; }
 	.lyrics .tr { display: block; font-size: 0.82em; font-weight: 400; color: var(--color-text-muted); margin-top: 2px; }
 	.tr-hint { text-align: center; font-size: 11px; color: var(--color-primary); margin: 0 0 6px; }
 	.empty { color: var(--color-text-muted); font-size: 14px; text-align: center; padding: 24px; }

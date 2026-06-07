@@ -59,6 +59,8 @@ const zhHant: Dict = {
 	'settings.translateMode': '翻譯模式',
 	'settings.translateModeOffNote': '僅影響歌詞。請先在上方選擇歌詞語言以啟用。',
 	'settings.translateModeOnNote': '已翻譯歌詞的顯示方式：取代原文，或在原文下方顯示譯文。僅限歌詞。',
+	'settings.lyricsHideParenTranslation': '隱藏括號中的翻譯',
+	'settings.lyricsHideParenTranslationNote': '當歌詞中含有（括號）短語（通常是嵌入的翻譯），將其拆到獨立行並隱藏其再翻譯。',
 	'settings.defaultQuality': '預設音質',
 	'settings.defaultQualityNote': '盡力而為 — 並非所有來源都提供位元率；在已知時會優先選擇。',
 	'settings.downloadQuality': '下載音質',

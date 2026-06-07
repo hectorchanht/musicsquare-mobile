@@ -50,6 +50,8 @@ const tr: Dict = {
 	"settings.translateMode": "Çeviri modu",
 	"settings.translateModeOffNote": "Etkinleştirmek için yukarıdan bir dil seçin.",
 	"settings.translateModeOnNote": "Çeviri çevrimiçi bir hizmet kullanır; kalitesi değişir.",
+	'settings.lyricsHideParenTranslation': 'Parantez içi çevirileri gizle',
+	'settings.lyricsHideParenTranslationNote': 'Bir şarkı sözü satırı (parantez içinde) bir ifade içerdiğinde — genellikle gömülü bir çeviri — kendi satırına alınır ve ek çevirisi gizlenir.',
 	"settings.defaultQuality": "Varsayılan şarkı kalitesi",
 	"settings.defaultQualityNote": "En iyi çaba — kaynakların tümü bit hızını göstermez; bilindiği yerde seçimi önyargılı hale getirir.",
 	"settings.downloadQuality": "İndirme kalitesi",

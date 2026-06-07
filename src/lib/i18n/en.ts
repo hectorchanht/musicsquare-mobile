@@ -58,6 +58,8 @@ const en = {
 	'settings.translateMode': 'Translate mode',
 	'settings.translateModeOffNote': 'Affects lyrics only. Pick a lyrics language above to enable.',
 	'settings.translateModeOnNote': 'How translated lyrics show: Replace the original, or show the translation below it. Lyrics only.',
+	'settings.lyricsHideParenTranslation': 'Hide parenthesised translations',
+	'settings.lyricsHideParenTranslationNote': 'When a lyric line contains a (parenthesised) clause — often an embedded translation — split it to its own line and hide its further translation.',
 	'settings.defaultQuality': 'Default song quality',
 	'settings.defaultQualityNote': "Best-effort — sources don't all expose bitrate; biases selection where known.",
 	'settings.downloadQuality': 'Download quality',

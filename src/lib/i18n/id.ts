@@ -50,6 +50,8 @@ const id: Dict = {
 	"settings.translateMode": "Modus terjemahan",
 	"settings.translateModeOffNote": "Pilih bahasa di atas untuk diaktifkan.",
 	"settings.translateModeOnNote": "Penerjemahan menggunakan layanan online; kualitas bervariasi.",
+	'settings.lyricsHideParenTranslation': 'Sembunyikan terjemahan dalam kurung',
+	'settings.lyricsHideParenTranslationNote': 'Saat baris lirik berisi klausa dalam (kurung) — sering kali terjemahan tertanam — pindahkan ke baris sendiri dan sembunyikan terjemahan tambahannya.',
 	"settings.defaultQuality": "Kualitas lagu bawaan",
 	"settings.defaultQualityNote": "Upaya terbaik — tidak semua sumber memperlihatkan bitrate; pemilihan bias jika diketahui.",
 	"settings.downloadQuality": "Kualitas unduhan",

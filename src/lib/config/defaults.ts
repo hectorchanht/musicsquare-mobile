@@ -59,7 +59,10 @@ export const TRANSLATION_DEFAULTS = {
 	titleSkip: [] as readonly SourceLang[],
 	lyricsSkip: [] as readonly SourceLang[],
 	lastfmSkip: [] as readonly SourceLang[],
-	translateMode: 'below' as TranslateMode
+	translateMode: 'below' as TranslateMode,
+	/** Hide translations for lyrics lines extracted from a `(...)` clause. Default OFF —
+	 *  parens-translations render alongside the parent line. */
+	lyricsHideParenTranslation: false
 } as const;
 
 // ---- Playback --------------------------------------------------------------------------

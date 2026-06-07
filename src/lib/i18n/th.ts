@@ -50,6 +50,8 @@ const th: Dict = {
 	"settings.translateMode": "โหมดการแปล",
 	"settings.translateModeOffNote": "เลือกภาษาด้านบนเพื่อเปิดใช้งาน",
 	"settings.translateModeOnNote": "การแปลใช้บริการออนไลน์ คุณภาพแตกต่างกันไป",
+	'settings.lyricsHideParenTranslation': 'ซ่อนคำแปลในวงเล็บ',
+	'settings.lyricsHideParenTranslationNote': 'เมื่อบรรทัดเนื้อเพลงมีวลีในวงเล็บ — ซึ่งมักเป็นคำแปลฝังในตัว — ระบบจะย้ายไปอยู่ในบรรทัดของตัวเอง และซ่อนคำแปลเพิ่มเติม',
 	"settings.defaultQuality": "คุณภาพเพลงเริ่มต้น",
 	"settings.defaultQualityNote": "พยายามอย่างเต็มที่ — แหล่งที่มาไม่ได้เปิดเผยบิตเรตทั้งหมด การเลือกอคติเมื่อทราบ",
 	"settings.downloadQuality": "คุณภาพการดาวน์โหลด",

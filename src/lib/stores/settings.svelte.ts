@@ -107,6 +107,10 @@ class Settings {
 	 * untranslated; otherwise an explicit language (quick-260607-fnp; supersedes the f4y note). */
 	bioLang = $state<'auto' | LyricsLang>('auto');
 	translateMode = $state<TranslateMode>('below');
+	/** Hide the auto-generated translation for lyrics lines that came from a `(...)` clause
+	 *  split out of their parent (typically an embedded-translation in the original LRC).
+	 *  Off by default → those lines render + translate like any other line. */
+	lyricsHideParenTranslation = $state<boolean>(false);
 
 	// --- appearance / per-part sizing (quick-260607-fnp) -----------------------------------
 	// Percent scales (100 = today's size). Applied app-wide as CSS custom properties in
@@ -197,6 +201,7 @@ class Settings {
 				this.coverScale = clampInt(v.coverScale, COVER_SCALE_MIN, COVER_SCALE_MAX, 100);
 				this.homeGridCols = clampInt(v.homeGridCols, GRID_COLS_MIN, GRID_COLS_MAX, 3);
 				this.translateMode = (v.translateMode as TranslateMode) ?? 'below';
+				this.lyricsHideParenTranslation = !!v.lyricsHideParenTranslation;
 				this.defaultQuality = (v.defaultQuality as DefaultQuality) ?? '128';
 				this.downloadQuality = (v.downloadQuality as DefaultQuality) ?? 'lossless';
 				this.defaultSource = (v.defaultSource as DefaultSource) ?? 'auto';
@@ -261,6 +266,7 @@ class Settings {
 					coverScale: this.coverScale,
 					homeGridCols: this.homeGridCols,
 					translateMode: this.translateMode,
+					lyricsHideParenTranslation: this.lyricsHideParenTranslation,
 					defaultQuality: this.defaultQuality,
 					downloadQuality: this.downloadQuality,
 					defaultSource: this.defaultSource,
@@ -340,6 +346,7 @@ class Settings {
 		this.lyricsSkip = [...d.lyricsSkip];
 		this.lastfmSkip = [...d.lastfmSkip];
 		this.translateMode = d.translateMode;
+		this.lyricsHideParenTranslation = d.lyricsHideParenTranslation;
 		this.save();
 	}
 

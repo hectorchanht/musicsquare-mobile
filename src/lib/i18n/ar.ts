@@ -50,6 +50,8 @@ const ar: Dict = {
 	"settings.translateMode": "وضع الترجمة",
 	"settings.translateModeOffNote": "اختر لغة أعلاه للتمكين.",
 	"settings.translateModeOnNote": "تستخدم الترجمة خدمة عبر الإنترنت؛ تختلف الجودة.",
+	'settings.lyricsHideParenTranslation': 'إخفاء الترجمات بين الأقواس',
+	'settings.lyricsHideParenTranslationNote': 'عندما يحتوي سطر الكلمات على عبارة بين أقواس — غالباً ترجمة مدمجة — اعرضها في سطر منفصل وأخفِ ترجمتها الإضافية.',
 	"settings.defaultQuality": "جودة الأغنية الافتراضية",
 	"settings.defaultQualityNote": "أفضل الجهود — لا تكشف جميع المصادر معدل البت؛ اختيار التحيزات حيثما كان معروفا.",
 	"settings.downloadQuality": "جودة التنزيل",

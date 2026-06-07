@@ -50,6 +50,8 @@ const vi: Dict = {
 	"settings.translateMode": "Chế độ dịch",
 	"settings.translateModeOffNote": "Chọn một ngôn ngữ ở trên để kích hoạt.",
 	"settings.translateModeOnNote": "Dịch thuật sử dụng dịch vụ trực tuyến; chất lượng khác nhau.",
+	'settings.lyricsHideParenTranslation': 'Ẩn bản dịch trong ngoặc',
+	'settings.lyricsHideParenTranslationNote': 'Khi một dòng lời chứa cụm (trong ngoặc) — thường là bản dịch nhúng — chuyển sang dòng riêng và ẩn bản dịch tiếp theo.',
 	"settings.defaultQuality": "Chất lượng bài hát mặc định",
 	"settings.defaultQualityNote": "Nỗ lực hết mình - không phải tất cả các nguồn đều hiển thị tốc độ bit; lựa chọn thiên vị khi đã biết.",
 	"settings.downloadQuality": "Chất lượng tải xuống",

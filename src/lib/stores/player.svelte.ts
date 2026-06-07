@@ -884,10 +884,20 @@ class Player {
 		} else {
 			// Metadata not loaded yet (fresh post-restore audio.src, or just-set src). Park the
 			// target on pendingSeek so the loadedmetadata listener applies it the moment
-			// duration lands. Use fraction × an interim duration estimate if available; else
-			// just record the fraction-as-seconds isn't ideal, so wait — store a fraction
-			// marker and resolve in the listener instead.
+			// duration lands.
 			this.pendingSeekFrac = clamped;
+		}
+		// fab67f8-followup: if audio is paused (typical post-restore state — restore() doesn't
+		// auto-play due to browser policy), the audio element hasn't started downloading
+		// anything yet; just setting currentTime makes the browser snap back to 0 on the next
+		// read because nothing is buffered to seek INTO. Kick off play() so the browser
+		// actually fetches the byte range around the seek target. Matches industry behavior
+		// (clicking the seek bar implies "play from here"). The user gesture from the click
+		// satisfies autoplay restrictions.
+		if (this.audio.paused) {
+			void this.audio.play().catch(() => {
+				/* autoplay rejected (rare on click) — user can tap play */
+			});
 		}
 	}
 

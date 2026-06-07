@@ -50,6 +50,8 @@ const de: Dict = {
 	"settings.translateMode": "Übersetzungsmodus",
 	"settings.translateModeOffNote": "Wählen Sie oben eine Sprache aus, um sie zu aktivieren.",
 	"settings.translateModeOnNote": "Die Übersetzung nutzt einen Onlinedienst; Qualität variiert.",
+	'settings.lyricsHideParenTranslation': 'Klammer-Übersetzungen ausblenden',
+	'settings.lyricsHideParenTranslationNote': 'Wenn eine Liedzeile eine (geklammerte) Phrase enthält — oft eine eingebettete Übersetzung — wird sie in eine eigene Zeile gesetzt und ihre weitere Übersetzung ausgeblendet.',
 	"settings.defaultQuality": "Standard-Songqualität",
 	"settings.defaultQualityNote": "Best-Effort – nicht alle Quellen geben die Bitrate an; beeinflusst die Auswahl, soweit bekannt.",
 	"settings.downloadQuality": "Download-Qualität",

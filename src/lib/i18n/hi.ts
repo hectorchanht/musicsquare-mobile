@@ -50,6 +50,8 @@ const hi: Dict = {
 	"settings.translateMode": "अनुवाद मोड",
 	"settings.translateModeOffNote": "सक्षम करने के लिए ऊपर कोई भाषा चुनें.",
 	"settings.translateModeOnNote": "अनुवाद एक ऑनलाइन सेवा का उपयोग करता है; गुणवत्ता भिन्न होती है.",
+	'settings.lyricsHideParenTranslation': 'कोष्ठक में अनुवाद छिपाएँ',
+	'settings.lyricsHideParenTranslationNote': 'जब किसी पंक्ति में (कोष्ठक में) क्लॉज़ होती है — अक्सर एम्बेडेड अनुवाद — तो उसे अलग पंक्ति में डाला जाता है और उसका आगे का अनुवाद छिपाया जाता है।',
 	"settings.defaultQuality": "डिफ़ॉल्ट गीत गुणवत्ता",
 	"settings.defaultQualityNote": "सर्वोत्तम प्रयास - सभी स्रोत बिटरेट को उजागर नहीं करते हैं; पूर्वाग्रह चयन जहां ज्ञात हो।",
 	"settings.downloadQuality": "डाउनलोड गुणवत्ता",

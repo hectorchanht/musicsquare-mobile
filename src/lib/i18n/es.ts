@@ -50,6 +50,8 @@ const es: Dict = {
 	"settings.translateMode": "Modo de traducción",
 	"settings.translateModeOffNote": "Elija un idioma arriba para habilitarlo.",
 	"settings.translateModeOnNote": "La traducción utiliza un servicio en línea; La calidad varía.",
+	'settings.lyricsHideParenTranslation': 'Ocultar traducciones entre paréntesis',
+	'settings.lyricsHideParenTranslationNote': 'Cuando una línea contiene una frase (entre paréntesis) — a menudo una traducción incrustada — se mueve a su propia línea y se oculta su traducción adicional.',
 	"settings.defaultQuality": "Calidad de canción predeterminada",
 	"settings.defaultQualityNote": "Mejor esfuerzo: no todas las fuentes exponen la tasa de bits; selección de sesgos cuando se conozcan.",
 	"settings.downloadQuality": "Calidad de descarga",

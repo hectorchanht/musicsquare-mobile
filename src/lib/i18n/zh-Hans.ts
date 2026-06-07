@@ -59,6 +59,8 @@ const zhHans: Dict = {
 	'settings.translateMode': '翻译模式',
 	'settings.translateModeOffNote': '仅影响歌词。请先在上方选择歌词语言以启用。',
 	'settings.translateModeOnNote': '已翻译歌词的显示方式：替换原文，或在原文下方显示译文。仅限歌词。',
+	'settings.lyricsHideParenTranslation': '隐藏括号中的翻译',
+	'settings.lyricsHideParenTranslationNote': '当歌词中含有（括号）短语（通常是嵌入的翻译），将其拆到独立行并隐藏其再翻译。',
 	'settings.defaultQuality': '默认音质',
 	'settings.defaultQualityNote': '尽力而为 — 并非所有来源都提供比特率；在已知时会优先选择。',
 	'settings.downloadQuality': '下载音质',

@@ -119,6 +119,12 @@
 		{/each}
 	</div>
 	<p class="muted">{settings.lyricsLang === 'off' ? t('settings.translateModeOffNote') : t('settings.translateModeOnNote')}</p>
+
+	<button class="row-toggle" onclick={() => { settings.lyricsHideParenTranslation = !settings.lyricsHideParenTranslation; settings.save(); }}>
+		<span>{t('settings.lyricsHideParenTranslation')}</span>
+		<span class="sw" class:on={settings.lyricsHideParenTranslation}></span>
+	</button>
+	<p class="muted">{t('settings.lyricsHideParenTranslationNote')}</p>
 </section>
 
 <hr class="div" />
@@ -189,4 +195,9 @@
 	.seg button.on { background: var(--color-primary); color: #fff; }
 	.link { background: none; border: none; color: var(--color-primary); cursor: pointer; font-size: 14px; padding: 0; }
 	.div { border: none; border-top: 1px solid var(--color-border); margin: 4px 0; }
+	.row-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text); padding: 13px 14px; border-radius: 12px; font-size: 14px; cursor: pointer; margin-top: 12px; }
+	.sw { width: 40px; height: 22px; border-radius: 999px; background: var(--color-border); position: relative; transition: background 0.15s ease; flex: none; }
+	.sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform 0.15s ease; }
+	.sw.on { background: var(--color-primary); }
+	.sw.on::after { transform: translateX(18px); }
 </style>

@@ -18,6 +18,7 @@
 	import { longpress } from '$lib/actions/longpress';
 	import { marquee } from '$lib/actions/marquee';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
+	import Nowbar from '$lib/components/Nowbar.svelte';
 	import { parseLRC, type LyricLine } from '$lib/services/lrc';
 	import { createVelocityTracker } from '$lib/gestures/velocity';
 	import type { Track } from '$lib/sources/types';
@@ -543,16 +544,17 @@
 	style:transform={dragY ? `translateY(${dragY}px)` : undefined}
 	style:transition={dragging ? 'none' : 'transform 0.28s cubic-bezier(.22,1,.36,1)'}
 >
+	{#if sheetState === 'full'}
+		<!-- mtv-followup: reuse the existing docked Nowbar as the sticky top bar when the
+		     subnav sheet is fully open. Same cover/title/artist/play layout as the
+		     bottom-of-screen mini-player; tapping it collapses the sheet (returns to the
+		     full Now Playing view, sheet closed). The lower header (.bar) is hidden by CSS
+		     so the underlying NP chrome doesn't leak through. -->
+		<Nowbar variant="embed" onOpen={() => { sheetState = 'closed'; sheetDragY = offsetFor('closed'); }} />
+	{/if}
 	<header class="bar">
 		<button class="icon" aria-label={t('nowplaying.collapse')} onclick={() => player.collapse()}><ChevronDown /></button>
 		<span class="ctx">{t('nowplaying.nowPlaying')}</span>
-		{#if sheetState === 'full'}
-			<!-- ju0: in fullshrink mode the transport row is hidden (sheet covers it). Surface
-			     a compact play/pause in the top-right so playback control stays one tap away. -->
-			<button class="icon mini-play" aria-label={t('nowplaying.playPause')} onclick={() => player.toggle()}>
-				{#if player.playing}<Pause size={20} />{:else}<Play size={20} />{/if}
-			</button>
-		{/if}
 		<button class="icon" aria-label={t('nowplaying.options')} onclick={() => openMenu(player.current)}><MoreVertical /></button>
 	</header>
 
@@ -691,7 +693,7 @@
 
 <style>
 	.np { position: fixed; inset: 0; z-index: 50; background: radial-gradient(130% 60% at 50% 0%, #241a3a 0%, var(--color-bg) 60%); display: flex; flex-direction: column; padding: 8px 18px env(safe-area-inset-bottom); overflow: hidden; }
-	.bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
+	.bar { display: flex; align-items: center; justify-content: space-between; }
 	.bar .ctx { font-size: 12px; color: var(--color-text-muted); }
 	.icon { background: none; border: none; color: var(--color-text); cursor: pointer; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; }
 	.icon:hover { background: var(--color-surface-2); }
@@ -706,45 +708,35 @@
 	.np.reflow .meta { position: relative; z-index: 2; margin-top: -42px; padding: 0 2px; }
 	.np.reflow .title { text-shadow: 0 1px 6px rgba(0,0,0,0.6); }
 
-	/* ju0: sheet FULL state → cover/title/artist + play button collapse into a YT-Music-style
-	   horizontal mini-bar at the top. The expanded queue/lyrics panel underneath gets the rest
-	   of the viewport; the giant cover is gone so nothing overlaps. .fullshrink is a STRICT
-	   superset of .reflow so all the overrides below win. */
-	.np.fullshrink .cover {
-		position: absolute; top: 6px; left: 64px; width: 48px; height: 48px;
-		aspect-ratio: 1 / 1; margin: 0; border-radius: 8px; z-index: 3;
-	}
-	.np.fullshrink .cover::before { display: none; }
-	.np.fullshrink .bar { position: absolute; top: 4px; left: 0; right: 0; padding: 8px 12px; z-index: 2; }
-	.np.fullshrink .bar .ctx { display: none; } /* "Now Playing" label hidden — cover+meta carry context */
-	.np.fullshrink .meta {
-		position: absolute; top: 8px; left: 120px; right: 60px; margin: 0; z-index: 3;
-		display: flex; flex-direction: column; justify-content: center; min-height: 48px;
-	}
-	.np.fullshrink .title { font-size: 14px; font-weight: 600; text-shadow: none; }
-	.np.fullshrink .artist { font-size: 12px; padding: 0; background: none; text-decoration: none; }
-	/* Progress + transport are HIDDEN in full state — the sheet covers them anyway, and the
-	   mini-bar's compact layout doesn't have room. Tap the play button in the top bar instead. */
-	.np.fullshrink .prog, .np.fullshrink .transport { display: none; }
-	/* m4e-followup: push the absolute-positioned sheet down by the mini-bar's height so the
-	   top row (cover + title + artist + play) is visible above the queue. The sheet's
-	   `inset:0` was covering the entire viewport including the mini-bar at z:2-3 (sheet z:5).
-	   Mini-bar contents stay at their lower z; sheet just sits below them spatially now. */
-	.np.fullshrink .sheet.full { inset: 64px 0 0 0; }
-	.np.fullshrink { padding-top: 64px; }
+	/* mtv-followup: sheet FULL state → reuse the docked Nowbar as a sticky top bar. The
+	   existing .bar/.cover/.meta/.prog/.transport are all hidden (Nowbar carries the same
+	   information in a single compact row) and the sheet starts below the bar so the queue
+	   never overlaps it. .fullshrink is a strict superset of .reflow so the overrides win. */
+	.np.fullshrink .bar,
+	.np.fullshrink .cover,
+	.np.fullshrink .meta,
+	.np.fullshrink .prog,
+	.np.fullshrink .transport,
+	.np.fullshrink .np-error { display: none; }
+	/* The embedded Nowbar sits in static flow at the top of .np. Reserve viewport below it for
+	   the absolute-positioned sheet so the top bar isn't painted over. The 76px = Nowbar height
+	   (var(--nowbar-h)) + .np's own padding-top (8px); pinned numerically here because .np.fullshrink
+	   adds no extra padding-top and the sheet is `position:absolute` with explicit inset. */
+	.np.fullshrink .sheet.full { inset: calc(var(--nowbar-h) + 16px) 0 0 0; }
+	.np.fullshrink :global(.nowbar.embed) { margin-bottom: 8px; }
 	.title { font-size: calc(1.5rem * var(--fs-title, 1)); font-weight: 800; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.artist { display: inline-block; max-width: 100%; vertical-align: bottom; background: black; border: none; padding: 2px; border-radius: 4px; color: var(--color-text-muted); font-size: calc(1rem * var(--fs-artist, 1)); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	/* Marquee lives globally in app.css (transform-based .marquee-inner). The .title/.artist
 	   clips above + the use:marquee action + inner .marquee-inner span in the markup are the
 	   only per-file pieces — the global rule animates them. (gmy unified the drift.) */
 	.np-error { color: #ff6b6b; font-size: 13px; text-align: center; margin: 2px 2px 10px; }
-	.prog { margin: 4px 0 10px; }
+	.prog { margin: 4px 0; }
 	.track { position: relative; height: 14px; display: flex; align-items: center; cursor: pointer; }
 	.track::before { content: ''; position: absolute; left: 0; right: 0; height: 4px; border-radius: 4px; background: rgba(255,255,255,0.18); }
 	.fill { position: absolute; left: 0; height: 4px; border-radius: 4px; background: var(--color-primary); }
 	.knob { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: #fff; transform: translateX(-50%); }
 	.times { display: flex; justify-content: space-between; font-size: 11px; color: var(--color-text-muted); margin-top: 4px; }
-	.transport { display: flex; align-items: center; justify-content: space-between; margin: 6px 4px 10px; }
+	.transport { display: flex; align-items: center; justify-content: space-between; margin: 6px 4px; }
 	.t { background: none; border: none; color: var(--color-text); cursor: pointer; opacity: 0.85; display: grid; place-items: center; }
 	.t.on { color: var(--color-primary); opacity: 1; }
 	.play { width: 62px; height: 62px; border-radius: 50%; border: none; background: #fff; color: #000; cursor: pointer; display: grid; place-items: center; }
@@ -756,7 +748,7 @@
 	.subnav { display: flex; justify-content: space-around; padding-bottom: 6px; touch-action: none; user-select: none; -webkit-user-select: none; }
 	.subnav button { background: none; border: none; color: var(--color-text-muted); font-size: 13px; min-height: 40px; padding: 8px 12px; cursor: pointer; border-bottom: 2px solid transparent; }
 	.subnav button.active { color: var(--color-text); border-bottom-color: var(--color-primary); }
-	.panel { flex: 1; overflow-y: auto; padding: 8px 0 16px; }
+	.panel { flex: 1; overflow-y: auto; }
 	.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 	.row { width: 100%; text-align: left; background: none; border: none; padding: 8px 6px; border-radius: 8px; cursor: pointer; display: flex; flex-direction: column; }
 	.row:hover { background: var(--color-surface); }

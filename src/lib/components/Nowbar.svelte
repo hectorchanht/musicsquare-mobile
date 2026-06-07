@@ -102,6 +102,9 @@
 		/* Crucial fixes */
 		z-index: -1;             /* Keeps it behind the button text/icons */
 		pointer-events: none;    /* PASSES CLICK EVENTS THROUGH TO BUTTONS */
+		-webkit-transform: translate3d(0, 0, 0);
+		transform: translateZ(0);
+		will-change: filter;
 	}
 
 	/* Ensure child content stays interactive and on top */

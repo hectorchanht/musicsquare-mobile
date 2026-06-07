@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { ChevronLeft, Trash2, RefreshCw } from '@lucide/svelte';
+	import { ChevronLeft, Trash2, RefreshCw, Languages, Image, Search, SlidersHorizontal } from '@lucide/svelte';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { library } from '$lib/stores/library.svelte';
+	import { names } from '$lib/stores/names.svelte';
+	import { clearCoverCache } from '$lib/services/cover-cache';
+	import { SEARCH_HISTORY_KEY } from '$lib/search/search-history-logic';
 	import { t } from '$lib/i18n';
 
 	const TOP_PICKS_KEY = 'openmusic:top-picks:v1';
@@ -19,6 +22,10 @@
 	function flash(m: string) { msg = m; setTimeout(() => (msg = ''), 1800); }
 
 	function clearPicks() { try { localStorage.removeItem(TOP_PICKS_KEY); } catch { /* */ } flash(t('settings.picksCleared')); }
+	function clearNameCache() { names.clearCache(); flash(t('settings.nameCacheCleared')); }
+	function clearCovers() { clearCoverCache(); flash(t('settings.coverCacheCleared')); }
+	function clearSearchHistory() { try { localStorage.removeItem(SEARCH_HISTORY_KEY); } catch { /* */ } flash(t('settings.searchHistoryCleared')); }
+	function resetAppearance() { settings.resetAppearance(); flash(t('settings.appearanceReset')); }
 	function clearLibrary() {
 		if (confirm(t('settings.clearLibraryConfirm'))) {
 			library.clearAll();
@@ -38,6 +45,10 @@
 <section>
 	<p class="muted">{t('settings.dataCounts', { liked: counts.liked, playlists: counts.playlists, downloads: counts.downloads })}</p>
 	<button class="item" onclick={clearPicks}><RefreshCw size={18} /> {t('settings.clearPicks')}</button>
+	<button class="item" onclick={clearNameCache}><Languages size={18} /> {t('settings.clearNameCache')}</button>
+	<button class="item" onclick={clearCovers}><Image size={18} /> {t('settings.clearCoverCache')}</button>
+	<button class="item" onclick={clearSearchHistory}><Search size={18} /> {t('settings.clearSearchHistory')}</button>
+	<button class="item" onclick={resetAppearance}><SlidersHorizontal size={18} /> {t('settings.resetAppearance')}</button>
 	<button class="item danger" onclick={clearLibrary}><Trash2 size={18} /> {t('settings.clearLibrary')}</button>
 </section>
 

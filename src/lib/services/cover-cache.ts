@@ -39,6 +39,15 @@ export function artistCoverCacheKey(artist: string): string {
 	return 'artist:' + matchKey(artist, '');
 }
 
+/** Wipe the entire cover cache (used by the Data settings tab). Never throws. */
+export function clearCoverCache(): void {
+	try {
+		localStorage.removeItem(CACHE_KEY);
+	} catch {
+		/* unavailable storage — no-op */
+	}
+}
+
 /** Read the whole record; returns {} on absent / corrupt / unavailable storage (never throws). */
 function readRecord(): Record<string, string> {
 	try {

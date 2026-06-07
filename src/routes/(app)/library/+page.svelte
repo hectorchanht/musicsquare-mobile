@@ -173,7 +173,7 @@
 								<button class="row" class:edit-row={editMode} use:longpress onlongpress={() => openMenu(track)} onclick={() => rowAction(track, pl.tracks, pl.id)}>
 									<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
 									<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
-									{#if editMode}<Trash2 size={16} />{/if}
+									{#if editMode}<Trash2 size={16} />{:else}<Play size={16} />{/if}
 								</button>
 							</li>
 						{/each}
@@ -186,18 +186,12 @@
 	{#if library.downloads.length}
 		<ul class="list">
 			{#each library.downloads as track (track.uid)}
-				<li class="rowline">
+				<li>
 					<button class="row" class:edit-row={editMode} use:longpress onlongpress={() => openMenu(track)} onclick={() => rowAction(track, library.downloads)}>
 						<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
 						<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
-						{#if editMode}<Trash2 size={16} />{/if}
+						{#if editMode}<Trash2 size={16} />{:else}<Play size={16} />{/if}
 					</button>
-					<!-- inline per-row delete is kept (works regardless of edit-mode) so a user
-					     can yank one stale download without entering Edit. The bulk-edit row-click
-					     is the EASY-multi-tap path; this is the precise single-row path. -->
-					{#if !editMode}
-						<button class="del" aria-label={t('library.remove')} onclick={() => library.removeDownload(track.uid)}><Trash2 size={15} /></button>
-					{/if}
 				</li>
 			{/each}
 		</ul>
@@ -250,8 +244,6 @@
 	.tabs button { flex: 1; display: inline-flex; align-items: center; justify-content: center; background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text-muted); padding: 10px 0; border-radius: 999px; cursor: pointer; min-width: 0; }
 	.tabs button.active { background: var(--color-primary); color: #fff; border-color: transparent; }
 	.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-	.rowline { display: flex; align-items: center; }
-	.rowline .row { flex: 1; }
 	.row { width: 100%; text-align: left; background: none; border: none; padding: 8px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 12px; color: var(--color-text); }
 	.row:hover { background: var(--color-surface); }
 	.art { width: 48px; height: 48px; border-radius: 8px; background-size: cover; background-position: center; flex: none; }

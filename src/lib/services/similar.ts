@@ -17,7 +17,7 @@ import type { Track } from '$lib/sources/types';
 
 const SIMILAR_ARTIST_COUNT = 8; // how many similar artists to search (top N)
 const FALLBACK_LIMIT = 20; // same-artist fallback cap (matches the Related tab)
-const TTL_SIMILAR = 60 * 60 * 1000; // k3y: 1h client cache for similar-artist lookups
+const TTL_SIMILAR = 6 * 60 * 60 * 1000; // 6h (lry-followup: similar-artist sets are stable)
 
 /**
  * Fetch artists similar to `artist`. Last.fm primary; on empty (no LASTFM_KEY, or Last.fm

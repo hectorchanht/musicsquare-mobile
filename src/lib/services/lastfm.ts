@@ -21,7 +21,9 @@ const MAX_TAGS = 5;
 // k3y client-side TTL for Last.fm /api/lastfm/info calls. The edge already caches
 // upstream; this layer cuts the round-trip to zero on repeat same-session lookups
 // (artist/track/album enrich + chart/tag/geo/album-tracklist all go through here).
-const TTL_LASTFM = 60 * 60 * 1000; // 1h
+// lry-followup: bumped 1h → 6h. Bio/tags/listeners/playcount drift slowly; charts shift
+// daily but a stale chart is harmless. Long-TTL is right for a music app — data stable.
+const TTL_LASTFM = 6 * 60 * 60 * 1000; // 6h
 
 /** Clean additive enrichment shape the UI merges onto a Track. */
 export interface EnrichResult {

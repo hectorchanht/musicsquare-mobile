@@ -32,12 +32,14 @@ export interface PartialSearchResult {
 }
 
 /**
- * D-04 search-result TTL (ms). Search/discovery metadata changes infrequently, so a
- * few minutes of memoization gives instant repeat responses + fewer proxy calls
- * without serving stale data for long. This caches the SearchResult METADATA only —
+ * D-04 search-result TTL (ms). Search/discovery metadata changes infrequently, so an
+ * hour of memoization gives instant repeat responses + drops cold-fetch load to ~0
+ * within the typical browsing session. This caches the SearchResult METADATA only —
  * never resolved (short-lived) audio URLs, which stay un-cached in `ensureTrackDetails`.
+ * lry-followup: bumped 5min → 60min. A music catalogue's search ranking is stable for
+ * hours, and the page already exposes a fresh load via the search button.
  */
-const SEARCH_TTL_MS = 5 * 60 * 1000;
+const SEARCH_TTL_MS = 60 * 60 * 1000;
 
 /**
  * Fan out a search across all enabled sources with per-source isolation, memoized at

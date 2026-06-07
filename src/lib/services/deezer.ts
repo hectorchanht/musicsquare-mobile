@@ -25,12 +25,13 @@ const PROXY_PATH = '/api/deezer/search';
 const CHART_PATH = '/api/deezer/chart';
 const RELATED_PATH = '/api/deezer/related';
 const FETCH_TIMEOUT_MS = 6000;
-// k3y client-side TTLs. The proxies already edge-cache at 24h; these wrappers eliminate the
-// repeat NETWORK ROUNDTRIP entirely for same-session re-queries (no edge hit at all). Covers
-// rarely change; search/related change slowly.
-const TTL_COVER = 24 * 60 * 60 * 1000; // 24h — matches edge TTL
-const TTL_SEARCH = 60 * 60 * 1000;     // 1h — search/related are less stable than covers
-const TTL_RELATED = 60 * 60 * 1000;
+// k3y client-side TTLs (longer per lry-followup: a music app's catalogue + cover data is
+// stable for days, and the same-session repeat hit pattern dominates the network surface).
+// Covers basically never change for an existing track; search rankings drift slowly; related
+// + chart change daily but the visible UX cost of a half-day-old chart is zero.
+const TTL_COVER = 7 * 24 * 60 * 60 * 1000; // 7d — covers are effectively immutable for an existing release
+const TTL_SEARCH = 6 * 60 * 60 * 1000;     // 6h — search/related rankings drift slowly
+const TTL_RELATED = 6 * 60 * 60 * 1000;
 
 /** The proxy's client-facing reshape (mirrors the +server.ts DeezerCover interface). */
 interface DeezerCover {

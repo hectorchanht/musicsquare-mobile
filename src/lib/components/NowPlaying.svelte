@@ -3,9 +3,10 @@
 	import { fly } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import { goto } from '$app/navigation';
-	import { ChevronDown, MoreVertical, Shuffle, SkipBack, SkipForward, Play, Pause, Repeat, Repeat1, GripVertical } from '@lucide/svelte';
+	import { ChevronDown, MoreVertical, Heart, SkipBack, SkipForward, Play, Pause, Repeat, Repeat1, GripVertical } from '@lucide/svelte';
 	import { player, fmtTime } from '$lib/stores/player.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
+	import { library } from '$lib/stores/library.svelte';
 	import { names } from '$lib/stores/names.svelte';
 	import { overlays } from '$lib/stores/overlays.svelte';
 	import { t } from '$lib/i18n';
@@ -25,6 +26,22 @@
 	let tab = $state<Tab>('lyrics');
 	// shuffle/repeat moved to the store (gte) so the audio `ended` handler + next() can read
 	// them. The transport buttons below bind to player.shuffle / player.repeatMode directly.
+
+	// ii6: derived "is current track liked" for the transport heart button (Like replaces
+	// Shuffle in the transport row; Shuffle moved into the TrackMenu kebab menu).
+	const currentLiked = $derived(player.current ? library.isLiked(player.current.uid) : false);
+	let npToast = $state('');
+	let npToastTimer: ReturnType<typeof setTimeout> | null = null;
+	function flash(m: string) {
+		npToast = m;
+		if (npToastTimer) clearTimeout(npToastTimer);
+		npToastTimer = setTimeout(() => (npToast = ''), 1500);
+	}
+	function toggleCurrentLike() {
+		if (!player.current) return;
+		library.toggleLike(player.current);
+		flash(library.isLiked(player.current.uid) ? t('toast.liked') : t('toast.unliked'));
+	}
 
 
 	// shared context menu for current track + long-pressed queue/related rows
@@ -569,7 +586,7 @@
 	</div>
 
 	<div class="transport" bind:this={transportEl}>
-		<button class="t" class:on={player.shuffle} aria-label={t('nowplaying.shuffle')} onclick={() => player.toggleShuffle()}><Shuffle size={20} /></button>
+		<button class="t" class:on={currentLiked} aria-label={currentLiked ? t('menu.liked') : t('menu.like')} onclick={toggleCurrentLike}><Heart size={20} fill={currentLiked ? 'currentColor' : 'none'} /></button>
 		<button class="t" aria-label={t('nowplaying.previous')} onclick={() => player.prev()}><SkipBack size={26} /></button>
 		<button class="play" aria-label={t('nowplaying.playPause')} onclick={() => player.toggle()}>
 			{#if player.playing}<Pause size={26} />{:else}<Play size={26} />{/if}
@@ -657,6 +674,8 @@
 	</div>
 
 	<TrackMenu track={menuTrack} open={menuOpen} onclose={() => (menuOpen = false)} />
+
+	{#if npToast}<div class="np-toast" transition:fly={{ y: -10, duration: 160 }}>{npToast}</div>{/if}
 </section>
 
 <style>
@@ -720,4 +739,5 @@
 	.lyrics .tr { display: block; font-size: 0.82em; font-weight: 400; color: var(--color-text-muted); margin-top: 2px; }
 	.tr-hint { text-align: center; font-size: 11px; color: var(--color-primary); margin: 0 0 6px; }
 	.empty { color: var(--color-text-muted); font-size: 14px; text-align: center; padding: 24px; }
+	.np-toast { position: absolute; left: 50%; transform: translateX(-50%); top: 72px; z-index: 60; background: rgba(0,0,0,0.75); color: #fff; padding: 8px 14px; border-radius: 999px; font-size: 13px; }
 </style>

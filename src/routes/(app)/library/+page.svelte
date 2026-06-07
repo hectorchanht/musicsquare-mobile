@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Heart, ListMusic, Download, Trash2, Play, Clock } from '@lucide/svelte';
+	import { Heart, ListMusic, Download, Trash2, Play, Clock, Pencil, Check } from '@lucide/svelte';
 	import { library } from '$lib/stores/library.svelte';
 	import { history } from '$lib/stores/history.svelte';
 	import { player } from '$lib/stores/player.svelte';
@@ -15,6 +15,25 @@
 	let menuTrack = $state<Track | null>(null);
 	let menuOpen = $state(false);
 	function openMenu(t: Track) { menuTrack = t; menuOpen = true; }
+
+	// ii6 #6: bulk-edit mode (Liked tab v1). When `editMode` is true, row click REMOVES the
+	// track from the current list instead of playing it. Toggling the tab resets the mode so
+	// the user doesn't carry delete-mode into Playlists/History accidentally. Architecture
+	// readies extension to Downloads/Playlists later: just allow the Edit button there too
+	// and route the row's edit-click through a per-tab remove handler.
+	let editMode = $state(false);
+	$effect(() => {
+		// reactive dependency on `tab`: switching tab leaves edit mode.
+		void tab;
+		editMode = false;
+	});
+	function rowAction(track: Track, list: Track[]) {
+		if (editMode && tab === 'liked') {
+			library.toggleLike(track); // removes when already liked
+			return;
+		}
+		playList(list, track);
+	}
 	onMount(() => {
 		library.load();
 		history.load();
@@ -37,7 +56,14 @@
 
 <svelte:head><title>{t('library.title')}</title></svelte:head>
 
-<header class="head"><h1>{t('library.heading')}</h1></header>
+<header class="head">
+	<h1>{t('library.heading')}</h1>
+	{#if tab === 'liked' && library.liked.length}
+		<button class="edit-btn" aria-pressed={editMode} onclick={() => (editMode = !editMode)}>
+			{#if editMode}<Check size={16} /> {t('common.done')}{:else}<Pencil size={16} /> {t('library.edit')}{/if}
+		</button>
+	{/if}
+</header>
 
 <nav class="tabs">
 	<button class:active={tab === 'liked'} onclick={() => (tab = 'liked')}><Heart size={15} /> {t('library.liked')}</button>
@@ -48,13 +74,13 @@
 
 {#if tab === 'liked'}
 	{#if library.liked.length}
-		<ul class="list">
+		<ul class="list" class:editing={editMode}>
 			{#each library.liked as track (track.uid)}
 				<li>
-					<button class="row" use:longpress onlongpress={() => openMenu(track)} onclick={() => playList(library.liked, track)}>
+					<button class="row" class:edit-row={editMode} use:longpress onlongpress={() => openMenu(track)} onclick={() => rowAction(track, library.liked)}>
 						<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
 						<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
-						<Play size={16} />
+						{#if editMode}<Trash2 size={16} />{:else}<Play size={16} />{/if}
 					</button>
 				</li>
 			{/each}
@@ -119,7 +145,12 @@
 <TrackMenu track={menuTrack} open={menuOpen} onclose={() => (menuOpen = false)} />
 
 <style>
-	.head h1 { font-size: 1.4rem; margin: 16px 0 12px; }
+	.head { display: flex; align-items: center; justify-content: space-between; margin: 16px 0 12px; }
+	.head h1 { font-size: 1.4rem; margin: 0; }
+	.edit-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text); padding: 6px 12px; border-radius: 999px; font-size: 13px; cursor: pointer; }
+	.edit-btn[aria-pressed='true'] { background: var(--color-primary); color: #fff; border-color: transparent; }
+	.edit-row { color: #ff7a90; }
+	.edit-row:hover { background: rgba(255, 122, 144, 0.08); }
 	.tabs { display: flex; gap: 6px; margin-bottom: 14px; }
 	.tabs button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text-muted); padding: 9px 6px; border-radius: 999px; font-size: 13px; cursor: pointer; }
 	.tabs button.active { background: var(--color-primary); color: #fff; border-color: transparent; }

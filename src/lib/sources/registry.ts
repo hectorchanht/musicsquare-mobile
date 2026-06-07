@@ -7,15 +7,25 @@ import { qq } from './qq';
 import { kuwo } from './kuwo';
 import { joox } from './joox';
 import { fivesing } from './fivesing';
+import { settings } from '$lib/stores/settings.svelte';
 
 export const SOURCES: Record<SourceId, SourceAdapter> = { netease, qq, kuwo, joox, fivesing };
 
 /**
- * The enabled adapters for a search fan-out. `prefs` overrides each adapter's
- * `enabledByDefault` (explicit true/false wins; absent falls back to the default).
- * Ported from the monolith's enabled-source loop (legacy:2235-2241), generalized to
- * iterate the registry instead of a hard-coded string ladder.
+ * The enabled adapters for a search fan-out. Precedence (highest first):
+ *   1. explicit `prefs[id]` (true/false) — passed by a caller that wants ONE source
+ *      (e.g. cross-source fallback's per-source retry).
+ *   2. `settings.enabledSources[id]` — the user's persisted override (ii6).
+ *   3. adapter's own `enabledByDefault`.
+ * The chain stops at the first non-undefined value.
  */
 export const getEnabledAdapters = (
 	prefs: Partial<Record<SourceId, boolean>> = {}
-): SourceAdapter[] => Object.values(SOURCES).filter((a) => prefs[a.id] ?? a.enabledByDefault);
+): SourceAdapter[] => {
+	const userPrefs = settings.enabledSources;
+	return Object.values(SOURCES).filter((a) => {
+		if (prefs[a.id] !== undefined) return prefs[a.id];
+		if (userPrefs[a.id] !== undefined) return userPrefs[a.id];
+		return a.enabledByDefault;
+	});
+};

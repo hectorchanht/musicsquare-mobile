@@ -2,7 +2,7 @@
 	import { untrack } from 'svelte';
 	import { fly } from 'svelte/transition';
 	import { goto } from '$app/navigation';
-	import { ListStart, ListEnd, Download, Heart, ListPlus, Disc, User, Share2, Info, X, Plus } from '@lucide/svelte';
+	import { ListStart, ListEnd, Download, Heart, ListPlus, Disc, User, Share2, Info, X, Plus, Shuffle } from '@lucide/svelte';
 	import { player } from '$lib/stores/player.svelte';
 	import { library } from '$lib/stores/library.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
@@ -36,10 +36,15 @@
 	}
 	function playNext() { if (track) { player.playNext(track); toast(t('toast.playingNext')); } close(); }
 	function addQueue() { if (track) { player.addToQueue(track); toast(t('toast.addedToQueue')); } close(); }
+	// ii6: Shuffle moved off the NowPlaying transport row into the menu. Shown only when
+	// there's a queue to shuffle (otherwise the action would be a no-op).
+	function shuffleQueue() { player.toggleShuffle(); close(); }
 	function like() {
 		if (!track) return;
 		library.toggleLike(track);
-		toast(library.isLiked(track.uid) ? t('menu.liked') : t('menu.like'));
+		// Post-toggle: isLiked == true means we just LIKED it; false means we just UNLIKED.
+		// Use past-tense toast keys (ii6 — previously read 'menu.like' which is the action verb).
+		toast(library.isLiked(track.uid) ? t('toast.liked') : t('toast.unliked'));
 	}
 	// goto* navigate away (TrackMenu unmounts) so a local toast can't render — the page change
 	// IS the feedback. like()/detail keep their on-page feedback (toast / heart toggle / sheet).
@@ -170,6 +175,9 @@
 		{:else}
 			<button class="mi" onclick={playNext}><ListStart size={18} /> {t('menu.playNext')}</button>
 			<button class="mi" onclick={addQueue}><ListEnd size={18} /> {t('menu.addToQueue')}</button>
+			{#if player.queue.length > 1}
+				<button class="mi" class:on={player.shuffle} onclick={shuffleQueue}><Shuffle size={18} /> {t('menu.shuffleQueue')}</button>
+			{/if}
 			<button class="mi" onclick={doDownload}><Download size={18} /> {t('menu.download')}</button>
 			<button class="mi" onclick={like}><Heart size={18} fill={liked ? 'currentColor' : 'none'} /> {liked ? t('menu.liked') : t('menu.like')}</button>
 			<button class="mi" onclick={() => { pickerOpen = true; }}><ListPlus size={18} /> {t('menu.addToPlaylist')}</button>

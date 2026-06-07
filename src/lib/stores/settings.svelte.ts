@@ -90,6 +90,10 @@ class Settings {
 	titleSkip = $state<SourceLang[]>([]);
 	lyricsSkip = $state<SourceLang[]>([]);
 	lastfmSkip = $state<SourceLang[]>([]);
+	/** Per-source enable map (ii6). Empty/absent → each adapter falls back to its
+	 *  `enabledByDefault`. Explicit true/false overrides. Lets a user opt INTO 5sing
+	 *  (`enabledByDefault: false`) without changing the adapter contract. */
+	enabledSources = $state<Partial<Record<SourceId, boolean>>>({});
 	/** Bio (Last.fm artist bio) target language. `'auto'` = follow appLang (default); `'off'` =
 	 * untranslated; otherwise an explicit language (quick-260607-fnp; supersedes the f4y note). */
 	bioLang = $state<'auto' | LyricsLang>('auto');
@@ -169,6 +173,10 @@ class Settings {
 				this.titleSkip = Array.isArray(v.titleSkip) ? (v.titleSkip as SourceLang[]) : [];
 				this.lyricsSkip = Array.isArray(v.lyricsSkip) ? (v.lyricsSkip as SourceLang[]) : [];
 				this.lastfmSkip = Array.isArray(v.lastfmSkip) ? (v.lastfmSkip as SourceLang[]) : [];
+				this.enabledSources =
+					v.enabledSources && typeof v.enabledSources === 'object' && !Array.isArray(v.enabledSources)
+						? (v.enabledSources as Partial<Record<SourceId, boolean>>)
+						: {};
 				this.bioLang = (v.bioLang as 'auto' | LyricsLang) ?? 'auto';
 				// Appearance scales (fnp): clamp to safe bounds; absent → today's 100 / 3 cols.
 				this.fontScaleTitle = clampInt(v.fontScaleTitle, FONT_SCALE_MIN, FONT_SCALE_MAX, 100);
@@ -232,6 +240,7 @@ class Settings {
 					titleSkip: this.titleSkip,
 					lyricsSkip: this.lyricsSkip,
 					lastfmSkip: this.lastfmSkip,
+					enabledSources: this.enabledSources,
 					bioLang: this.bioLang,
 					fontScaleTitle: this.fontScaleTitle,
 					fontScaleArtist: this.fontScaleArtist,

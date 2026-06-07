@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { ChevronLeft, Music, Radio, Zap, Maximize2, Download } from '@lucide/svelte';
+	import { ChevronLeft, Music, Radio, Zap, Maximize2, Download, Sliders } from '@lucide/svelte';
 	import { settings, type DefaultQuality, type DefaultSource } from '$lib/stores/settings.svelte';
+	import { SOURCES } from '$lib/sources/registry';
+	import type { SourceId } from '$lib/sources/types';
 	import { t, type TranslationKey } from '$lib/i18n';
 
 	onMount(() => settings.load());
@@ -27,6 +29,17 @@
 	function setDownloadQuality(v: DefaultQuality) { settings.downloadQuality = v; settings.save(); }
 	function setSource(v: DefaultSource) { settings.defaultSource = v; settings.save(); }
 	function toggleExpand() { settings.autoExpandOnPlay = !settings.autoExpandOnPlay; settings.save(); }
+	// ii6: per-source enable/disable. Precedence in getEnabledAdapters: explicit prefs >
+	// settings.enabledSources > adapter.enabledByDefault. Helper resolves the effective state.
+	function sourceEnabled(id: SourceId): boolean {
+		const v = settings.enabledSources[id];
+		return v !== undefined ? v : SOURCES[id].enabledByDefault;
+	}
+	function toggleSource(id: SourceId) {
+		const cur = sourceEnabled(id);
+		settings.enabledSources = { ...settings.enabledSources, [id]: !cur };
+		settings.save();
+	}
 </script>
 
 <svelte:head><title>{t('settings.title')}</title></svelte:head>
@@ -74,6 +87,18 @@
 	</button>
 </section>
 
+<!-- ii6: Advanced > Sources — tucked behind a <details> accordion so the Playback tab
+	   stays speed/quality-first. Lets a user opt INTO 5sing (enabledByDefault:false). -->
+<details class="advanced">
+	<summary><Sliders size={15} /> {t('settings.sourcesAdvanced')}</summary>
+	<div class="chips">
+		{#each Object.values(SOURCES) as adapter (adapter.id)}
+			<button class="chip" class:on={sourceEnabled(adapter.id)} onclick={() => toggleSource(adapter.id)}>{adapter.label}</button>
+		{/each}
+	</div>
+	<p class="muted">{t('settings.sourcesAdvancedNote')}</p>
+</details>
+
 <style>
 	.head { display: flex; align-items: center; gap: 8px; padding: 14px 0 12px; }
 	.back { background: none; border: none; color: var(--color-text); cursor: pointer; display: grid; place-items: center; width: 36px; height: 36px; }
@@ -93,4 +118,7 @@
 	.sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform 0.15s ease; }
 	.sw.on { background: var(--color-primary); }
 	.sw.on::after { transform: translateX(18px); }
+	.advanced { margin: 22px 0; padding: 10px 12px; background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: 12px; }
+	.advanced summary { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-muted); cursor: pointer; padding: 4px 0; }
+	.advanced .chips { margin-top: 12px; }
 </style>

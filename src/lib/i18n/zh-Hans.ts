@@ -10,6 +10,7 @@ const zhHans: Dict = {
 
 	// --- common ---
 	'common.back': '返回',
+	'common.done': '完成',
 	'common.loading': '加载中…',
 	'common.retry': '重试',
 
@@ -229,6 +230,11 @@ const zhHans: Dict = {
 	'toast.downloaded': '已下载 · 已加入音乐库',
 	'toast.openedAudio': '已打开音频 · 已加入音乐库',
 	'toast.shareCopied': '已复制分享链接',
+	'toast.liked': '已收藏',
+	'toast.unliked': '已取消收藏',
+	'settings.sourcesAdvanced': '高级 — 音乐来源',
+	'settings.sourcesAdvancedNote': '禁用某来源可将其隐藏于搜索结果。',
+	'menu.shuffleQueue': '随机播放队列',
 	'toast.addedToPlaylist': '已加入播放列表',
 	'toast.playlistCreated': '已创建播放列表',
 
@@ -243,6 +249,7 @@ const zhHans: Dict = {
 	'library.noDownloads': '暂无下载。在歌曲的 ⋮ 菜单使用「下载」。',
 	'library.emptyPlaylist': '空的播放列表。',
 	'library.deletePlaylist': '删除播放列表',
+	'library.edit': '编辑',
 	'library.remove': '移除',
 	'library.downloadsNote': '已下载的文件保存在你的设备上。此列表会引用并在点击时重新流式播放（网页应用无法离线播放任意已保存的文件）。',
 

@@ -9,6 +9,7 @@ const en = {
 
 	// --- common ---
 	'common.back': 'Back',
+	'common.done': 'Done',
 	'common.loading': 'loading…',
 	'common.retry': 'retry',
 
@@ -228,6 +229,11 @@ const en = {
 	'toast.downloaded': 'Downloaded · added to Library',
 	'toast.openedAudio': 'Opened audio · added to Library',
 	'toast.shareCopied': 'Share link copied',
+	'toast.liked': 'Liked',
+	'toast.unliked': 'Removed from liked',
+	'settings.sourcesAdvanced': 'Advanced — Sources',
+	'settings.sourcesAdvancedNote': 'Disable a source to hide it from search.',
+	'menu.shuffleQueue': 'Shuffle queue',
 	'toast.addedToPlaylist': 'Added to playlist',
 	'toast.playlistCreated': 'Playlist created',
 
@@ -242,6 +248,7 @@ const en = {
 	'library.noDownloads': "No downloads. Use Download in a song's ⋮ menu.",
 	'library.emptyPlaylist': 'Empty playlist.',
 	'library.deletePlaylist': 'Delete playlist',
+	'library.edit': 'Edit',
 	'library.remove': 'Remove',
 	'library.downloadsNote':
 		"Downloaded files are saved to your device. This list references them and re-streams on tap (web apps can't replay arbitrary saved files offline).",

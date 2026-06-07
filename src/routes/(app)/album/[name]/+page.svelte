@@ -14,11 +14,13 @@
 	import { names } from '$lib/stores/names.svelte';
 	import { overlays } from '$lib/stores/overlays.svelte';
 	import { dragClose } from '$lib/actions/dragClose';
+	import { longpress } from '$lib/actions/longpress';
 	import { t } from '$lib/i18n';
 	import { goto } from '$app/navigation';
 	import { resolveStub } from '$lib/services/discovery';
 	import { ensureTrackDetails } from '$lib/services/catalog';
 	import { enrichAlbum, getAlbumTracklist, type EnrichResult } from '$lib/services/lastfm';
+	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import type { Track } from '$lib/sources/types';
 
 	// A Last.fm tracklist entry — NOT a Track (no uid/source/audioUrl). Resolved on tap.
@@ -133,9 +135,39 @@
 	// The tracklist is {artist,title} STUBS; the whole-album actions (download/playlist/like)
 	// need playable Tracks, so they batch-resolve every stub via the SAME resolveStub path used
 	// on tap, concurrency-capped (album-scoped fan-out is user-initiated, not eager per Pitfall
-	// 11). `albumBusy` guards against a second batch while one runs and disables the toolbar.
-	let albumBusy = $state(false);
+	// 11).
+	//
+	// ii6: `albumBusy: boolean` → `busyAction: AlbumAction | null`. Each handler sets/clears
+	// only its own id, so an in-flight Download doesn't disable Like — only THIS button
+	// re-fires are suppressed (double-fire protection retained). Other buttons stay live.
+	type AlbumAction = 'play' | 'download' | 'like' | 'addToPlaylist' | 'share';
+	let busyAction = $state<AlbumAction | null>(null);
 	let pickerOpen = $state(false);
+
+	// Resolved-track cache (ii6). Populated by `resolveAllCached` and reused across like/heart-state
+	// computations so the album-like heart reflects the post-action state without re-resolving
+	// every render. `null` = not yet resolved; outline-heart is the safe default.
+	let resolvedCache = $state<Track[] | null>(null);
+
+	// Long-press TrackMenu (ii6 #4): album rows are STUBS, so we resolve on long-press, then
+	// open the menu against the real Track. `menuLoading` shows the TrackMenu skeleton while
+	// the resolve is in flight, mirroring the home-shelf long-press idiom.
+	let menuTrack = $state<Track | null>(null);
+	let menuOpen = $state(false);
+	let menuLoading = $state(false);
+	async function openMenu(stub: AlbumStub) {
+		menuTrack = null;
+		menuLoading = true;
+		menuOpen = true;
+		try {
+			const tr = await resolveStub(stub.artist, stub.title).catch(() => null);
+			if (!menuOpen) return; // user dismissed during resolve — discard
+			if (!tr) { menuOpen = false; toast(t('album.unplayable')); return; }
+			menuTrack = tr;
+		} finally {
+			menuLoading = false;
+		}
+	}
 
 	// Resolve EVERY stub to a Track, order-preserved, max 4 concurrent searchAll fan-outs.
 	async function resolveAll(): Promise<Track[]> {
@@ -149,24 +181,37 @@
 		await Promise.all(Array.from({ length: Math.min(4, tracks.length || 1) }, worker));
 		return out.filter((t): t is Track => t !== null);
 	}
+	/** Resolve and cache, so the second action / heart-state read is instant. */
+	async function resolveAllCached(): Promise<Track[]> {
+		if (resolvedCache && resolvedCache.length) return resolvedCache;
+		const r = await resolveAll();
+		resolvedCache = r;
+		return r;
+	}
+
+	// Album-like state (ii6 #5): "all resolved tracks are liked". Initially `resolvedCache` is
+	// null → derived returns false → outline heart. After likeAlbum() resolves + likes, the
+	// cache is set + library.liked mutates → derived recomputes to true → filled heart.
+	// Tapping again unlikes → recomputes to false → outline. Matches the user-reported flow.
+	const albumLiked = $derived(
+		!!resolvedCache && resolvedCache.length > 0 && resolvedCache.every((tr) => library.isLiked(tr.uid))
+	);
 
 	// Play the whole album: play track 1 instantly (optimistic now-bar), then resolve the rest
 	// and set the queue in album order so it plays straight through.
 	async function playAlbum() {
-		if (!tracks.length || albumBusy) return;
-		albumBusy = true;
+		if (!tracks.length || busyAction === 'play') return;
+		busyAction = 'play';
 		try {
-			// Play track 1 instantly (optimistic now-bar), then resolve the WHOLE album in album
-			// order (concurrency-capped) and set it as the queue so it plays straight through.
 			const first = await player.playStub(tracks[0].artist, tracks[0].title);
 			if (!first) {
 				if (player.pendingTrack == null) toast(t('album.unplayable'));
 				return;
 			}
-			const all = await resolveAll();
+			const all = await resolveAllCached();
 			player.setQueue(all.length ? all : [first]);
 		} finally {
-			albumBusy = false;
+			busyAction = null;
 		}
 	}
 
@@ -176,11 +221,11 @@
 	// previous implementation only added to library; user wanted actual on-device files. We
 	// stagger the saves slightly so the browser doesn't dedupe simultaneous anchor.click()s.
 	async function downloadAlbum() {
-		if (!tracks.length || albumBusy) return;
-		albumBusy = true;
+		if (!tracks.length || busyAction === 'download') return;
+		busyAction = 'download';
 		toast(t('toast.preparingDownload'));
 		try {
-			const resolved = await resolveAll();
+			const resolved = await resolveAllCached();
 			const prevQuality = settings.defaultQuality;
 			settings.defaultQuality = settings.downloadQuality;
 			let saved = 0;
@@ -191,6 +236,11 @@
 					);
 					library.addDownload(full);
 					if (!full.audioUrl) continue;
+					// Try fetch+blob+anchor.click first; on CORS / network failure fall back to
+					// window.open which lets the BROWSER handle the download (ii6 #1 — the user
+					// reported no files were saving; the CN-source audio CDNs don't always send
+					// Access-Control-Allow-Origin, so the blob path silently fails without this).
+					let didSave = false;
 					try {
 						const resp = await fetch(full.audioUrl);
 						const blob = await resp.blob();
@@ -200,10 +250,16 @@
 						a.download = `${full.artist} - ${full.title}.${ext}`.replace(/[/\\?%*:|"<>]/g, '_');
 						a.click();
 						URL.revokeObjectURL(a.href);
-						saved++;
+						didSave = true;
 					} catch {
-						/* network / CORS — skip; the track is already in the library Downloads tab */
+						try {
+							window.open(full.audioUrl, '_blank');
+							didSave = true; // delegated to the browser — count as "initiated"
+						} catch {
+							/* both paths failed — track stays in library Downloads list */
+						}
 					}
+					if (didSave) saved++;
 					// Stagger so browser doesn't squash concurrent downloads / hit per-origin caps.
 					await new Promise((r) => setTimeout(r, 250));
 				}
@@ -212,7 +268,7 @@
 			}
 			toast(saved > 0 ? t('toast.downloaded') : resolved.length ? t('toast.noAudio') : t('album.unplayable'));
 		} finally {
-			albumBusy = false;
+			busyAction = null;
 		}
 	}
 
@@ -221,34 +277,35 @@
 	// unlike them all (so the user has an undo). The resolveAll fan-out can take ~10s for a
 	// long album so we flash a "loading" toast immediately for visible feedback.
 	async function likeAlbum() {
-		if (!tracks.length || albumBusy) return;
-		albumBusy = true;
-		toast(t('toast.preparingDownload')); // generic "working on it" — reused across actions
+		if (!tracks.length || busyAction === 'like') return;
+		busyAction = 'like';
+		toast(t('toast.preparingDownload'));
 		try {
-			const resolved = await resolveAll();
+			const resolved = await resolveAllCached();
 			if (!resolved.length) {
 				toast(t('album.unplayable'));
 				return;
 			}
 			const allLiked = resolved.every((tr) => library.isLiked(tr.uid));
 			if (allLiked) {
-				// All already liked → toggle each one off (toggleLike removes when isLiked).
 				for (const tr of resolved) library.toggleLike(tr);
-				toast(t('menu.like')); // "Like" label = action available again
+				toast(t('toast.unliked')); // ii6: past-tense; matches the heart returning to outline
 			} else {
 				for (const tr of resolved) if (!library.isLiked(tr.uid)) library.toggleLike(tr);
-				toast(t('menu.liked'));
+				toast(t('toast.liked'));
 			}
 		} finally {
-			albumBusy = false;
+			busyAction = null;
 		}
 	}
 
 	// Share the album = the current album page URL (carries ?artist= so the link reopens the
 	// tracklist). Native share sheet when available, else copy to clipboard.
 	async function shareAlbum() {
-		const url = location.href;
+		if (busyAction === 'share') return;
+		busyAction = 'share';
 		try {
+			const url = location.href;
 			const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
 			if (nav.share) await nav.share({ title: `${name} — ${albumArtist}`, url });
 			else {
@@ -257,6 +314,8 @@
 			}
 		} catch {
 			/* cancelled */
+		} finally {
+			busyAction = null;
 		}
 	}
 
@@ -265,15 +324,15 @@
 	// user gets visible feedback while the fan-out runs (hvu).
 	async function addAlbumToPlaylist(id: string) {
 		pickerOpen = false;
-		if (albumBusy) return;
-		albumBusy = true;
+		if (busyAction === 'addToPlaylist') return;
+		busyAction = 'addToPlaylist';
 		toast(t('toast.preparingDownload'));
 		try {
-			const resolved = await resolveAll();
+			const resolved = await resolveAllCached();
 			for (const tr of resolved) library.addToPlaylist(id, tr);
 			toast(resolved.length ? t('toast.addedToPlaylist') : t('album.unplayable'));
 		} finally {
-			albumBusy = false;
+			busyAction = null;
 		}
 	}
 	function newPlaylistForAlbum() {
@@ -332,19 +391,20 @@
 		{/each}
 	</ul>
 {:else if tracks.length}
-	<!-- Album-level actions (between hero + tracklist). Icon buttons reuse existing i18n keys
-	     for aria-labels (no new translation keys). Disabled while a batch resolve runs. -->
+	<!-- Album-level actions. ii6: PER-BUTTON disable (busyAction === id) so only the
+	     clicked button greys out while its action runs — other buttons stay live. Heart
+	     fill state reflects albumLiked (derived from resolvedCache + library.liked). -->
 	<div class="album-actions">
-		<button class="act" aria-label={t('menu.download')} disabled={albumBusy} onclick={downloadAlbum}><Download size={20} /></button>
-		<button class="act" aria-label={t('menu.addToPlaylist')} disabled={albumBusy} onclick={() => (pickerOpen = true)}><ListPlus size={20} /></button>
-		<button class="act play" aria-label={t('nowplaying.playPause')} disabled={albumBusy} onclick={playAlbum}><Play size={20} /></button>
-		<button class="act" aria-label={t('menu.like')} disabled={albumBusy} onclick={likeAlbum}><Heart size={20} /></button>
-		<button class="act" aria-label={t('menu.share')} disabled={albumBusy} onclick={shareAlbum}><Share2 size={20} /></button>
+		<button class="act" aria-label={t('menu.download')} disabled={busyAction === 'download'} onclick={downloadAlbum}><Download size={20} /></button>
+		<button class="act" aria-label={t('menu.addToPlaylist')} disabled={busyAction === 'addToPlaylist'} onclick={() => (pickerOpen = true)}><ListPlus size={20} /></button>
+		<button class="act play" aria-label={t('nowplaying.playPause')} disabled={busyAction === 'play'} onclick={playAlbum}><Play size={20} /></button>
+		<button class="act" aria-label={albumLiked ? t('menu.liked') : t('menu.like')} disabled={busyAction === 'like'} onclick={likeAlbum}><Heart size={20} fill={albumLiked ? 'currentColor' : 'none'} /></button>
+		<button class="act" aria-label={t('menu.share')} disabled={busyAction === 'share'} onclick={shareAlbum}><Share2 size={20} /></button>
 	</div>
 	<ul class="list">
 		{#each tracks as track, i (i)}
 			<li>
-				<button class="row" onclick={() => playStub(track)}>
+				<button class="row" use:longpress onlongpress={() => openMenu(track)} onclick={() => playStub(track)}>
 					<span class="rank">{i + 1}</span>
 					<span class="art" style:background-image={fallbackCover(track.artist + track.title)}></span>
 					<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
@@ -360,6 +420,10 @@
 {/if}
 
 {#if toastMsg}<div class="toast" transition:fly={{ y: -20, duration: 180 }}>{toastMsg}</div>{/if}
+
+<!-- ii6 #4: long-press on a track row opens TrackMenu against the resolved track.
+     resolveStub runs while menuLoading=true → menu shows its skeleton placeholder. -->
+<TrackMenu track={menuTrack} open={menuOpen} loading={menuLoading} onclose={() => { menuOpen = false; menuTrack = null; menuLoading = false; }} />
 
 <!-- Add-album-to-playlist picker (back-to-close sheet, mirrors the track menu's picker). -->
 {#if pickerOpen}

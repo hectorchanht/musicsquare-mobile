@@ -10,6 +10,7 @@ const zhHant: Dict = {
 
 	// --- common ---
 	'common.back': '返回',
+	'common.done': '完成',
 	'common.loading': '載入中…',
 	'common.retry': '重試',
 
@@ -229,6 +230,11 @@ const zhHant: Dict = {
 	'toast.downloaded': '已下載 · 已加入音樂庫',
 	'toast.openedAudio': '已開啟音訊 · 已加入音樂庫',
 	'toast.shareCopied': '已複製分享連結',
+	'toast.liked': '已收藏',
+	'toast.unliked': '已取消收藏',
+	'settings.sourcesAdvanced': '進階 — 音樂來源',
+	'settings.sourcesAdvancedNote': '停用某來源可將其隱藏於搜尋結果。',
+	'menu.shuffleQueue': '隨機播放佇列',
 	'toast.addedToPlaylist': '已加入播放清單',
 	'toast.playlistCreated': '已建立播放清單',
 
@@ -243,6 +249,7 @@ const zhHant: Dict = {
 	'library.noDownloads': '尚無下載。在歌曲的 ⋮ 選單使用「下載」。',
 	'library.emptyPlaylist': '空的播放清單。',
 	'library.deletePlaylist': '刪除播放清單',
+	'library.edit': '編輯',
 	'library.remove': '移除',
 	'library.downloadsNote': '已下載的檔案儲存在你的裝置上。此清單會引用並在點擊時重新串流（網頁應用無法離線播放任意已儲存的檔案）。',
 

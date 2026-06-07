@@ -237,22 +237,9 @@
 	.al-cover { width: 130px; height: 130px; border-radius: 10px; background-size: cover; background-position: center; }
 	.al-name { font-size: calc(12px * var(--fs-title, 1)); font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.al-count { font-size: calc(11px * var(--fs-artist, 1)); color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-	/* FIX-C: marquee-bounce a truncated label (self-contained per-file; mirrors home page).
-	   use:marquee adds .marquee-on + --marquee-dx only when overflowing AND not reduced-motion;
-	   we animate text-indent within the clipped box (bounce via alternate), dropping ellipsis. */
-	@media (prefers-reduced-motion: no-preference) {
-		/* .marquee-on is added at runtime by use:marquee; :global() on that part keeps the
-		   .al-name/.al-count scope while silencing svelte-check's "unused selector" false-positive. */
-		.al-name:global(.marquee-on),
-		.al-count:global(.marquee-on) {
-			text-overflow: clip;
-			animation: marquee-bounce 5s ease-in-out infinite alternate;
-		}
-	}
-	@keyframes marquee-bounce {
-		0%, 15% { text-indent: 0; }
-		85%, 100% { text-indent: calc(-1 * var(--marquee-dx, 0px)); }
-	}
+	/* Marquee animation lives globally in app.css (transform-based .marquee-inner). The
+	   .al-name / .al-count clips above + the use:marquee action + inner .marquee-inner span
+	   in the markup are the only per-file pieces — the global rule animates them. */
 	.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 	.row { width: 100%; text-align: left; background: none; border: none; padding: 6px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 12px; }
 	.row:hover { background: var(--color-surface); }

@@ -515,10 +515,12 @@
 	<div class="meta">
 		<!-- {#key uid}: .title/.artist are single persistent nodes, so the marquee action would
 		     never re-measure on a track change (box width is unchanged). Re-keying remounts them
-		     per track → fresh measure. Genre/tag chips intentionally hidden (quick-260607-f4y). -->
+		     per track → fresh measure. .marquee-inner wraps the text so the GLOBAL transform-based
+		     marquee in app.css drives them (gmy unified the artist + NowPlaying drift onto one
+		     system). Genre/tag chips intentionally hidden (quick-260607-f4y). -->
 		{#key player.current?.uid}
-			<div class="title" use:marquee>{player.current ? names.dnTitle(player.current.title) : ''}</div>
-			<button class="artist" use:marquee onclick={openArtist}>{player.current ? names.dnArtist(player.current.artist) : ''}</button>
+			<div class="title" use:marquee><span class="marquee-inner">{player.current ? names.dnTitle(player.current.title) : ''}</span></div>
+			<button class="artist" use:marquee onclick={openArtist}><span class="marquee-inner">{player.current ? names.dnArtist(player.current.artist) : ''}</span></button>
 		{/key}
 	</div>
 
@@ -644,17 +646,9 @@
 	.np.reflow .title { text-shadow: 0 1px 6px rgba(0,0,0,0.6); }
 	.title { font-size: calc(1.5rem * var(--fs-title, 1)); font-weight: 800; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.artist { display: inline-block; max-width: 100%; vertical-align: bottom; background: black; border: none; padding: 2px; border-radius: 4px; color: var(--color-text-muted); font-size: calc(1rem * var(--fs-artist, 1)); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-	/* Marquee-bounce title/artist when they overflow (reuses the home/artist use:marquee action,
-	   which adds .marquee-on + --marquee-dx). Reduced-motion → static ellipsis (the action also
-	   no-ops, defense-in-depth). :global() keeps the .title/.artist scope through svelte-check. */
-	@media (prefers-reduced-motion: no-preference) {
-		.title:global(.marquee-on),
-		.artist:global(.marquee-on) { text-overflow: clip; animation: marquee-bounce 6s ease-in-out infinite alternate; }
-	}
-	@keyframes marquee-bounce {
-		0%, 15% { text-indent: 0; }
-		85%, 100% { text-indent: calc(-1 * var(--marquee-dx, 0px)); }
-	}
+	/* Marquee lives globally in app.css (transform-based .marquee-inner). The .title/.artist
+	   clips above + the use:marquee action + inner .marquee-inner span in the markup are the
+	   only per-file pieces — the global rule animates them. (gmy unified the drift.) */
 	.np-error { color: #ff6b6b; font-size: 13px; text-align: center; margin: 2px 2px 10px; }
 	.prog { margin: 4px 0 10px; }
 	.track { position: relative; height: 14px; display: flex; align-items: center; cursor: pointer; }

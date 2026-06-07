@@ -90,6 +90,15 @@ class Player {
 	private static STATE_KEY = 'openmusic:player:v1';
 	/** Throttle timer for currentTime persistence (timeupdate fires ~4×/sec). */
 	private persistTimer: ReturnType<typeof setTimeout> | null = null;
+	/** Seek-position that should be applied as soon as audio.duration becomes finite (i.e. on
+	 *  the next `loadedmetadata`). Set by restore() with the saved currentTime, and also
+	 *  written by seekFraction() when the user seeks while metadata is still loading. Cleared
+	 *  once applied, or when a successful in-range seek lands. */
+	private pendingSeek: number | null = null;
+	/** Same idea as pendingSeek but holds a FRACTION [0,1] when the user seeks before metadata
+	 *  loads (we don't know the absolute seconds yet). Wins over pendingSeek if both are set
+	 *  (user intent supersedes restored progress). */
+	private pendingSeekFrac: number | null = null;
 
 	/** Strip volatile fields (audioUrl / lrc / lrcUrl / detailsLoaded) before persisting a
 	 *  Track to localStorage — they expire and must be re-resolved on the next load. Mirrors
@@ -211,16 +220,17 @@ class Player {
 				}
 			}
 			const audio = this.audio;
+			// Mark the saved seek-time as PENDING so the single loadedmetadata listener (added
+			// in attach()) applies it once metadata loads. seekFraction() owns the same pending
+			// slot — if the user manually seeks before metadata lands, their target wins.
+			this.pendingSeek = seek > 0 ? seek : null;
 			audio.src = src;
-			// Seed currentTime as soon as metadata is known; also try synchronously in case
-			// the audio is already loaded. DO NOT auto-play — browser autoplay policy.
-			const seekWhenReady = () => {
-				if (Number.isFinite(audio.duration) && audio.duration > 0) {
-					audio.currentTime = Math.min(seek, audio.duration);
-				}
-			};
-			audio.addEventListener('loadedmetadata', seekWhenReady, { once: true });
-			seekWhenReady();
+			// If duration is already finite (cached load, identical src reset), apply
+			// immediately and clear so the listener doesn't double-fire.
+			if (Number.isFinite(audio.duration) && audio.duration > 0 && this.pendingSeek != null) {
+				audio.currentTime = Math.min(this.pendingSeek, audio.duration);
+				this.pendingSeek = null;
+			}
 		} catch {
 			/* re-resolve failed — track stays in `current`, user can tap play to retry */
 		} finally {
@@ -314,6 +324,19 @@ class Player {
 		});
 		const syncDur = () => {
 			this.duration = Number.isFinite(el.duration) ? el.duration : 0;
+			// Apply any pending seek the moment duration becomes known. Order: a user-issued
+			// pendingSeekFrac (clicked progress before metadata loaded) wins over a restored
+			// pendingSeek (saved currentTime from the last session). Both cleared after apply.
+			if (Number.isFinite(el.duration) && el.duration > 0) {
+				if (this.pendingSeekFrac != null) {
+					el.currentTime = this.pendingSeekFrac * el.duration;
+					this.pendingSeekFrac = null;
+					this.pendingSeek = null;
+				} else if (this.pendingSeek != null) {
+					el.currentTime = Math.min(this.pendingSeek, el.duration);
+					this.pendingSeek = null;
+				}
+			}
 			this.syncPosition(el);
 		};
 		el.addEventListener('loadedmetadata', syncDur);
@@ -794,11 +817,24 @@ class Player {
 
 	/** Seek to a fraction [0,1] of the track. */
 	seekFraction(frac: number) {
-		if (!this.audio || !Number.isFinite(this.audio.duration)) return;
+		if (!this.audio) return;
 		// lw9-followup: stamp the seek time so a sympathetic audio.error fired by the same
 		// seek (past-buffered-range on a non-range-capable CDN) doesn't kick off runFallback().
 		this.lastSeekAt = Date.now();
-		this.audio.currentTime = Math.max(0, Math.min(1, frac)) * this.audio.duration;
+		const clamped = Math.max(0, Math.min(1, frac));
+		if (Number.isFinite(this.audio.duration) && this.audio.duration > 0) {
+			// Duration is known — apply immediately + clear any pending restore-seek so the
+			// loadedmetadata listener doesn't overwrite the user's intent later.
+			this.audio.currentTime = clamped * this.audio.duration;
+			this.pendingSeek = null;
+		} else {
+			// Metadata not loaded yet (fresh post-restore audio.src, or just-set src). Park the
+			// target on pendingSeek so the loadedmetadata listener applies it the moment
+			// duration lands. Use fraction × an interim duration estimate if available; else
+			// just record the fraction-as-seconds isn't ideal, so wait — store a fraction
+			// marker and resolve in the listener instead.
+			this.pendingSeekFrac = clamped;
+		}
 	}
 
 	expand() {

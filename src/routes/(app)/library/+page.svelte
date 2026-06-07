@@ -16,6 +16,15 @@
 
 	type Tab = 'liked' | 'playlists' | 'downloads' | 'fav-artists' | 'history';
 	let tab = $state<Tab>('liked');
+	// kyf-followup: active-tab label, surfaced next to the page heading so the pill row
+	// can shrink to icon-only and fit all 5 tabs in one row.
+	const tabLabel = $derived<string>(
+		tab === 'liked' ? t('library.liked')
+			: tab === 'playlists' ? t('library.playlists')
+			: tab === 'downloads' ? t('library.downloads')
+			: tab === 'fav-artists' ? t('library.favArtists')
+			: t('history.heading')
+	);
 
 	// kyf: per-name lazy-loaded avatars for the fav-artists tab. Cached in a Map so a
 	// tab-flip re-render doesn't refire the network.
@@ -96,7 +105,7 @@
 <svelte:head><title>{t('library.title')}</title></svelte:head>
 
 <header class="head">
-	<h1>{t('library.heading')}</h1>
+	<h1>{t('library.heading')} <span class="tab-sub">· {tabLabel}</span></h1>
 	{#if editableTabHasContent}
 		<button class="edit-btn" aria-pressed={editMode} onclick={() => (editMode = !editMode)}>
 			{#if editMode}<Check size={16} /> {t('common.done')}{:else}<Pencil size={16} /> {t('library.edit')}{/if}
@@ -104,12 +113,15 @@
 	{/if}
 </header>
 
+<!-- kyf-followup: icon-only pills (text moved to the header sub-label) so all 5 tabs
+     fit in a single row at any reasonable viewport width. aria-label preserves the
+     accessible name for screen readers + tooltips. -->
 <nav class="tabs">
-	<button class:active={tab === 'liked'} onclick={() => (tab = 'liked')}><Heart size={15} /> {t('library.liked')}</button>
-	<button class:active={tab === 'playlists'} onclick={() => (tab = 'playlists')}><ListMusic size={15} /> {t('library.playlists')}</button>
-	<button class:active={tab === 'downloads'} onclick={() => (tab = 'downloads')}><Download size={15} /> {t('library.downloads')}</button>
-	<button class:active={tab === 'fav-artists'} onclick={() => (tab = 'fav-artists')}><Users size={15} /> {t('library.favArtists')}</button>
-	<button class:active={tab === 'history'} onclick={() => (tab = 'history')}><Clock size={15} /> {t('history.heading')}</button>
+	<button class:active={tab === 'liked'} aria-label={t('library.liked')} title={t('library.liked')} onclick={() => (tab = 'liked')}><Heart size={16} /></button>
+	<button class:active={tab === 'playlists'} aria-label={t('library.playlists')} title={t('library.playlists')} onclick={() => (tab = 'playlists')}><ListMusic size={16} /></button>
+	<button class:active={tab === 'downloads'} aria-label={t('library.downloads')} title={t('library.downloads')} onclick={() => (tab = 'downloads')}><Download size={16} /></button>
+	<button class:active={tab === 'fav-artists'} aria-label={t('library.favArtists')} title={t('library.favArtists')} onclick={() => (tab = 'fav-artists')}><Users size={16} /></button>
+	<button class:active={tab === 'history'} aria-label={t('history.heading')} title={t('history.heading')} onclick={() => (tab = 'history')}><Clock size={16} /></button>
 </nav>
 
 {#if tab === 'liked'}
@@ -207,14 +219,15 @@
 <TrackMenu track={menuTrack} open={menuOpen} onclose={() => (menuOpen = false)} />
 
 <style>
-	.head { display: flex; align-items: center; justify-content: space-between; margin: 16px 0 12px; }
-	.head h1 { font-size: 1.4rem; margin: 0; }
+	.head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 16px 0 12px; flex-wrap: wrap; }
+	.head h1 { font-size: 1.4rem; margin: 0; min-width: 0; }
+	.tab-sub { color: var(--color-text-muted); font-weight: 400; font-size: 0.95rem; margin-left: 8px; }
 	.edit-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text); padding: 6px 12px; border-radius: 999px; font-size: 13px; cursor: pointer; }
 	.edit-btn[aria-pressed='true'] { background: var(--color-primary); color: #fff; border-color: transparent; }
 	.edit-row { color: #ff7a90; }
 	.edit-row:hover { background: rgba(255, 122, 144, 0.08); }
-	.tabs { display: flex; gap: 6px; margin-bottom: 14px; }
-	.tabs button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text-muted); padding: 9px 6px; border-radius: 999px; font-size: 13px; cursor: pointer; }
+	.tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+	.tabs button { flex: 1; display: inline-flex; align-items: center; justify-content: center; background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text-muted); padding: 10px 0; border-radius: 999px; cursor: pointer; min-width: 0; }
 	.tabs button.active { background: var(--color-primary); color: #fff; border-color: transparent; }
 	.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 	.rowline { display: flex; align-items: center; }

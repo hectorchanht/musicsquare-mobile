@@ -178,12 +178,12 @@
 		background-position: center;
 		flex: none;
 	}
-	.np-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+	.np-meta { min-width: 0; display: flex; flex-direction: column; background: var(--color-bg); padding: 2px 6px; border-radius: 6px; }
 	/* Nowbar surface is always the dark-translucent purple panel (in both themes), so the
 	   text colors are pinned to light tones rather than tracking --color-text — otherwise the
 	   light theme inverts text to near-black and the nowbar reads as dark-on-dark. */
-	.np-title { display: block; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
-	.np-artist { display: block; font-size: 11px; color: rgba(255, 255, 255, 0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.np-title { display: block; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--color-text); }
+	.np-artist { display: block; font-size: 11px; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.err { color: #ff7a90; }
 	.np-btn {
 		background: var(--color-primary);

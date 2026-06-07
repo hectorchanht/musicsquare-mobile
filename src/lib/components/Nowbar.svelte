@@ -83,14 +83,15 @@
 		margin: 0 auto;
 		z-index: 20;
 		overflow: hidden;
+		margin-top: 4px;
 	}
 	.nowbar::before {
 		content: "";
 		position: absolute;
-		top: -10px;
+		/* top: -10px;
 		left: -10px;
 		right: -10px;
-		bottom: -10px;
+		bottom: -10px; */
 		
 		/* Your background logic (e.g., using inherited or static image) */
 		background: rgba(40, 32, 60, 0.55);

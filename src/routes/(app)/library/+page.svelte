@@ -125,7 +125,7 @@
 <svelte:head><title>{t('library.title')}</title></svelte:head>
 
 <header class="head">
-	<h1>{t('library.heading')} <span class="tab-sub">· {tabLabel}</span></h1>
+	<h1>{t('library.heading')} <span class="tab-sub">{tabLabel}</span></h1>
 	{#if editableTabHasContent}
 		<button class="edit-btn" aria-pressed={editMode} onclick={() => (editMode = !editMode)}>
 			{#if editMode}<Check size={16} /> {t('common.done')}{:else}<Pencil size={16} /> {t('library.edit')}{/if}

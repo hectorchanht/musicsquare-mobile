@@ -238,6 +238,55 @@ class Player {
 		}
 	}
 
+	/** Re-resolve audio URL for the CURRENT track (fresh upstream call) and re-attach to the
+	 *  audio element while preserving the user's intended seek position via pendingSeek.
+	 *  Used by the audio.error path when a seek triggers a stale-URL failure — we keep the
+	 *  same track, just refresh the URL. Generation-guarded by the pre-call playGen snapshot
+	 *  so a newer play() supersedes a stale retry. Never throws. */
+	private async reresolveCurrent() {
+		const current = this.current;
+		if (!current || !this.audio) return;
+		const audio = this.audio;
+		const desiredSeek = this.currentTime > 0 ? this.currentTime : null;
+		const myGen = this.playGen;
+		// Force a re-resolve by clearing detailsLoaded + audioUrl on a SHALLOW COPY (don't
+		// mutate the queue entry).
+		const stub: Track = { ...current, detailsLoaded: false, audioUrl: null, lrc: null };
+		try {
+			const resolved = await ensureTrackDetails(stub);
+			if (myGen !== this.playGen) return; // newer play() superseded
+			if (!resolved.audioUrl) return;
+			this.current = resolved;
+			const i = this.indexOf(stub);
+			if (i >= 0) this.queue[i] = resolved;
+			if (this.cachedBlobUrl) {
+				URL.revokeObjectURL(this.cachedBlobUrl);
+				this.cachedBlobUrl = null;
+			}
+			let src: string = resolved.audioUrl;
+			if (library.isDownloaded(resolved.uid)) {
+				const blob = await blobStore.get(resolved.uid).catch(() => null);
+				if (blob) {
+					this.cachedBlobUrl = URL.createObjectURL(blob);
+					src = this.cachedBlobUrl;
+				}
+			}
+			this.pendingSeek = desiredSeek;
+			audio.src = src;
+			// Attempt synchronous seek if duration already loaded; else loadedmetadata listener
+			// will pick up pendingSeek when it lands.
+			if (Number.isFinite(audio.duration) && audio.duration > 0 && desiredSeek != null) {
+				audio.currentTime = Math.min(desiredSeek, audio.duration);
+				this.pendingSeek = null;
+			}
+			void audio.play().catch(() => {
+				/* autoplay restriction — user can tap play */
+			});
+		} catch {
+			/* re-resolve failed — leave audio in current state */
+		}
+	}
+
 	/** Timestamp (Date.now()) of the most recent seekFraction() call. The audio.error handler
 	 *  ignores errors that fire within SEEK_ERROR_WINDOW_MS of a seek — seeking past the
 	 *  buffered range on some CDNs raises an error the browser recovers from, but our
@@ -358,13 +407,18 @@ class Player {
 		});
 		el.addEventListener('error', () => {
 			// lw9-followup: if the error fires WITHIN the seek window, the user just clicked the
-			// progress bar past the buffered range — the browser recovers on its own. Treating
-			// this as a playback failure (running runFallback → play()) resets currentTime to 0,
-			// which the user sees as "click on progress bar restarted the song". Suppress the
-			// fallback in that window; a genuine playback failure (no recent seek) still routes
-			// through the cross-source path.
+			// progress bar — but the audio element may not be able to honor the seek because the
+			// audio.src is a stale CDN URL (typical after a page-reload restore: the resolved URL
+			// from minutes ago can still stream-from-0 but rejects range requests on a new edge
+			// node / expired signature). Don't fall back across sources — RE-RESOLVE the same
+			// track to get a fresh URL, then re-apply the user's seek via pendingSeek so the
+			// audio resumes at the position they clicked. A genuine non-seek failure (no recent
+			// seek) still routes through the cross-source path below.
 			const sinceSeek = Date.now() - this.lastSeekAt;
-			if (sinceSeek < Player.SEEK_ERROR_WINDOW_MS) return;
+			if (sinceSeek < Player.SEEK_ERROR_WINDOW_MS) {
+				void this.reresolveCurrent();
+				return;
+			}
 			// Cross-source fallback (gte / SRC-FB-01): rather than surface the error immediately,
 			// try the same {artist,title} on the remaining enabled sources. Only after every
 			// source is exhausted does the existing error surface. Generation-guarded so a

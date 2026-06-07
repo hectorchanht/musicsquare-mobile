@@ -6,7 +6,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { fly } from 'svelte/transition';
-	import { Heart, Play, Share2 } from '@lucide/svelte';
+	import { ChevronLeft, Heart, Play, Share2 } from '@lucide/svelte';
 	import { searchAll } from '$lib/services/catalog';
 	import { dedupeBest } from '$lib/services/dedupe';
 	import { settings } from '$lib/stores/settings.svelte';
@@ -213,7 +213,7 @@
 <svelte:head><title>{name} · openmusic</title></svelte:head>
 
 <header class="hero">
-	<a class="back" href="/">{t('artist.back')}</a>
+	<button type="button" class="back" aria-label={t('common.back')} onclick={() => history.back()}><ChevronLeft size={22} /></button>
 	{#if heroImg}
 		<div class="herocover" style:background-image={`url(${heroImg})`}></div>
 	{:else if loading || enrichLoading}
@@ -359,7 +359,8 @@
 
 <style>
 	.hero { padding: 14px 0 18px; text-align: center; }
-	.back { display: block; text-align: left; color: var(--color-text-muted); font-size: 14px; margin-bottom: 8px; }
+	.back { display: grid; place-items: center; width: 36px; height: 36px; background: none; border: none; color: var(--color-text); cursor: pointer; margin: 0 0 8px; padding: 0; }
+	.back:hover { background: var(--color-surface-2); border-radius: 50%; }
 	.herocover { width: 150px; height: 150px; border-radius: 50%; margin: 8px auto 12px; background-size: cover; background-position: center; box-shadow: 0 12px 34px rgba(0,0,0,0.5); }
 	.hero h1 { font-size: 1.7rem; margin: 0; }
 	.note { color: var(--color-text-muted); font-size: 12px; margin-top: 4px; }

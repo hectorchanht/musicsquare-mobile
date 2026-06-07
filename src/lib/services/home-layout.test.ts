@@ -18,13 +18,13 @@ import {
 // render — they clamp / drop / fall back to defaults. These tests are fully deterministic.
 
 describe('HOME_SECTIONS / DEFAULT_SECTION_ORDER', () => {
-	it('is the nine home group ids in canonical order (kmn: fav-artists added after downloads)', () => {
+	it('is the nine home group ids in canonical order (kyf: fav-artists moved next to top-artists)', () => {
 		expect(HOME_SECTIONS).toEqual([
 			'liked',
 			'downloads',
-			'fav-artists',
 			'top-hits',
 			'top-artists',
+			'fav-artists',
 			'tags',
 			'countries',
 			'playlists',
@@ -68,8 +68,8 @@ describe('resolveSectionOrder', () => {
 			// missing ids appended in canonical (HOME_SECTIONS) order
 			'liked',
 			'downloads',
-			'fav-artists',
 			'top-artists',
+			'fav-artists',
 			'tags',
 			'playlists',
 			'history'
@@ -81,9 +81,9 @@ describe('resolveSectionOrder', () => {
 			'tags',
 			'liked',
 			'downloads',
-			'fav-artists',
 			'top-hits',
 			'top-artists',
+			'fav-artists',
 			'countries',
 			'playlists',
 			'history'
@@ -96,8 +96,8 @@ describe('resolveSectionOrder', () => {
 			'top-hits',
 			'liked',
 			'downloads',
-			'fav-artists',
 			'top-artists',
+			'fav-artists',
 			'countries',
 			'playlists',
 			'history'

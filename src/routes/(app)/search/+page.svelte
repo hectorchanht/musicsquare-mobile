@@ -1,8 +1,12 @@
 <script lang="ts">
 	import { onDestroy, onMount, tick } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { searchAll } from '$lib/services/catalog';
 	import { dedupeBest } from '$lib/services/dedupe';
 	import { dedupeBestWithDeezer } from '$lib/services/dedupe-deezer';
+	import { enrichArtist } from '$lib/services/lastfm';
+	import { deezerArtistCover } from '$lib/services/deezer';
+	import { mapWithConcurrency } from '$lib/services/discovery';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { player } from '$lib/stores/player.svelte';
 	import { names } from '$lib/stores/names.svelte';
@@ -51,6 +55,56 @@
 
 	// D-05: focus tracking for the past-search suggestion list (idle pre-query state).
 	let inputFocused = $state(false);
+
+	// kyf: artist tiles above the song list. Derived AFTER each result settle from groups of
+	// `results` where ≥2 tracks share an artist whose name matches the query (case-insensitive
+	// contains). Capped to 3 tiles. Avatars resolve via LF → Deezer (race-guarded on query).
+	type ArtistTile = { name: string; image: string | null; trackCount: number };
+	let artistTiles = $state<ArtistTile[]>([]);
+	let artistTilesFor = '';
+
+	function deriveArtistTiles(rows: Track[], query: string): ArtistTile[] {
+		const q = query.trim().toLowerCase();
+		if (!q || rows.length === 0) return [];
+		const groups = new Map<string, { name: string; count: number }>();
+		for (const row of rows) {
+			const key = (row.artist ?? '').trim().toLowerCase();
+			if (!key) continue;
+			const existing = groups.get(key);
+			if (existing) existing.count++;
+			else groups.set(key, { name: row.artist, count: 1 });
+		}
+		const matches: ArtistTile[] = [];
+		for (const g of groups.values()) {
+			const nameLower = g.name.trim().toLowerCase();
+			if (g.count < 2) continue;
+			if (!nameLower.includes(q) && !q.includes(nameLower)) continue;
+			matches.push({ name: g.name, image: null, trackCount: g.count });
+		}
+		matches.sort((a, b) => b.trackCount - a.trackCount);
+		return matches.slice(0, 3);
+	}
+
+	async function refreshArtistTiles(query: string, rows: Track[]) {
+		const tiles = deriveArtistTiles(rows, query);
+		const tag = query.trim().toLowerCase();
+		artistTilesFor = tag;
+		artistTiles = tiles; // immediate paint without avatars
+		if (!tiles.length) return;
+		// Same LF-primary → Deezer-fallback chain as the artist-page More-like-this shelf.
+		const withCovers = await mapWithConcurrency(tiles, 3, async (tile) => {
+			const lf = await enrichArtist(tile.name).catch(() => null);
+			const img = lf?.lastfmArt ?? (await deezerArtistCover(tile.name).catch(() => null));
+			return { ...tile, image: img };
+		});
+		if (artistTilesFor !== tag) return; // race guard — newer query took over
+		artistTiles = withCovers;
+	}
+
+	function fallbackArtistCover(name: string): string {
+		const h = (name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 47) % 360;
+		return `linear-gradient(145deg, hsl(${h} 55% 32%), hsl(${(h + 40) % 360} 55% 18%))`;
+	}
 
 	// Infinite-scroll pagination state.
 	let page = $state(1); // last page successfully loaded
@@ -108,6 +162,8 @@
 			// Final value is authoritative — re-derive from the complete superset.
 			results = dedupeBest(interleaved, settings.preferredSource);
 			someFailed = perSource.some((p) => p.status === 'error');
+			// kyf: derive artist tiles from the settled result set (race-guarded inside).
+			void refreshArtistTiles(kw, results);
 			// Reset pagination: assume more may exist whenever page 1 returned anything;
 			// loadMore() flips hasMore off once a page stops growing.
 			page = 1;
@@ -305,6 +361,19 @@
 {:else if searched && !loading && results.length === 0}
 	<p class="muted">{t('search.empty')}</p>
 {:else}
+	{#if artistTiles.length}
+		<div class="artist-row">
+			<h2 class="artist-row-h">{t('search.artists')}</h2>
+			<div class="artist-tiles">
+				{#each artistTiles as tile (tile.name)}
+					<button class="artist-tile" onclick={() => goto('/artist/' + encodeURIComponent(tile.name))}>
+						<span class="artist-avatar" style:background-image={tile.image ? `url(${tile.image})` : fallbackArtistCover(tile.name)}></span>
+						<span class="artist-name">{names.dnArtist(tile.name)}</span>
+					</button>
+				{/each}
+			</div>
+		</div>
+	{/if}
 	<ul class="list">
 		{#each results as t (t.uid)}
 			<li>
@@ -351,6 +420,13 @@
 	@keyframes spin { to { transform: rotate(360deg); } }
 	.muted { color: var(--color-text-muted); font-size: 14px; }
 	.end-note { list-style: none; text-align: center; color: var(--color-text-muted); font-size: 12px; padding: 16px 0 4px; }
+	/* kyf: artist tiles row — round avatars above the song list, ≤3 tiles. */
+	.artist-row { margin: 0 0 14px; }
+	.artist-row-h { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-muted); margin: 0 0 8px; }
+	.artist-tiles { display: flex; gap: 12px; flex-wrap: wrap; }
+	.artist-tile { flex: 0 0 96px; background: none; border: none; padding: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--color-text); }
+	.artist-avatar { width: 96px; height: 96px; border-radius: 50%; background-size: cover; background-position: center; }
+	.artist-name { font-size: 12px; font-weight: 600; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 96px; }
 	.warn { color: #ffcf66; font-size: 12px; margin: 0 0 10px; }
 
 	/* --- D-05 past-search suggestions --- */

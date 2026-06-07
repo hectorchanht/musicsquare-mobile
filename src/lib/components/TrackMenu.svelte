@@ -11,6 +11,7 @@
 	import { dragClose } from '$lib/actions/dragClose';
 	import { t } from '$lib/i18n';
 	import { ensureTrackDetails } from '$lib/services/catalog';
+	import { blobStore } from '$lib/services/blob-store';
 	import { shareUrl } from '$lib/services/share';
 	import type { Track } from '$lib/sources/types';
 
@@ -86,10 +87,14 @@
 		}
 		library.addDownload(r);
 		if (!r.audioUrl) return toast(t('toast.noAudio'));
-		// Web sandbox: saved file can't be replayed offline — Downloads references + re-streams.
 		try {
 			const resp = await fetch(r.audioUrl);
 			const blob = await resp.blob();
+			// kyf: persist the SAME blob into the offline cache (IndexedDB) so a later
+			// player.play() of this uid streams from the local blob instead of the CDN. Never
+			// throws — a write failure leaves the file-on-disk path intact + degrades to
+			// re-streaming on next play.
+			await blobStore.put(r.uid, blob);
 			const ext = (r.audioUrl.split('?')[0].match(/\.(mp3|flac|m4a|aac|ogg|wav)$/i)?.[1] ?? 'mp3').toLowerCase();
 			const a = document.createElement('a');
 			a.href = URL.createObjectURL(blob);

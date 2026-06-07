@@ -1,17 +1,48 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Heart, ListMusic, Download, Trash2, Play, Clock, Pencil, Check } from '@lucide/svelte';
+	import { goto } from '$app/navigation';
+	import { Heart, ListMusic, Download, Trash2, Play, Clock, Pencil, Check, Users } from '@lucide/svelte';
 	import { library } from '$lib/stores/library.svelte';
 	import { history } from '$lib/stores/history.svelte';
 	import { player } from '$lib/stores/player.svelte';
 	import { names } from '$lib/stores/names.svelte';
+	import { enrichArtist } from '$lib/services/lastfm';
+	import { deezerArtistCover } from '$lib/services/deezer';
+	import { mapWithConcurrency } from '$lib/services/discovery';
 	import { t } from '$lib/i18n';
 	import { longpress } from '$lib/actions/longpress';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import type { Track } from '$lib/sources/types';
 
-	type Tab = 'liked' | 'playlists' | 'downloads' | 'history';
+	type Tab = 'liked' | 'playlists' | 'downloads' | 'fav-artists' | 'history';
 	let tab = $state<Tab>('liked');
+
+	// kyf: per-name lazy-loaded avatars for the fav-artists tab. Cached in a Map so a
+	// tab-flip re-render doesn't refire the network.
+	let favCovers = $state<Record<string, string | null>>({});
+	let favCoversLoaded = false;
+	async function loadFavCovers() {
+		if (favCoversLoaded) return;
+		favCoversLoaded = true;
+		const names = library.favArtists;
+		if (!names.length) return;
+		const covered = await mapWithConcurrency(names, 4, async (nm) => {
+			const lf = await enrichArtist(nm).catch(() => null);
+			const img = lf?.lastfmArt ?? (await deezerArtistCover(nm).catch(() => null));
+			return [nm, img] as const;
+		});
+		const next = { ...favCovers };
+		for (const [nm, img] of covered) next[nm] = img;
+		favCovers = next;
+	}
+	$effect(() => {
+		if (tab === 'fav-artists' && library.favArtists.length) void loadFavCovers();
+	});
+
+	function favArtistFallback(name: string): string {
+		const h = (name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 47) % 360;
+		return `linear-gradient(145deg, hsl(${h} 55% 32%), hsl(${(h + 40) % 360} 55% 18%))`;
+	}
 	let menuTrack = $state<Track | null>(null);
 	let menuOpen = $state(false);
 	function openMenu(t: Track) { menuTrack = t; menuOpen = true; }
@@ -39,7 +70,8 @@
 	const editableTabHasContent = $derived(
 		(tab === 'liked' && library.liked.length > 0) ||
 			(tab === 'downloads' && library.downloads.length > 0) ||
-			(tab === 'playlists' && library.playlists.some((p) => p.tracks.length > 0))
+			(tab === 'playlists' && library.playlists.some((p) => p.tracks.length > 0)) ||
+			(tab === 'fav-artists' && library.favArtists.length > 0)
 	);
 	onMount(() => {
 		library.load();
@@ -76,6 +108,7 @@
 	<button class:active={tab === 'liked'} onclick={() => (tab = 'liked')}><Heart size={15} /> {t('library.liked')}</button>
 	<button class:active={tab === 'playlists'} onclick={() => (tab = 'playlists')}><ListMusic size={15} /> {t('library.playlists')}</button>
 	<button class:active={tab === 'downloads'} onclick={() => (tab = 'downloads')}><Download size={15} /> {t('library.downloads')}</button>
+	<button class:active={tab === 'fav-artists'} onclick={() => (tab = 'fav-artists')}><Users size={15} /> {t('library.favArtists')}</button>
 	<button class:active={tab === 'history'} onclick={() => (tab = 'history')}><Clock size={15} /> {t('history.heading')}</button>
 </nav>
 
@@ -138,6 +171,21 @@
 		</ul>
 		<p class="note">{t('library.downloadsNote')}</p>
 	{:else}<p class="empty"><Download size={28} /><span>{t('library.noDownloads')}</span></p>{/if}
+{:else if tab === 'fav-artists'}
+	{#if library.favArtists.length}
+		<div class="fav-grid">
+			{#each library.favArtists as name (name)}
+				<button class="fav-tile" class:edit-row={editMode} onclick={() => {
+					if (editMode) library.toggleFavArtist(name);
+					else goto('/artist/' + encodeURIComponent(name));
+				}}>
+					<span class="fav-avatar" style:background-image={favCovers[name] ? `url(${favCovers[name]})` : favArtistFallback(name)}></span>
+					<span class="fav-name">{names.dnArtist(name)}</span>
+					{#if editMode}<span class="fav-trash"><Trash2 size={14} /></span>{/if}
+				</button>
+			{/each}
+		</div>
+	{:else}<p class="empty"><Users size={28} /><span>{t('library.noFavArtists')}</span></p>{/if}
 {:else}
 	{#if history.entries.length}
 		<ul class="list">
@@ -186,4 +234,13 @@
 	.empty-sm { color: var(--color-text-muted); font-size: 13px; padding: 4px 8px; }
 	.note { color: var(--color-text-muted); font-size: 11px; margin-top: 12px; }
 	.clear-history { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; background: var(--color-surface-2); border: 1px solid var(--color-border); color: #ff7a90; padding: 10px 14px; border-radius: 12px; font-size: 14px; cursor: pointer; }
+	/* kyf: fav-artists tab grid — responsive round-avatar tiles. */
+	.fav-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 14px; }
+	.fav-tile { position: relative; background: none; border: none; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--color-text); border-radius: 12px; }
+	.fav-tile:hover { background: var(--color-surface); }
+	.fav-avatar { width: 88px; height: 88px; border-radius: 50%; background-size: cover; background-position: center; }
+	.fav-name { font-size: 13px; font-weight: 600; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+	.fav-tile.edit-row .fav-name { color: #ff7a90; }
+	.fav-tile.edit-row .fav-avatar { filter: brightness(0.65); }
+	.fav-trash { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -60%); color: #fff; pointer-events: none; }
 </style>

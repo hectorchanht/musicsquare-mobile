@@ -16,8 +16,10 @@ import { buildSimilarQueue } from '$lib/services/similar';
 import { dedupeBest } from '$lib/services/dedupe';
 import { buildArtwork, safePositionState, playbackStateFor } from '$lib/services/media-session';
 import { resolveStub } from '$lib/services/discovery';
+import { blobStore } from '$lib/services/blob-store';
 import { settings } from '$lib/stores/settings.svelte';
 import { history } from '$lib/stores/history.svelte';
+import { library } from '$lib/stores/library.svelte';
 import { names } from '$lib/stores/names.svelte';
 import type { Track } from '$lib/sources/types';
 
@@ -77,6 +79,11 @@ class Player {
 	 * fallback can detect a newer play() and abort its in-flight retries. Plain field — no $state
 	 * reactivity (it's an internal supersedence guard, like pendingGen). */
 	private playGen = 0;
+
+	/** kyf: when audio.src is set to a `blob:` Object URL (from the offline cache), track the
+	 * URL here so we can revoke it when a new track starts. Revoking the previous URL on every
+	 * play prevents Object-URL leaks across long sessions. */
+	private cachedBlobUrl: string | null = null;
 
 	currentTime = $state(0);
 	/** 0 until loadedmetadata; never NaN. */
@@ -442,7 +449,22 @@ class Player {
 				ms.playbackState = 'playing';
 			}
 			if (this.audio) {
-				this.audio.src = resolved.audioUrl;
+				// kyf: prefer the offline blob when the track is in library.downloads AND the
+				// blob is still in the IDB cache. A miss / SSR / IDB-unavailable falls through to
+				// the CDN URL (never throws). Always revoke the prior Object URL first.
+				if (this.cachedBlobUrl) {
+					URL.revokeObjectURL(this.cachedBlobUrl);
+					this.cachedBlobUrl = null;
+				}
+				let src: string = resolved.audioUrl;
+				if (library.isDownloaded(resolved.uid)) {
+					const blob = await blobStore.get(resolved.uid).catch(() => null);
+					if (blob) {
+						this.cachedBlobUrl = URL.createObjectURL(blob);
+						src = this.cachedBlobUrl;
+					}
+				}
+				this.audio.src = src;
 				await this.audio.play().catch(() => {
 					/* autoplay may require a gesture — the controls still work */
 				});

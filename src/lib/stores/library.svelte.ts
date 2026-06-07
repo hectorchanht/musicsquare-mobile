@@ -2,6 +2,7 @@
 // "downloads" reference list. Persisted to localStorage `openmusic:library:v1`,
 // SSR-guarded. This is a demo-scoped slice of the planned Phase-3 Library.
 import { browser } from '$app/environment';
+import { blobStore } from '$lib/services/blob-store';
 import type { Track } from '$lib/sources/types';
 
 const KEY = 'openmusic:library:v1';
@@ -129,6 +130,9 @@ class Library {
 	removeDownload(uid: string) {
 		this.downloads = this.downloads.filter((t) => t.uid !== uid);
 		this.save();
+		// kyf: also drop the cached blob so the offline cache stays consistent with the
+		// registry (never throws — browser/SSR + IDB-missing return no-op).
+		void blobStore.del(uid);
 	}
 
 	clearAll() {

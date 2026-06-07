@@ -382,7 +382,11 @@
 	section { margin: 18px 0; }
 	section h2 { font-size: 1.1rem; margin: 0 0 12px; }
 	.albumrow { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; }
-	.album { flex: 0 0 130px; background: none; border: none; padding: 0; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 4px; }
+	/* min-width: 0 lets the 130px flex-basis lock even when a long artist/album name's
+	   intrinsic min-width would otherwise stretch the tile (default `min-width: auto`
+	   on flex items respects content size). With min-width: 0 the tile stays 130px and
+	   .al-name's overflow:hidden + the use:marquee action take over for long text. */
+	.album { flex: 0 0 130px; min-width: 0; background: none; border: none; padding: 0; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 4px; }
 	.al-cover { width: 130px; height: 130px; border-radius: 10px; background-size: cover; background-position: center; }
 	.al-cover.round { border-radius: 50%; }
 	.al-name { font-size: calc(12px * var(--fs-title, 1)); font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -396,7 +400,7 @@
 	.row:hover { background: var(--color-surface); }
 	.rank { width: 18px; text-align: center; color: var(--color-text-muted); font-size: 13px; flex: none; }
 	.art { width: 44px; height: 44px; border-radius: 6px; background-size: cover; background-position: center; flex: none; }
-	.meta { display: flex; flex-direction: column; min-width: 0; }
+	.meta { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 	.r-title { font-size: calc(14px * var(--fs-title, 1)); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.r-sub { font-size: calc(12px * var(--fs-artist, 1)); color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.muted { color: var(--color-text-muted); font-size: 14px; }

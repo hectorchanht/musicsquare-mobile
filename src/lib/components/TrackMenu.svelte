@@ -174,7 +174,7 @@
 		{#if loading}
 			<!-- Resolving the real Track (home stub). Skeleton placeholders so the menu is
 			     visible INSTANTLY on long-press; the buttons swap in when the track resolves. -->
-			{#each Array(7) as _, i (i)}
+			{#each Array(9) as _, i (i)}
 				<div class="mi-skel" aria-hidden="true"><span class="sk-ico"></span><span class="sk-bar" style:width={`${70 - (i % 3) * 12}%`}></span></div>
 			{/each}
 		{:else}

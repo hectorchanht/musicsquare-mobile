@@ -23,6 +23,11 @@ export const GET: RequestHandler = async ({ params, url, platform, request }) =>
 		return new Response('unknown source', { status: 404, headers: corsHeaders(origin) });
 	}
 	const proxy = PROXIES[params.source];
+	// Sources with DEDICATED routes (e.g. fivesing) are absent from PROXIES — the catch-all
+	// shouldn't match them anyway, but defend in depth (hvu).
+	if (!proxy) {
+		return new Response('source not served by catch-all', { status: 404, headers: corsHeaders(origin) });
+	}
 
 	// platform?.env is the verified Cloudflare-adapter path for bindings/secrets.
 	const env = platform?.env as Env | undefined;

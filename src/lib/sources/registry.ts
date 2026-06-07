@@ -6,8 +6,9 @@ import { netease } from './netease';
 import { qq } from './qq';
 import { kuwo } from './kuwo';
 import { joox } from './joox';
+import { fivesing } from './fivesing';
 
-export const SOURCES: Record<SourceId, SourceAdapter> = { netease, qq, kuwo, joox };
+export const SOURCES: Record<SourceId, SourceAdapter> = { netease, qq, kuwo, joox, fivesing };
 
 /**
  * The enabled adapters for a search fan-out. `prefs` overrides each adapter's

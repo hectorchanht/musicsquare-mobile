@@ -2,11 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { SOURCES, getEnabledAdapters } from './registry';
 import { makeUid, type SourceId } from './types';
 
-const EXPECTED_KEYS: SourceId[] = ['netease', 'qq', 'kuwo', 'joox'];
+const EXPECTED_KEYS: SourceId[] = ['netease', 'qq', 'kuwo', 'joox', 'fivesing'];
 
 describe('SOURCES registry (DATA-04 — single enumeration point)', () => {
-	// Test 4: exactly the 4 keys; each value's .id matches its key.
-	it('enumerates exactly netease,qq,kuwo,joox', () => {
+	// Test 4: exactly the 5 keys; each value's .id matches its key.
+	// hvu: 5sing (Kugou UGC) added behind enabledByDefault:false.
+	it('enumerates exactly netease,qq,kuwo,joox,fivesing', () => {
 		expect(Object.keys(SOURCES)).toEqual(EXPECTED_KEYS);
 	});
 

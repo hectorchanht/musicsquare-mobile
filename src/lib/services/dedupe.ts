@@ -5,7 +5,10 @@
 import type { SourceId, Track } from '$lib/sources/types';
 
 // Tie-break when quality is equal/unknown. Tune freely.
-const SOURCE_RANK: Record<SourceId, number> = { netease: 4, qq: 3, kuwo: 2, joox: 1 };
+// 5sing is UGC (covers / 伴奏 / 原创) — it should NEVER win a tie against a mainstream CN
+// source, otherwise a Netease "Stargazing" would lose to a 5sing "Stargazing (Cover)" with
+// equal quality. Rank lowest (hvu).
+const SOURCE_RANK: Record<SourceId, number> = { netease: 4, qq: 3, kuwo: 2, joox: 1, fivesing: 0 };
 
 /** Higher = better. Reads qualityLabel/quality strings (often null pre-resolve). */
 function qualityRank(t: Track): number {

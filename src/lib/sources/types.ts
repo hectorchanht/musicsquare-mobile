@@ -10,7 +10,7 @@
 // whitelist (legacy/index.html:1764-1768) so QQ/JOOX detail calls keep the extra
 // fields they read.
 
-export type SourceId = 'netease' | 'qq' | 'kuwo' | 'joox';
+export type SourceId = 'netease' | 'qq' | 'kuwo' | 'joox' | 'fivesing';
 
 export interface Track {
 	/** Canonical id = `${source}:${songid}` (D-10, COLON form). Stable across reorder/paginate. */
@@ -47,6 +47,10 @@ export interface Track {
 	jooxQualityText?: string | null;
 	pay?: string | null; // QQ paywall signal
 	pageUrl?: string; // QQ
+	/** 5sing — `fc` (翻唱/cover) | `bz` (伴奏/karaoke) | `yc` (原创/original).
+	 *  Identity-critical: songid is NOT unique across songtypes, so the uid folds songtype
+	 *  into the songid via `${songtype}-${songid}` (hvu Pitfall, mirrors JOOX Pitfall 4). */
+	fivesingSongType?: 'fc' | 'bz' | 'yc';
 
 	// --- Last.fm enrichment (Phase 8, additive/optional) — never overwrites source data ---
 	tags?: string[]; // top-5 display tags

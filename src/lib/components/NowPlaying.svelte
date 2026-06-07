@@ -81,12 +81,12 @@
 		player.current?.lrc ? splitParenLines(parseLRC(player.current.lrc)) : []
 	);
 	// When multiple lyric lines share a timestamp (common in CN LRCs that ship the original
-	// + an inline translation as two consecutive entries at the same time), pick the FIRST
-	// of the group as active rather than walking past with `<=` (which lands on the LAST
-	// equal-timestamp line — usually the translation, making the translated line appear
-	// active instead of the original). Forward-scan, only advance idx when t > maxTime so
-	// ties stay with the earliest-rendered line (the original / parent).
-	const activeLine = $derived.by(() => {
+	// + an inline translation as two consecutive entries at the same time, plus our own
+	// splitParenLines parent + paren clauses), ALL of them are simultaneously active for
+	// the user — they're the same moment of the song. `activeLine` is the FIRST entry of
+	// that group (used as the scroll anchor); `activeTime` is the shared timestamp so the
+	// renderer can mark every sibling line active via `lines[i].time === activeTime`.
+	const activeIndexAndTime = $derived.by(() => {
 		let idx = -1;
 		let maxTime = -1;
 		const now = player.currentTime;
@@ -98,8 +98,10 @@
 				idx = i;
 			}
 		}
-		return idx;
+		return { idx, maxTime };
 	});
+	const activeLine = $derived(activeIndexAndTime.idx);
+	const activeTime = $derived(activeIndexAndTime.maxTime);
 	let lyricsEl = $state<HTMLElement | null>(null);
 	let autoScroll = $state(true);
 	let idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -762,7 +764,7 @@
 						{#each lines as l, i (i)}
 							{#if !(l.fromParen && settings.lyricsHideParenLines)}
 								{@const hideTrForLine = l.fromParen && settings.lyricsHideParenTranslation}
-								<p class:active={i === activeLine} class:paren={l.fromParen}>
+								<p class:active={l.time === activeTime && activeTime >= 0} class:paren={l.fromParen}>
 									{#if showTr && settings.translateMode === 'replace' && !hideTrForLine}
 										{translated[i]}
 									{:else}

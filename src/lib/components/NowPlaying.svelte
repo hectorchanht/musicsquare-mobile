@@ -5,7 +5,7 @@
 	import { goto } from '$app/navigation';
 	import { ChevronDown, MoreVertical, Heart, SkipBack, SkipForward, Play, Pause, Repeat, Repeat1, GripVertical } from '@lucide/svelte';
 	import { player, fmtTime } from '$lib/stores/player.svelte';
-	import { settings } from '$lib/stores/settings.svelte';
+	import { settings, effectiveTarget } from '$lib/stores/settings.svelte';
 	import { library } from '$lib/stores/library.svelte';
 	import { names } from '$lib/stores/names.svelte';
 	import { overlays } from '$lib/stores/overlays.svelte';
@@ -138,11 +138,14 @@
 	let translating = $state(false);
 	let trKey = '';
 	$effect(() => {
-		const lang = settings.lyricsLang;
+		// ju0: lyricsLang now allows 'auto' (→ appLang). Resolve once here so both the
+		// rerun key, shouldTranslate(), and translateLines() all see the SAME final token.
+		const rawLang = settings.lyricsLang;
+		const lang = effectiveTarget(rawLang);
 		const skip = settings.lyricsSkip;
 		const t = player.current;
 		const n = lines.length;
-		if (tab !== 'lyrics' || lang === 'off' || !n || !t) return;
+		if (tab !== 'lyrics' || rawLang === 'off' || !n || !t) return;
 		// Per-line whitelist: only the lines whose detected source is NOT whitelisted (and
 		// is not already in the target) get sent to /api/translate. Skipped lines keep
 		// their ORIGINAL text in the corresponding output slot so index alignment +
@@ -535,6 +538,7 @@
 <section
 	class="np"
 	class:reflow={sheetState !== 'closed'}
+	class:fullshrink={sheetState === 'full'}
 	transition:fly={{ y: 600, duration: 320, easing: cubicOut }}
 	style:transform={dragY ? `translateY(${dragY}px)` : undefined}
 	style:transition={dragging ? 'none' : 'transform 0.28s cubic-bezier(.22,1,.36,1)'}
@@ -542,6 +546,13 @@
 	<header class="bar">
 		<button class="icon" aria-label={t('nowplaying.collapse')} onclick={() => player.collapse()}><ChevronDown /></button>
 		<span class="ctx">{t('nowplaying.nowPlaying')}</span>
+		{#if sheetState === 'full'}
+			<!-- ju0: in fullshrink mode the transport row is hidden (sheet covers it). Surface
+			     a compact play/pause in the top-right so playback control stays one tap away. -->
+			<button class="icon mini-play" aria-label={t('nowplaying.playPause')} onclick={() => player.toggle()}>
+				{#if player.playing}<Pause size={20} />{:else}<Play size={20} />{/if}
+			</button>
+		{/if}
 		<button class="icon" aria-label={t('nowplaying.options')} onclick={() => openMenu(player.current)}><MoreVertical /></button>
 	</header>
 
@@ -694,6 +705,29 @@
 	.np.reflow .bar { position: absolute; top: 0; left: 18px; right: 18px; z-index: 2; }
 	.np.reflow .meta { position: relative; z-index: 2; margin-top: -42px; padding: 0 2px; }
 	.np.reflow .title { text-shadow: 0 1px 6px rgba(0,0,0,0.6); }
+
+	/* ju0: sheet FULL state → cover/title/artist + play button collapse into a YT-Music-style
+	   horizontal mini-bar at the top. The expanded queue/lyrics panel underneath gets the rest
+	   of the viewport; the giant cover is gone so nothing overlaps. .fullshrink is a STRICT
+	   superset of .reflow so all the overrides below win. */
+	.np.fullshrink .cover {
+		position: absolute; top: 6px; left: 64px; width: 48px; height: 48px;
+		aspect-ratio: 1 / 1; margin: 0; border-radius: 8px; z-index: 3;
+	}
+	.np.fullshrink .cover::before { display: none; }
+	.np.fullshrink .bar { position: absolute; top: 4px; left: 0; right: 0; padding: 8px 12px; z-index: 2; }
+	.np.fullshrink .bar .ctx { display: none; } /* "Now Playing" label hidden — cover+meta carry context */
+	.np.fullshrink .meta {
+		position: absolute; top: 8px; left: 120px; right: 60px; margin: 0; z-index: 3;
+		display: flex; flex-direction: column; justify-content: center; min-height: 48px;
+	}
+	.np.fullshrink .title { font-size: 14px; font-weight: 600; text-shadow: none; }
+	.np.fullshrink .artist { font-size: 12px; padding: 0; background: none; text-decoration: none; }
+	/* Progress + transport are HIDDEN in full state — the sheet covers them anyway, and the
+	   mini-bar's compact layout doesn't have room. Tap the play button in the top bar instead. */
+	.np.fullshrink .prog, .np.fullshrink .transport { display: none; }
+	/* Reserve top space so the SHEET (which is absolute-positioned) sits BELOW the mini-bar. */
+	.np.fullshrink { padding-top: 64px; }
 	.title { font-size: calc(1.5rem * var(--fs-title, 1)); font-weight: 800; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.artist { display: inline-block; max-width: 100%; vertical-align: bottom; background: black; border: none; padding: 2px; border-radius: 4px; color: var(--color-text-muted); font-size: calc(1rem * var(--fs-artist, 1)); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	/* Marquee lives globally in app.css (transform-based .marquee-inner). The .title/.artist

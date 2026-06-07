@@ -6,7 +6,7 @@
 // parts sharing a target share cached results). Standalone (settings + translate + detect);
 // SSR returns the input unchanged.
 import { browser } from '$app/environment';
-import { settings } from '$lib/stores/settings.svelte';
+import { settings, effectiveTarget } from '$lib/stores/settings.svelte';
 import { translateLines } from '$lib/services/translate';
 import { shouldTranslate } from '$lib/i18n/detect';
 
@@ -94,29 +94,27 @@ class Names {
 		return text;
 	}
 
-	/** Artist name → artistLang + artistSkip. */
+	/** Artist name → artistLang + artistSkip. ju0: `'auto'` resolves to settings.appLang. */
 	dnArtist(text: string): string {
-		return this.resolve(text, settings.artistLang, settings.artistSkip);
+		return this.resolve(text, effectiveTarget(settings.artistLang), settings.artistSkip);
 	}
 
-	/** Song / album title → titleLang + titleSkip. */
+	/** Song / album title → titleLang + titleSkip. ju0: `'auto'` resolves to settings.appLang. */
 	dnTitle(text: string): string {
-		return this.resolve(text, settings.titleLang, settings.titleSkip);
+		return this.resolve(text, effectiveTarget(settings.titleLang), settings.titleSkip);
 	}
 
-	/** Last.fm tag → lastfmLang + lastfmSkip. */
+	/** Last.fm tag → lastfmLang + lastfmSkip. ju0: `'auto'` resolves to settings.appLang. */
 	dnLastfm(text: string): string {
-		return this.resolve(text, settings.lastfmLang, settings.lastfmSkip);
+		return this.resolve(text, effectiveTarget(settings.lastfmLang), settings.lastfmSkip);
 	}
 
 	/**
-	 * Last.fm bio → target chosen by `settings.bioLang` (quick-260607-fnp): `'auto'` follows the
-	 * app/device language (default), `'off'` leaves the bio untranslated, otherwise an explicit
-	 * language. No skip list. `shouldTranslate` no-ops when the bio is already in the target.
+	 * Last.fm bio → target chosen by `settings.bioLang` (fnp). 'auto' follows appLang;
+	 * 'off' leaves it untranslated; otherwise an explicit language. No skip list.
 	 */
 	dnBio(text: string): string {
-		const target = settings.bioLang === 'auto' ? settings.appLang : settings.bioLang;
-		return this.resolve(text, target, []);
+		return this.resolve(text, effectiveTarget(settings.bioLang), []);
 	}
 
 	/** Drop ALL cached name/bio translations — in-memory maps + every `openmusic:name-tr:*` key.

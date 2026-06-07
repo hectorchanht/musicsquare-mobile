@@ -7,9 +7,12 @@
 
 	onMount(() => settings.load());
 
-	// `off` + language endonyms are literal; only 'Off' is chrome → resolved in the template.
-	const langs: { v: LyricsLang; label: string }[] = [
+	// `off` + 'auto' are chrome (label resolved in template via t()); language endonyms literal.
+	// ju0: 'auto' added as a 17th option in all per-part pickers (was bio-only). At resolve
+	// time, names.dn*/lyrics-translate effect maps it to settings.appLang.
+	const langs: { v: 'auto' | LyricsLang; label: string }[] = [
 		{ v: 'off', label: 'Off' },
+		{ v: 'auto', label: 'Auto' },
 		{ v: 'zh-Hant', label: '繁體中文' },
 		{ v: 'zh-Hans', label: '简体中文' },
 		{ v: 'en', label: 'English' },
@@ -121,7 +124,7 @@
 		<h2><Languages size={15} /> {t(part.headingKey)}</h2>
 		<div class="chips">
 			{#each langs as l (l.v)}
-				<button class="chip" class:on={TARGET[part.key]() === l.v} onclick={() => setTarget(part.key, l.v)}>{l.v === 'off' ? t('settings.optOff') : l.label}</button>
+				<button class="chip" class:on={TARGET[part.key]() === l.v} onclick={() => setTarget(part.key, l.v)}>{l.v === 'off' ? t('settings.optOff') : l.v === 'auto' ? t('settings.bioAuto') : l.label}</button>
 			{/each}
 		</div>
 		<p class="muted">{t(part.noteKey)}</p>

@@ -15,6 +15,11 @@ import {
 
 export type LyricsLang =
 	| 'off'
+	// ju0: 'auto' means "follow settings.appLang at translation time" — resolved by
+	// names.dn*/lyrics-translate effect via effectiveTarget(). Pre-existing bioLang has
+	// always been ('auto' | LyricsLang); ju0 widens this union so all 4 per-part pickers
+	// share the same shape (artistLang/titleLang/lyricsLang/lastfmLang).
+	| 'auto'
 	| 'zh-Hant'
 	| 'zh-Hans'
 	| 'en'
@@ -299,5 +304,12 @@ class Settings {
 }
 
 export const settings = new Settings();
+
+/** Resolve an 'auto' translation target to the current app language (ju0). Off + explicit
+ * lang codes pass through. appLang ⊆ LyricsLang so the result is always a usable token for
+ * translateLines / shouldTranslate. */
+export function effectiveTarget(target: 'auto' | LyricsLang): LyricsLang {
+	return target === 'auto' ? (settings.appLang as LyricsLang) : target;
+}
 
 export const ACCENT_PRESETS = ['#7c5cff', '#1db954', '#ff0033', '#00c2b8', '#ff8a00', '#ff4d6d'];

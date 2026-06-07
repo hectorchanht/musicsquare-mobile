@@ -128,9 +128,10 @@
 		}
 	});
 
-	// SEPARATE more-like-this effect (jip). getSimilarArtists chains LF → Deezer → []. Each
-	// name then resolves its avatar via the existing Deezer artist-picture proxy. Capped at
-	// 4 in-flight. Race-guarded; empty list → section hides.
+	// SEPARATE more-like-this effect (jip, ju0 avatar fix). getSimilarArtists chains LF →
+	// Deezer → []. Avatar source CHANGED ju0: Last.fm enrichArtist primary (matches the hero
+	// — the user reported Deezer often returns wrong avatars due to partial-name matches);
+	// Deezer falls back ONLY when LF is empty. Capped at 4 in-flight, race-guarded.
 	$effect(() => {
 		const n = name;
 		if (n && relatedFor !== n) {
@@ -142,10 +143,15 @@
 					const names = await getSimilarArtists(n);
 					if (relatedFor !== n) return; // race guard
 					if (!names.length) return;
-					const withCovers = await mapWithConcurrency(names, 4, async (nm: string) => ({
-						name: nm,
-						image: await deezerArtistCover(nm).catch(() => null)
-					}));
+					const withCovers = await mapWithConcurrency(names, 4, async (nm: string) => {
+						// Last.fm primary (same source as hero) — exact-name-keyed, fewer wrong matches.
+						const lf = await enrichArtist(nm).catch(() => null);
+						const lfImg = lf?.lastfmArt ?? null;
+						if (lfImg) return { name: nm, image: lfImg };
+						// Fall back to Deezer only when LF has no picture for this artist.
+						const dz = await deezerArtistCover(nm).catch(() => null);
+						return { name: nm, image: dz };
+					});
 					if (relatedFor === n) related = withCovers;
 				} finally {
 					if (relatedFor === n) relatedLoading = false;

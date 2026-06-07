@@ -17,7 +17,13 @@
 	// playback persists across page changes (incl. into /spike). The visible
 	// now-playing bar + overlay live in (app)/+layout and read the same singleton.
 	$effect(() => {
-		if (audioEl) player.attach(audioEl);
+		if (audioEl) {
+			player.attach(audioEl);
+			// Restore the last played track + queue + progress + shuffle/repeat from
+			// localStorage so a reload resumes mid-session. Doesn't autoplay (browser
+			// autoplay policy); the user taps play to resume. Fire-and-forget.
+			void player.restore();
+		}
 	});
 </script>
 

@@ -9,6 +9,7 @@
 // enforces the SSR guard + feature detection (MS-05) — every call early-returns
 // when unsupported. The throw-prone artwork/position/state logic lives in the pure,
 // node-tested media-session.ts; this store is a thin caller of those helpers.
+import { browser } from '$app/environment';
 import { ensureTrackDetails } from '$lib/services/catalog';
 import { tryFallback } from '$lib/services/fallback';
 import { buildDiversePicks } from '$lib/services/picks';
@@ -84,6 +85,148 @@ class Player {
 	 * URL here so we can revoke it when a new track starts. Revoking the previous URL on every
 	 * play prevents Object-URL leaks across long sessions. */
 	private cachedBlobUrl: string | null = null;
+
+	/** Persistent state key — localStorage shape `openmusic:player:v1`. */
+	private static STATE_KEY = 'openmusic:player:v1';
+	/** Throttle timer for currentTime persistence (timeupdate fires ~4×/sec). */
+	private persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+	/** Strip volatile fields (audioUrl / lrc / lrcUrl / detailsLoaded) before persisting a
+	 *  Track to localStorage — they expire and must be re-resolved on the next load. Mirrors
+	 *  the legacy serializeTrack whitelist + the history-entry shape. */
+	private serializeTrack(t: Track): Partial<Track> {
+		return {
+			uid: t.uid,
+			source: t.source,
+			songid: t.songid,
+			title: t.title,
+			artist: t.artist,
+			album: t.album,
+			cover: t.cover,
+			quality: t.quality,
+			qualityLabel: t.qualityLabel,
+			keyword: t.keyword,
+			displayIndex: t.displayIndex
+		};
+	}
+
+	/** Write the persistable slice of player state to localStorage. Called immediately on
+	 *  imperative state changes (play/setQueue/toggleShuffle/cycleRepeat) and throttled to
+	 *  ~2s on the audio `timeupdate` firehose. SSR-safe + try/catch-guarded. */
+	private persist() {
+		if (!browser) return;
+		if (!this.current) {
+			try { localStorage.removeItem(Player.STATE_KEY); } catch { /* ignore */ }
+			return;
+		}
+		try {
+			localStorage.setItem(
+				Player.STATE_KEY,
+				JSON.stringify({
+					v: 1,
+					current: this.serializeTrack(this.current),
+					queue: this.queue.map((t) => this.serializeTrack(t)),
+					currentTime: this.currentTime,
+					shuffle: this.shuffle,
+					repeatMode: this.repeatMode
+				})
+			);
+		} catch {
+			/* quota — non-fatal */
+		}
+	}
+	/** Coalesce currentTime writes so the timeupdate firehose doesn't spam localStorage. */
+	private persistThrottled() {
+		if (this.persistTimer) return;
+		this.persistTimer = setTimeout(() => {
+			this.persistTimer = null;
+			this.persist();
+		}, 2000);
+	}
+
+	/** Restore the last played track + queue + progress + shuffle/repeat from localStorage.
+	 *  Called once from the layout on mount. Doesn't autoplay — restored audio is paused
+	 *  with audio.currentTime seeded; the user must tap play (browser autoplay policy).
+	 *  Audio URLs aren't persisted (they expire), so the resolved track is re-fetched via
+	 *  ensureTrackDetails — same path play() takes. */
+	async restore() {
+		if (!browser) return;
+		let payload: {
+			v?: number;
+			current?: Partial<Track> | null;
+			queue?: Partial<Track>[];
+			currentTime?: number;
+			shuffle?: boolean;
+			repeatMode?: 'off' | 'one' | 'all';
+		} | null = null;
+		try {
+			const raw = localStorage.getItem(Player.STATE_KEY);
+			if (!raw) return;
+			payload = JSON.parse(raw);
+		} catch {
+			return;
+		}
+		if (!payload?.current?.uid) return;
+		const reshape = (p: Partial<Track>): Track => ({
+			uid: p.uid ?? '',
+			source: p.source ?? ('netease' as Track['source']),
+			songid: p.songid ?? '',
+			title: p.title ?? '',
+			artist: p.artist ?? '',
+			album: p.album ?? '',
+			cover: p.cover ?? null,
+			audioUrl: null,
+			lrc: null,
+			lrcUrl: null,
+			detailsLoaded: false,
+			quality: p.quality ?? null,
+			qualityLabel: p.qualityLabel ?? null,
+			keyword: p.keyword ?? '',
+			displayIndex: p.displayIndex ?? 1
+		});
+		const target = reshape(payload.current as Partial<Track>);
+		const seek = Math.max(0, Number(payload.currentTime) || 0);
+		this.queue = (payload.queue ?? []).map(reshape);
+		this.shuffle = !!payload.shuffle;
+		this.repeatMode = payload.repeatMode ?? 'off';
+		this.current = target;
+		this.loading = true;
+		try {
+			const resolved = await ensureTrackDetails(target);
+			this.current = resolved;
+			const i = this.indexOf(target);
+			if (i >= 0) this.queue[i] = resolved;
+			if (!this.audio || !resolved.audioUrl) return;
+			// Route to blob if downloaded (kyf parity).
+			if (this.cachedBlobUrl) {
+				URL.revokeObjectURL(this.cachedBlobUrl);
+				this.cachedBlobUrl = null;
+			}
+			let src: string = resolved.audioUrl;
+			if (library.isDownloaded(resolved.uid)) {
+				const blob = await blobStore.get(resolved.uid).catch(() => null);
+				if (blob) {
+					this.cachedBlobUrl = URL.createObjectURL(blob);
+					src = this.cachedBlobUrl;
+				}
+			}
+			const audio = this.audio;
+			audio.src = src;
+			// Seed currentTime as soon as metadata is known; also try synchronously in case
+			// the audio is already loaded. DO NOT auto-play — browser autoplay policy.
+			const seekWhenReady = () => {
+				if (Number.isFinite(audio.duration) && audio.duration > 0) {
+					audio.currentTime = Math.min(seek, audio.duration);
+				}
+			};
+			audio.addEventListener('loadedmetadata', seekWhenReady, { once: true });
+			seekWhenReady();
+		} catch {
+			/* re-resolve failed — track stays in `current`, user can tap play to retry */
+		} finally {
+			this.loading = false;
+		}
+	}
 
 	/** Timestamp (Date.now()) of the most recent seekFraction() call. The audio.error handler
 	 *  ignores errors that fire within SEEK_ERROR_WINDOW_MS of a seek — seeking past the
@@ -165,6 +308,9 @@ class Player {
 		el.addEventListener('timeupdate', () => {
 			this.currentTime = el.currentTime || 0;
 			this.syncPosition(el);
+			// Coalesce currentTime writes to localStorage so a refresh resumes near where the
+			// user left off (within ~2s). Throttled to avoid the 4×/sec timeupdate firehose.
+			this.persistThrottled();
 		});
 		const syncDur = () => {
 			this.duration = Number.isFinite(el.duration) ? el.duration : 0;
@@ -245,6 +391,7 @@ class Player {
 	/** Set the active list (home grid / search results) as the Up-Next source. */
 	setQueue(tracks: Track[]) {
 		this.queue = dedupeBest(tracks, settings.preferredSource);
+		this.persist();
 	}
 
 	/** Insert a track right after the current one (de-duped). Plays it if nothing is playing. */
@@ -255,6 +402,7 @@ class Player {
 		q.splice(i >= 0 ? i + 1 : 0, 0, t);
 		this.queue = q;
 		if (!this.current) this.play(t);
+		else this.persist();
 	}
 
 	/** Append a track to the end of the queue (de-duped). Plays it if nothing is playing. */
@@ -262,6 +410,7 @@ class Player {
 		this.manualUids.add(t.uid); // explicit manual add — preserved across regen
 		if (!this.queue.some((x) => x.uid === t.uid)) this.queue = [...this.queue, t];
 		if (!this.current) this.play(t);
+		else this.persist();
 	}
 
 	/**
@@ -441,6 +590,9 @@ class Player {
 			// keep the queue entry in sync with the resolved track
 			const i = this.indexOf(track);
 			if (i >= 0) this.queue[i] = resolved;
+			// Persist the new current+queue immediately so a reload mid-resolve still has the
+			// right track to restore (the throttled timeupdate write covers progress alone).
+			this.persist();
 			if (!resolved.audioUrl) {
 				// Cross-source fallback (gte): try other enabled sources before surfacing the
 				// error. On success, runFallback() calls play() again with fromFallback:true.
@@ -565,10 +717,10 @@ class Player {
 	toggleShuffle() {
 		const next = !this.shuffle;
 		this.shuffle = next;
-		if (!next) return;
+		if (!next) { this.persist(); return; }
 		const i = this.indexOf(this.current);
 		const start = (i >= 0 ? i : -1) + 1; // shuffle everything strictly after current
-		if (start >= this.queue.length - 1) return; // nothing to shuffle
+		if (start >= this.queue.length - 1) { this.persist(); return; }
 		const arr = [...this.queue];
 		// Fisher-Yates over [start, arr.length). Use ((Date.now() ^ idx) % range) is not a real
 		// CSPRNG — but Math.random() is fine for queue-shuffle UX.
@@ -577,11 +729,13 @@ class Player {
 			[arr[k], arr[j]] = [arr[j], arr[k]];
 		}
 		this.queue = arr;
+		this.persist();
 	}
 
 	/** Cycle the repeat mode (gte): off → one → all → off. */
 	cycleRepeat() {
 		this.repeatMode = this.repeatMode === 'off' ? 'one' : this.repeatMode === 'one' ? 'all' : 'off';
+		this.persist();
 	}
 
 	/**

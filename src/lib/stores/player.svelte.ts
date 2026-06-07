@@ -201,23 +201,36 @@ class Player {
 		this.current = target;
 		this.loading = true;
 		try {
-			const resolved = await ensureTrackDetails(target);
-			this.current = resolved;
-			const i = this.indexOf(target);
-			if (i >= 0) this.queue[i] = resolved;
-			if (!this.audio || !resolved.audioUrl) return;
-			// Route to blob if downloaded (kyf parity).
+			// Offline-first restore: if the track is in library.downloads AND its blob is in
+			// IDB, skip the network ensureTrackDetails entirely. Lets the user resume a
+			// downloaded track with no network at all (the resolve would otherwise throw +
+			// the user would see the player stuck).
+			let resolved: Track = target;
+			let offlineBlob: Blob | null = null;
+			if (library.isDownloaded(target.uid)) {
+				offlineBlob = await blobStore.get(target.uid).catch(() => null);
+			}
+			if (!offlineBlob) {
+				resolved = await ensureTrackDetails(target);
+				this.current = resolved;
+				const i = this.indexOf(target);
+				if (i >= 0) this.queue[i] = resolved;
+			} else {
+				this.current = { ...target, detailsLoaded: true };
+			}
+			if (!this.audio) return;
 			if (this.cachedBlobUrl) {
 				URL.revokeObjectURL(this.cachedBlobUrl);
 				this.cachedBlobUrl = null;
 			}
-			let src: string = resolved.audioUrl;
-			if (library.isDownloaded(resolved.uid)) {
-				const blob = await blobStore.get(resolved.uid).catch(() => null);
-				if (blob) {
-					this.cachedBlobUrl = URL.createObjectURL(blob);
-					src = this.cachedBlobUrl;
-				}
+			let src: string;
+			if (offlineBlob) {
+				this.cachedBlobUrl = URL.createObjectURL(offlineBlob);
+				src = this.cachedBlobUrl;
+			} else if (resolved.audioUrl) {
+				src = resolved.audioUrl;
+			} else {
+				return;
 			}
 			const audio = this.audio;
 			// Mark the saved seek-time as PENDING so the single loadedmetadata listener (added
@@ -662,6 +675,38 @@ class Player {
 		if (!opts?.fromFallback) history.record(track);
 		if (settings.autoExpandOnPlay) this.expanded = true;
 		try {
+			// Offline-first: if the track is in library.downloads AND we have its blob cached,
+			// skip the network resolve entirely and play straight from the local blob. The
+			// blob *is* the audio — no need to fetch a fresh URL just to ignore it again on
+			// the route-to-blob branch below. Lets the player work with NO network when a
+			// song was downloaded earlier.
+			if (library.isDownloaded(track.uid)) {
+				const offlineBlob = await blobStore.get(track.uid).catch(() => null);
+				if (offlineBlob && this.audio) {
+					if (this.cachedBlobUrl) {
+						URL.revokeObjectURL(this.cachedBlobUrl);
+					}
+					this.cachedBlobUrl = URL.createObjectURL(offlineBlob);
+					this.current = { ...track, detailsLoaded: true };
+					this.persist();
+					const ms = this.ms;
+					if (ms) {
+						ms.metadata = new MediaMetadata({
+							title: names.dnTitle(track.title),
+							artist: names.dnArtist(track.artist),
+							album: track.album,
+							artwork: buildArtwork(track.cover)
+						});
+						ms.playbackState = 'playing';
+					}
+					this.audio.src = this.cachedBlobUrl;
+					await this.audio.play().catch(() => {
+						/* autoplay may require a gesture — controls still work */
+					});
+					this.loading = false;
+					return;
+				}
+			}
 			const resolved = await ensureTrackDetails(track);
 			this.current = resolved;
 			// keep the queue entry in sync with the resolved track

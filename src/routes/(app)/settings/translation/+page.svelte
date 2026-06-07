@@ -53,25 +53,22 @@
 		{ v: 'below', key: 'settings.optShowBelow' }
 	];
 
-	type PartKey = 'artist' | 'title' | 'lyrics' | 'lastfm';
+	type PartKey = 'artist' | 'title' | 'lyrics';
 	const TARGET: Record<PartKey, () => LyricsLang> = {
 		artist: () => settings.artistLang,
 		title: () => settings.titleLang,
-		lyrics: () => settings.lyricsLang,
-		lastfm: () => settings.lastfmLang
+		lyrics: () => settings.lyricsLang
 	};
 	const SKIP: Record<PartKey, () => SourceLang[]> = {
 		artist: () => settings.artistSkip,
 		title: () => settings.titleSkip,
-		lyrics: () => settings.lyricsSkip,
-		lastfm: () => settings.lastfmSkip
+		lyrics: () => settings.lyricsSkip
 	};
 
 	function setTarget(part: PartKey, v: LyricsLang) {
 		if (part === 'artist') settings.artistLang = v;
 		else if (part === 'title') settings.titleLang = v;
-		else if (part === 'lyrics') settings.lyricsLang = v;
-		else settings.lastfmLang = v;
+		else settings.lyricsLang = v;
 		settings.save();
 	}
 	function toggleSkip(part: PartKey, v: SourceLang) {
@@ -79,19 +76,23 @@
 		const next = cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v];
 		if (part === 'artist') settings.artistSkip = next;
 		else if (part === 'title') settings.titleSkip = next;
-		else if (part === 'lyrics') settings.lyricsSkip = next;
-		else settings.lastfmSkip = next;
+		else settings.lyricsSkip = next;
 		settings.save();
 	}
 	function setMode(v: TranslateMode) { settings.translateMode = v; settings.save(); }
+	function setBio(v: 'auto' | LyricsLang) { settings.bioLang = v; settings.save(); }
 
-	// Bio info (quick-260607-f4y) is NOT a per-part picker — it auto-translates to the app
-	// language, so it renders as a read-only note section below instead of in this list.
+	// quick-260607-fnp: Lyrics lifted to the TOP (below the lyrics translate-mode control),
+	// then artist + title. Bio info renders as its OWN picker section below (supersedes the
+	// f4y read-only note — the user keeps a per-part bio language picker, default = Auto).
 	const parts: { key: PartKey; headingKey: TranslationKey; noteKey: TranslationKey }[] = [
+		{ key: 'lyrics', headingKey: 'settings.lyricsTranslation', noteKey: 'settings.translateLyricsNote' },
 		{ key: 'artist', headingKey: 'settings.translateArtist', noteKey: 'settings.translateArtistNote' },
-		{ key: 'title', headingKey: 'settings.translateTitle', noteKey: 'settings.translateTitleNote' },
-		{ key: 'lyrics', headingKey: 'settings.lyricsTranslation', noteKey: 'settings.translateLyricsNote' }
+		{ key: 'title', headingKey: 'settings.translateTitle', noteKey: 'settings.translateTitleNote' }
 	];
+	// Bio target options: Auto (follow app/device language — DEFAULT) + the standard list
+	// (Off + languages). `langs` already starts with Off, so just prepend Auto.
+	const bioOptions: { v: 'auto' | LyricsLang; label: string }[] = [{ v: 'auto', label: '' }, ...langs];
 </script>
 
 <svelte:head><title>{t('settings.title')}</title></svelte:head>
@@ -101,7 +102,21 @@
 	<h1>{t('settings.groupTranslation')}</h1>
 </header>
 
-{#each parts as part (part.key)}
+<!-- 1. Lyrics translate mode — how translated lyrics display (replace vs show below). -->
+<section>
+	<h2><Replace size={15} /> {t('settings.lyricsTranslateMode')}</h2>
+	<div class="seg" class:disabled={settings.lyricsLang === 'off'}>
+		{#each modes as m (m.v)}
+			<button class:on={settings.translateMode === m.v} disabled={settings.lyricsLang === 'off'} onclick={() => setMode(m.v)}>{t(m.key as TranslationKey)}</button>
+		{/each}
+	</div>
+	<p class="muted">{settings.lyricsLang === 'off' ? t('settings.translateModeOffNote') : t('settings.translateModeOnNote')}</p>
+</section>
+
+<hr class="div" />
+
+<!-- 2. Per-part language pickers — lyrics (lifted to top), then artist, title. -->
+{#each parts as part, i (part.key)}
 	<section>
 		<h2><Languages size={15} /> {t(part.headingKey)}</h2>
 		<div class="chips">
@@ -120,22 +135,21 @@
 			<p class="muted">{t('settings.skipLanguagesNote')}</p>
 		</div>
 	</section>
+	<hr class="div" />
 {/each}
 
+<!-- 3. Bio info — per-part picker; Auto follows the app/device language (default). -->
 <section>
 	<h2><Languages size={15} /> {t('settings.translateLastfm')}</h2>
+	<div class="chips">
+		{#each bioOptions as o (o.v)}
+			<button class="chip" class:on={settings.bioLang === o.v} onclick={() => setBio(o.v)}>{o.v === 'auto' ? t('settings.bioAuto') : o.v === 'off' ? t('settings.optOff') : o.label}</button>
+		{/each}
+	</div>
 	<p class="muted">{t('settings.translateLastfmNote')}</p>
 </section>
 
-<section>
-	<h2><Replace size={15} /> {t('settings.translateMode')}</h2>
-	<div class="seg" class:disabled={settings.lyricsLang === 'off'}>
-		{#each modes as m (m.v)}
-			<button class:on={settings.translateMode === m.v} disabled={settings.lyricsLang === 'off'} onclick={() => setMode(m.v)}>{t(m.key as TranslationKey)}</button>
-		{/each}
-	</div>
-	<p class="muted">{settings.lyricsLang === 'off' ? t('settings.translateModeOffNote') : t('settings.translateModeOnNote')}</p>
-</section>
+<hr class="div" />
 
 <section>
 	<h2><Languages size={15} /> {t('settings.appLanguage')}</h2>
@@ -163,4 +177,5 @@
 	.seg button { background: none; border: none; color: var(--color-text-muted); padding: 7px 16px; border-radius: 999px; font-size: 13px; cursor: pointer; }
 	.seg button.on { background: var(--color-primary); color: #fff; }
 	.link { background: none; border: none; color: var(--color-primary); cursor: pointer; font-size: 14px; padding: 0; }
+	.div { border: none; border-top: 1px solid var(--color-border); margin: 4px 0; }
 </style>

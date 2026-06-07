@@ -80,7 +80,7 @@
 		-webkit-backdrop-filter: blur(14px);
 		border: 1px solid rgba(255, 255, 255, 0.08);
 		max-width: 704px;
-		margin: 0 auto;
+		margin: 2px auto 0;
 		z-index: 20;
 		overflow: hidden;
 		margin-top: 4px;

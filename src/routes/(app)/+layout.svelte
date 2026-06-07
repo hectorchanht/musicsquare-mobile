@@ -79,6 +79,13 @@
 		flex-direction: column;
 		background: radial-gradient(120% 55% at 50% 0%, #1a1326 0%, var(--color-bg) 55%);
 		padding-bottom: calc(var(--nowbar-h) + var(--tabbar-h));
+		/* Horizontal-overflow backstop. A page-internal widget that grows wider than the
+		   viewport (flex child without min-width:0, abs-positioned overflow, etc.) was
+		   making /search bidirectionally scrollable on narrow mobile widths. `overflow-x:
+		   clip` blocks horizontal scroll on the shell without affecting fixed/sticky
+		   descendants (unlike `hidden`, which would create a containing block for them
+		   and break the docked .nowbar). */
+		overflow-x: clip;
 	}
 	.content {
 		flex: 1;

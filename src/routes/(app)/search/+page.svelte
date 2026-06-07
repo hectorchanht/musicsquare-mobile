@@ -409,7 +409,7 @@
 	.head h1 { font-size: 1.4rem; margin: 16px 0 12px; }
 	.bar { display: flex; gap: 8px; margin-bottom: 14px; }
 	.bar input {
-		flex: 1; background: var(--color-surface-2); border: 1px solid var(--color-border);
+		flex: 1; min-width: 0; background: var(--color-surface-2); border: 1px solid var(--color-border);
 		color: var(--color-text); border-radius: 12px; padding: 12px 14px; font-size: 15px; outline: none;
 	}
 	.bar input:focus { border-color: var(--color-primary); }

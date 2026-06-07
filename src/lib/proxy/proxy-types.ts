@@ -20,6 +20,11 @@ export interface Env {
 	// to the client (same threat class as LASTFM_KEY / JOOX_TOKEN). Absent = auth/scrobble
 	// endpoints unavailable; read-only Last.fm features still work.
 	LASTFM_SECRET?: string;
+	/** OPTIONAL Jamendo public API `client_id`. Sent on every Jamendo API URL — it is a
+	 * public id by design (same posture as LASTFM_KEY). Absent → the proxy returns an
+	 * empty `{ results: [] }` so jamendo simply has no hits. The Jamendo `client_secret`
+	 * is NOT carried here: it is only needed for OAuth flows we don't implement. */
+	JAMENDO_CLIENT_ID?: string;
 }
 
 export interface ProxyAdapter {

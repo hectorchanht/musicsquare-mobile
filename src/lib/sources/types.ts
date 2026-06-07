@@ -10,7 +10,7 @@
 // whitelist (legacy/index.html:1764-1768) so QQ/JOOX detail calls keep the extra
 // fields they read.
 
-export type SourceId = 'netease' | 'qq' | 'kuwo' | 'joox' | 'fivesing';
+export type SourceId = 'netease' | 'qq' | 'kuwo' | 'joox' | 'fivesing' | 'jamendo';
 
 export interface Track {
 	/** Canonical id = `${source}:${songid}` (D-10, COLON form). Stable across reorder/paginate. */

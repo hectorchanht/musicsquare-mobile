@@ -8,7 +8,12 @@ import type { SourceId, Track } from '$lib/sources/types';
 // 5sing is UGC (covers / 伴奏 / 原创) — it should NEVER win a tie against a mainstream CN
 // source, otherwise a Netease "Stargazing" would lose to a 5sing "Stargazing (Cover)" with
 // equal quality. Rank lowest (hvu).
-const SOURCE_RANK: Record<SourceId, number> = { netease: 4, qq: 3, kuwo: 2, joox: 1, fivesing: 0 };
+//
+// Jamendo (ixw) is also non-mainstream — Creative-Commons indie. A Jamendo "Stargazing" is
+// a DIFFERENT recording (some indie artist) than a Netease "Stargazing" (the Myles Smith
+// track) — by design dedupe should NOT collapse them, but if normalization were to merge
+// them, the mainstream version should win. Rank -1 so it sits below even fivesing.
+const SOURCE_RANK: Record<SourceId, number> = { netease: 4, qq: 3, kuwo: 2, joox: 1, fivesing: 0, jamendo: -1 };
 
 /** Higher = better. Reads qualityLabel/quality strings (often null pre-resolve). */
 function qualityRank(t: Track): number {

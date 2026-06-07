@@ -7,9 +7,10 @@ import { qq } from './qq';
 import { kuwo } from './kuwo';
 import { joox } from './joox';
 import { fivesing } from './fivesing';
+import { jamendo } from './jamendo';
 import { settings } from '$lib/stores/settings.svelte';
 
-export const SOURCES: Record<SourceId, SourceAdapter> = { netease, qq, kuwo, joox, fivesing };
+export const SOURCES: Record<SourceId, SourceAdapter> = { netease, qq, kuwo, joox, fivesing, jamendo };
 
 /**
  * The enabled adapters for a search fan-out. Precedence (highest first):

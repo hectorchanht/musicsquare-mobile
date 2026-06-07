@@ -5,5 +5,13 @@
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
-	"pages_build_output_dir": ".svelte-kit/cloudflare"
+	"pages_build_output_dir": ".svelte-kit/cloudflare",
+	// PUBLIC ids that ship with every API URL by design (Jamendo client_id, Last.fm
+	// optional key). For PRIVATE secrets (JOOX_TOKEN, LASTFM_SECRET) use
+	// `wrangler pages secret put …` instead — vars in this file are baked into the
+	// public Pages config. The Jamendo client_secret is intentionally NOT carried
+	// here: it is only needed for OAuth flows we don't implement.
+	"vars": {
+		"JAMENDO_CLIENT_ID": "1df0a42f"
+	}
 }

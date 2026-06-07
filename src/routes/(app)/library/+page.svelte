@@ -16,24 +16,31 @@
 	let menuOpen = $state(false);
 	function openMenu(t: Track) { menuTrack = t; menuOpen = true; }
 
-	// ii6 #6: bulk-edit mode (Liked tab v1). When `editMode` is true, row click REMOVES the
-	// track from the current list instead of playing it. Toggling the tab resets the mode so
-	// the user doesn't carry delete-mode into Playlists/History accidentally. Architecture
-	// readies extension to Downloads/Playlists later: just allow the Edit button there too
-	// and route the row's edit-click through a per-tab remove handler.
+	// Bulk-edit mode (ii6 / j49). When editMode is true, row click REMOVES the track from
+	// the CURRENT list instead of playing it. Per-tab remove dispatched in rowAction; the Edit
+	// button appears on every bulk-editable tab. History stays read-only (its own "Clear all"
+	// button already covers nuke-everything; per-row remove of a stale entry isn't useful).
 	let editMode = $state(false);
 	$effect(() => {
 		// reactive dependency on `tab`: switching tab leaves edit mode.
 		void tab;
 		editMode = false;
 	});
-	function rowAction(track: Track, list: Track[]) {
-		if (editMode && tab === 'liked') {
-			library.toggleLike(track); // removes when already liked
+	function rowAction(track: Track, list: Track[], playlistId?: string) {
+		if (editMode) {
+			if (tab === 'liked') library.toggleLike(track);
+			else if (tab === 'downloads') library.removeDownload(track.uid);
+			else if (tab === 'playlists' && playlistId) library.removeFromPlaylist(playlistId, track.uid);
 			return;
 		}
 		playList(list, track);
 	}
+	/** A bulk-editable tab is one where the Edit button + per-row remove make sense. */
+	const editableTabHasContent = $derived(
+		(tab === 'liked' && library.liked.length > 0) ||
+			(tab === 'downloads' && library.downloads.length > 0) ||
+			(tab === 'playlists' && library.playlists.some((p) => p.tracks.length > 0))
+	);
 	onMount(() => {
 		library.load();
 		history.load();
@@ -58,7 +65,7 @@
 
 <header class="head">
 	<h1>{t('library.heading')}</h1>
-	{#if tab === 'liked' && library.liked.length}
+	{#if editableTabHasContent}
 		<button class="edit-btn" aria-pressed={editMode} onclick={() => (editMode = !editMode)}>
 			{#if editMode}<Check size={16} /> {t('common.done')}{:else}<Pencil size={16} /> {t('library.edit')}{/if}
 		</button>
@@ -98,9 +105,10 @@
 					<ul class="list">
 						{#each pl.tracks as track (track.uid)}
 							<li>
-								<button class="row" use:longpress onlongpress={() => openMenu(track)} onclick={() => playList(pl.tracks, track)}>
+								<button class="row" class:edit-row={editMode} use:longpress onlongpress={() => openMenu(track)} onclick={() => rowAction(track, pl.tracks, pl.id)}>
 									<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
 									<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
+									{#if editMode}<Trash2 size={16} />{/if}
 								</button>
 							</li>
 						{/each}
@@ -114,11 +122,17 @@
 		<ul class="list">
 			{#each library.downloads as track (track.uid)}
 				<li class="rowline">
-					<button class="row" use:longpress onlongpress={() => openMenu(track)} onclick={() => playList(library.downloads, track)}>
+					<button class="row" class:edit-row={editMode} use:longpress onlongpress={() => openMenu(track)} onclick={() => rowAction(track, library.downloads)}>
 						<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
 						<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
+						{#if editMode}<Trash2 size={16} />{/if}
 					</button>
-					<button class="del" aria-label={t('library.remove')} onclick={() => library.removeDownload(track.uid)}><Trash2 size={15} /></button>
+					<!-- inline per-row delete is kept (works regardless of edit-mode) so a user
+					     can yank one stale download without entering Edit. The bulk-edit row-click
+					     is the EASY-multi-tap path; this is the precise single-row path. -->
+					{#if !editMode}
+						<button class="del" aria-label={t('library.remove')} onclick={() => library.removeDownload(track.uid)}><Trash2 size={15} /></button>
+					{/if}
 				</li>
 			{/each}
 		</ul>

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import { Heart, ListMusic, Download, Trash2, Play, Clock, Pencil, Check, Users } from '@lucide/svelte';
 	import { library } from '$lib/stores/library.svelte';
@@ -15,7 +16,26 @@
 	import type { Track } from '$lib/sources/types';
 
 	type Tab = 'liked' | 'playlists' | 'downloads' | 'fav-artists' | 'history';
-	let tab = $state<Tab>('liked');
+	const VALID_TABS: ReadonlySet<Tab> = new Set(['liked', 'playlists', 'downloads', 'fav-artists', 'history']);
+	const TAB_KEY = 'openmusic:library:tab';
+	/** Persisted last-viewed tab — restored synchronously on the first read so the page
+	 *  renders the correct tab from frame 1. SSR-guarded; corrupt value falls back to 'liked'. */
+	function loadInitialTab(): Tab {
+		if (!browser) return 'liked';
+		try {
+			const raw = localStorage.getItem(TAB_KEY);
+			if (raw && VALID_TABS.has(raw as Tab)) return raw as Tab;
+		} catch {
+			/* localStorage unavailable / corrupt → default */
+		}
+		return 'liked';
+	}
+	let tab = $state<Tab>(loadInitialTab());
+	function setTab(v: Tab) {
+		tab = v;
+		if (!browser) return;
+		try { localStorage.setItem(TAB_KEY, v); } catch { /* quota — non-fatal */ }
+	}
 	// kyf-followup: active-tab label, surfaced next to the page heading so the pill row
 	// can shrink to icon-only and fit all 5 tabs in one row.
 	const tabLabel = $derived<string>(
@@ -117,11 +137,11 @@
      fit in a single row at any reasonable viewport width. aria-label preserves the
      accessible name for screen readers + tooltips. -->
 <nav class="tabs">
-	<button class:active={tab === 'liked'} aria-label={t('library.liked')} title={t('library.liked')} onclick={() => (tab = 'liked')}><Heart size={16} /></button>
-	<button class:active={tab === 'playlists'} aria-label={t('library.playlists')} title={t('library.playlists')} onclick={() => (tab = 'playlists')}><ListMusic size={16} /></button>
-	<button class:active={tab === 'downloads'} aria-label={t('library.downloads')} title={t('library.downloads')} onclick={() => (tab = 'downloads')}><Download size={16} /></button>
-	<button class:active={tab === 'fav-artists'} aria-label={t('library.favArtists')} title={t('library.favArtists')} onclick={() => (tab = 'fav-artists')}><Users size={16} /></button>
-	<button class:active={tab === 'history'} aria-label={t('history.heading')} title={t('history.heading')} onclick={() => (tab = 'history')}><Clock size={16} /></button>
+	<button class:active={tab === 'liked'} aria-label={t('library.liked')} title={t('library.liked')} onclick={() => setTab('liked')}><Heart size={16} /></button>
+	<button class:active={tab === 'playlists'} aria-label={t('library.playlists')} title={t('library.playlists')} onclick={() => setTab('playlists')}><ListMusic size={16} /></button>
+	<button class:active={tab === 'downloads'} aria-label={t('library.downloads')} title={t('library.downloads')} onclick={() => setTab('downloads')}><Download size={16} /></button>
+	<button class:active={tab === 'fav-artists'} aria-label={t('library.favArtists')} title={t('library.favArtists')} onclick={() => setTab('fav-artists')}><Users size={16} /></button>
+	<button class:active={tab === 'history'} aria-label={t('history.heading')} title={t('history.heading')} onclick={() => setTab('history')}><Clock size={16} /></button>
 </nav>
 
 {#if tab === 'liked'}

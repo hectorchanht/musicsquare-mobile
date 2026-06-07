@@ -317,7 +317,10 @@
 						<button class="row" use:longpress onlongpress={() => { menuTrack = track; menuOpen = true; }} onclick={() => { player.setQueue(songs); player.play(track); }}>
 							<span class="rank">{i + 1}</span>
 							<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
-							<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.album || track.artist)}</span></span>
+							<span class="meta">
+								<span class="r-title">{names.dnTitle(track.title)}</span>
+								<span class="r-sub">{names.dnArtist(track.album || track.artist)}</span>
+							</span>
 						</button>
 					</li>
 				{/each}
@@ -404,7 +407,7 @@
 	.rank { width: 18px; text-align: center; color: var(--color-text-muted); font-size: 13px; flex: none; }
 	.art { width: 44px; height: 44px; border-radius: 6px; background-size: cover; background-position: center; flex: none; }
 	.meta { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-	.r-title { font-size: calc(14px * var(--fs-title, 1)); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.r-title { font-size: calc(14px * var(--fs-title, 1)); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--color-text-muted);}
 	.r-sub { font-size: calc(12px * var(--fs-artist, 1)); color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.muted { color: var(--color-text-muted); font-size: 14px; }
 

@@ -719,21 +719,22 @@
 </section>
 
 <style>
-	.np { position: fixed; inset: 0; z-index: 50; background: radial-gradient(130% 60% at 50% 0%, #241a3a 0%, var(--color-bg) 60%); display: flex; flex-direction: column; padding: 0px 18px env(safe-area-inset-bottom); overflow: hidden; }
+	.np { position: fixed; inset: 0; z-index: 50; background: var(--color-bg); display: flex; flex-direction: column; padding: 0px 18px env(safe-area-inset-bottom); overflow: hidden; }
 	.bar { display: flex; align-items: center; justify-content: space-between; }
 	.bar .ctx { font-size: 12px; color: var(--color-text-muted); }
 	.icon { background: none; border: none; color: var(--color-text); cursor: pointer; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; }
 	.icon:hover { background: var(--color-surface-2); }
 	.cover { position: relative; z-index: 1; width: min(72vw, 320px); height: auto; aspect-ratio: 1/1; margin: 8px auto; border-radius: 16px; background-size: cover; background-position: center; box-shadow: 0 18px 50px rgba(0,0,0,0.5); cursor: grab; touch-action: none; transition: width 0.32s cubic-bezier(.22,1,.36,1), height 0.32s cubic-bezier(.22,1,.36,1), margin 0.32s cubic-bezier(.22,1,.36,1), border-radius 0.32s cubic-bezier(.22,1,.36,1); }
 	.cover:active { cursor: grabbing; }
-	.meta { margin: 4px 2px 12px; transition: margin 0.32s cubic-bezier(.22,1,.36,1); }
+	.meta { margin: 4px 2px 12px; transition: margin 0.32s cubic-bezier(.22,1,.36,1); display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 	/* Reflow (sheet half/full): cover becomes a full-bleed YT-Music banner that the
 	   header overlaps at the top and the meta overlaps at the bottom. */
 	.np.reflow .cover { width: auto; aspect-ratio: auto; height: 30vh; margin: 0 -18px; border-radius: 0; }
 	.np.reflow .cover::before { content: ''; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 28%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.35) 100%); }
 	.np.reflow .bar { position: absolute; top: 0; left: 18px; right: 18px; z-index: 2; }
 	.np.reflow .meta { position: relative; z-index: 2; margin-top: -42px; padding: 0 2px; }
-	.np.reflow .title { text-shadow: 0 1px 6px rgba(0,0,0,0.6); }
+	/* lw9-followup: .title is now a solid theme-coloured pill, no need for the legibility
+	   text-shadow anymore. */
 
 	/* mtv-followup: sheet FULL state → reuse the docked Nowbar as a sticky top bar. The
 	   existing .bar/.cover/.meta/.prog/.transport are all hidden (Nowbar carries the same
@@ -751,8 +752,13 @@
 	   adds no extra padding-top and the sheet is `position:absolute` with explicit inset. */
 	.np.fullshrink .sheet.full { inset: calc(var(--nowbar-h) + 16px) 0 0 0; }
 	/* .np.fullshrink :global(.nowbar.embed) { margin-bottom: 0px; } */
-	.title { font-size: calc(1.5rem * var(--fs-title, 1)); font-weight: 800; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-	.artist { display: inline-block; max-width: 100%; vertical-align: bottom; background: black; border: none; padding: 2px; border-radius: 4px; color: var(--color-text-muted); font-size: calc(1rem * var(--fs-artist, 1)); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	/* Title + Artist sit on top of the album cover (.reflow mode), so they need a solid box to
+	   stay legible against any cover. The box bg tracks the theme (`--color-bg` = near-black
+	   in dark / near-white in light) and the text colour inverts to match (`--color-text`),
+	   giving black-on-white in light theme + white-on-black in dark theme. `display: inline-block`
+	   sizes the pill to the text instead of stretching across the column. */
+	.title { display: inline-block; max-width: 100%; vertical-align: bottom; background: var(--color-bg); color: var(--color-text); padding: 2px 6px; border-radius: 6px; font-size: calc(1.5rem * var(--fs-title, 1)); font-weight: 800; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.artist { display: inline-block; max-width: 100%; vertical-align: bottom; background: var(--color-bg); border: none; padding: 2px 6px; border-radius: 6px; color: var(--color-text); font-size: calc(1rem * var(--fs-artist, 1)); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	/* Marquee lives globally in app.css (transform-based .marquee-inner). The .title/.artist
 	   clips above + the use:marquee action + inner .marquee-inner span in the markup are the
 	   only per-file pieces — the global rule animates them. (gmy unified the drift.) */
@@ -761,7 +767,7 @@
 	.track { position: relative; height: 14px; display: flex; align-items: center; cursor: pointer; }
 	.track::before { content: ''; position: absolute; left: 0; right: 0; height: 4px; border-radius: 4px; background: rgba(255,255,255,0.18); }
 	.fill { position: absolute; left: 0; height: 4px; border-radius: 4px; background: var(--color-primary); }
-	.knob { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: #fff; transform: translateX(-50%); }
+	.knob { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: var(--color-text-muted); transform: translateX(-50%); }
 	.times { display: flex; justify-content: space-between; font-size: 11px; color: var(--color-text-muted); margin-top: 4px; }
 	.transport { display: flex; align-items: center; justify-content: space-between; margin: 6px 4px; }
 	.t { background: none; border: none; color: var(--color-text); cursor: pointer; opacity: 0.85; display: grid; place-items: center; }

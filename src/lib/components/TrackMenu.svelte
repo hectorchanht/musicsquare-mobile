@@ -173,7 +173,7 @@
 			<button class="mi" onclick={doDownload}><Download size={18} /> {t('menu.download')}</button>
 			<button class="mi" onclick={like}><Heart size={18} fill={liked ? 'currentColor' : 'none'} /> {liked ? t('menu.liked') : t('menu.like')}</button>
 			<button class="mi" onclick={() => { pickerOpen = true; }}><ListPlus size={18} /> {t('menu.addToPlaylist')}</button>
-			<button class="mi" onclick={gotoAlbum} disabled={!track.album}><Disc size={18} /> {t('menu.goToAlbum')}</button>
+			<!-- <button class="mi" onclick={gotoAlbum} disabled={!track.album}><Disc size={18} /> {t('menu.goToAlbum')}</button> -->
 			<button class="mi" onclick={gotoArtist}><User size={18} /> {t('menu.goToArtist')}</button>
 			<button class="mi" onclick={doShare}><Share2 size={18} /> {t('menu.share')}</button>
 			<button class="mi" onclick={doDetail}><Info size={18} /> {t('menu.detail')}</button>
@@ -213,7 +213,7 @@
 <style>
 	.scrim { position: fixed; inset: 0; z-index: 80; background: rgba(0,0,0,0.45); border: none; }
 	.menu, .modal { position: fixed; left: 12px; right: 12px; bottom: 16px; z-index: 81; background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: 16px; padding: 8px; max-width: 680px; margin: 0 auto; box-shadow: 0 -10px 40px rgba(0,0,0,0.5); max-height: 80vh; overflow-y: auto; }
-	.menu-head { font-size: 13px; color: var(--color-text-muted); padding: 8px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.menu-head { font-size: calc(13px * var(--fs-title, 1)); color: var(--color-text-muted); padding: 8px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.menu-head.row { display: flex; align-items: center; justify-content: space-between; }
 	.x { background: none; border: none; color: var(--color-text); cursor: pointer; display: grid; place-items: center; }
 	.mi { width: 100%; display: flex; align-items: center; gap: 12px; background: none; border: none; color: var(--color-text); font-size: 15px; padding: 12px; border-radius: 10px; cursor: pointer; text-align: left; }

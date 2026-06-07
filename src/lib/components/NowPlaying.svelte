@@ -642,8 +642,8 @@
 	.np.reflow .bar { position: absolute; top: 0; left: 18px; right: 18px; z-index: 2; }
 	.np.reflow .meta { position: relative; z-index: 2; margin-top: -42px; padding: 0 2px; }
 	.np.reflow .title { text-shadow: 0 1px 6px rgba(0,0,0,0.6); }
-	.title { font-size: 1.5rem; font-weight: 800; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-	.artist { display: inline-block; max-width: 100%; vertical-align: bottom; background: black; border: none; padding: 2px; border-radius: 4px; color: var(--color-text-muted); font-size: 1rem; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.title { font-size: calc(1.5rem * var(--fs-title, 1)); font-weight: 800; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.artist { display: inline-block; max-width: 100%; vertical-align: bottom; background: black; border: none; padding: 2px; border-radius: 4px; color: var(--color-text-muted); font-size: calc(1rem * var(--fs-artist, 1)); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	/* Marquee-bounce title/artist when they overflow (reuses the home/artist use:marquee action,
 	   which adds .marquee-on + --marquee-dx). Reduced-motion → static ellipsis (the action also
 	   no-ops, defense-in-depth). :global() keeps the .title/.artist scope through svelte-check. */
@@ -687,10 +687,10 @@
 	.list li.lifted { position: relative; z-index: 2; opacity: 0.92; }
 	.list li.lifted .q-row { background: var(--color-surface); box-shadow: 0 6px 18px rgba(0,0,0,0.4); }
 	.list li.over .q-row { box-shadow: inset 0 2px 0 var(--color-primary); }
-	.r-title { font-size: 14px; font-weight: 600; }
-	.r-artist { font-size: 12px; color: var(--color-text-muted); }
+	.r-title { font-size: calc(14px * var(--fs-title, 1)); font-weight: 600; }
+	.r-artist { font-size: calc(12px * var(--fs-artist, 1)); color: var(--color-text-muted); }
 	.lyrics { text-align: center; line-height: 2.1; }
-	.lyrics p { color: var(--color-text-muted); transition: color 0.2s ease, transform 0.2s ease; margin: 0; }
+	.lyrics p { font-size: calc(1rem * var(--fs-lyrics, 1)); color: var(--color-text-muted); transition: color 0.2s ease, transform 0.2s ease; margin: 0; }
 	.lyrics p.active { color: var(--color-text); font-weight: 700; transform: scale(1.04); }
 	.lyrics .tr { display: block; font-size: 0.82em; font-weight: 400; color: var(--color-text-muted); margin-top: 2px; }
 	.tr-hint { text-align: center; font-size: 11px; color: var(--color-primary); margin: 0 0 6px; }

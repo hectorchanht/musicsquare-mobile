@@ -39,6 +39,21 @@ export type DefaultSource = 'auto' | SourceId;
 const KEY = 'openmusic:settings:v1';
 const DEFAULT_ACCENT = '#7c5cff';
 
+/** Appearance-scale bounds (percent), shared by the store + the appearance settings UI. */
+export const FONT_SCALE_MIN = 70;
+export const FONT_SCALE_MAX = 160;
+export const COVER_SCALE_MIN = 70;
+export const COVER_SCALE_MAX = 150;
+export const GRID_COLS_MIN = 2;
+export const GRID_COLS_MAX = 5;
+
+/** Coerce a persisted number into a safe integer in [min,max]; non-numbers → def. */
+function clampInt(n: unknown, min: number, max: number, def: number): number {
+	if (typeof n !== 'number' || !Number.isFinite(n)) return def;
+	const f = Math.round(n);
+	return f < min ? min : f > max ? max : f;
+}
+
 /** Source-language tags usable in a per-part skip whitelist (LyricsLang minus 'off'). */
 export type SourceLang =
 	| 'zh-Hant'
@@ -75,7 +90,24 @@ class Settings {
 	titleSkip = $state<SourceLang[]>([]);
 	lyricsSkip = $state<SourceLang[]>([]);
 	lastfmSkip = $state<SourceLang[]>([]);
+	/** Bio (Last.fm artist bio) target language. `'auto'` = follow appLang (default); `'off'` =
+	 * untranslated; otherwise an explicit language (quick-260607-fnp; supersedes the f4y note). */
+	bioLang = $state<'auto' | LyricsLang>('auto');
 	translateMode = $state<TranslateMode>('below');
+
+	// --- appearance / per-part sizing (quick-260607-fnp) -----------------------------------
+	// Percent scales (100 = today's size). Applied app-wide as CSS custom properties in
+	// applyTheme(); `app.css :root` defaults to 1× so SSR / no-JS / returning users see no change.
+	/** Song/track TITLE font scale, percent (clamped 70–160). */
+	fontScaleTitle = $state<number>(100);
+	/** ARTIST/subtitle font scale, percent (clamped 70–160). */
+	fontScaleArtist = $state<number>(100);
+	/** LYRICS line font scale, percent (clamped 70–160). */
+	fontScaleLyrics = $state<number>(100);
+	/** Home COVER/tile size scale, percent (clamped 70–150). */
+	coverScale = $state<number>(100);
+	/** Home fallback-grid COLUMN count (clamped 2–5; default 3 = today). */
+	homeGridCols = $state<number>(3);
 	// D-03: default to the 128–160k band so audio URLs resolve/stream faster. The
 	// source ladders (QQ/JOOX/Kuwo) read this via pickByQualityPref; higher tiers
 	// remain user-selectable.
@@ -137,6 +169,13 @@ class Settings {
 				this.titleSkip = Array.isArray(v.titleSkip) ? (v.titleSkip as SourceLang[]) : [];
 				this.lyricsSkip = Array.isArray(v.lyricsSkip) ? (v.lyricsSkip as SourceLang[]) : [];
 				this.lastfmSkip = Array.isArray(v.lastfmSkip) ? (v.lastfmSkip as SourceLang[]) : [];
+				this.bioLang = (v.bioLang as 'auto' | LyricsLang) ?? 'auto';
+				// Appearance scales (fnp): clamp to safe bounds; absent → today's 100 / 3 cols.
+				this.fontScaleTitle = clampInt(v.fontScaleTitle, FONT_SCALE_MIN, FONT_SCALE_MAX, 100);
+				this.fontScaleArtist = clampInt(v.fontScaleArtist, FONT_SCALE_MIN, FONT_SCALE_MAX, 100);
+				this.fontScaleLyrics = clampInt(v.fontScaleLyrics, FONT_SCALE_MIN, FONT_SCALE_MAX, 100);
+				this.coverScale = clampInt(v.coverScale, COVER_SCALE_MIN, COVER_SCALE_MAX, 100);
+				this.homeGridCols = clampInt(v.homeGridCols, GRID_COLS_MIN, GRID_COLS_MAX, 3);
 				this.translateMode = (v.translateMode as TranslateMode) ?? 'below';
 				this.defaultQuality = (v.defaultQuality as DefaultQuality) ?? '128';
 				this.downloadQuality = (v.downloadQuality as DefaultQuality) ?? 'lossless';
@@ -193,6 +232,12 @@ class Settings {
 					titleSkip: this.titleSkip,
 					lyricsSkip: this.lyricsSkip,
 					lastfmSkip: this.lastfmSkip,
+					bioLang: this.bioLang,
+					fontScaleTitle: this.fontScaleTitle,
+					fontScaleArtist: this.fontScaleArtist,
+					fontScaleLyrics: this.fontScaleLyrics,
+					coverScale: this.coverScale,
+					homeGridCols: this.homeGridCols,
 					translateMode: this.translateMode,
 					defaultQuality: this.defaultQuality,
 					downloadQuality: this.downloadQuality,
@@ -223,8 +268,24 @@ class Settings {
 		if (!browser) return;
 		const r = document.documentElement;
 		r.style.setProperty('--color-primary', this.accent);
+		// Appearance scales (fnp) — multipliers off the per-rule base sizes. 100% → 1 (no change).
+		r.style.setProperty('--fs-title', String(this.fontScaleTitle / 100));
+		r.style.setProperty('--fs-artist', String(this.fontScaleArtist / 100));
+		r.style.setProperty('--fs-lyrics', String(this.fontScaleLyrics / 100));
+		r.style.setProperty('--cover-scale', String(this.coverScale / 100));
+		r.style.setProperty('--home-grid-cols', String(this.homeGridCols));
 		if (this.reduceMotion) r.dataset.reduceMotion = '1';
 		else delete r.dataset.reduceMotion;
+	}
+
+	/** Reset the appearance scales to their defaults (used by the Data tab). Persists + applies. */
+	resetAppearance() {
+		this.fontScaleTitle = 100;
+		this.fontScaleArtist = 100;
+		this.fontScaleLyrics = 100;
+		this.coverScale = 100;
+		this.homeGridCols = 3;
+		this.save();
 	}
 }
 

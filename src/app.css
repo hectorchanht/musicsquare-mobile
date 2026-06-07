@@ -3,7 +3,7 @@
   --color-bg: #0b0b0f;
   --color-surface: #16161d;
   --color-surface-2: #1d1d27;
-  --color-border: #26262f;
+  --color-border: #a0a0ad;
   --color-text: #f4f4f6;
   --color-text-muted: #a0a0ad;
   --color-primary: #7c5cff;
@@ -21,6 +21,14 @@
 
   --nowbar-h: 64px;
   --tabbar-h: 56px;
+
+  /* Appearance scales (quick-260607-fnp). Multipliers off each rule's base font-size / tile
+     size; 1 = today. settings.applyTheme() overrides these on <html> from the user's % choice. */
+  --fs-title: 1;
+  --fs-artist: 1;
+  --fs-lyrics: 1;
+  --cover-scale: 1;
+  --home-grid-cols: 3;
 }
 
 * { box-sizing: border-box; }

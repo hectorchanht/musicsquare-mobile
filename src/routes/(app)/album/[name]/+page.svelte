@@ -299,9 +299,9 @@
 	<!-- Album-level actions (between hero + tracklist). Icon buttons reuse existing i18n keys
 	     for aria-labels (no new translation keys). Disabled while a batch resolve runs. -->
 	<div class="album-actions">
-		<button class="act play" aria-label={t('nowplaying.playPause')} disabled={albumBusy} onclick={playAlbum}><Play size={20} /></button>
 		<button class="act" aria-label={t('menu.download')} disabled={albumBusy} onclick={downloadAlbum}><Download size={20} /></button>
 		<button class="act" aria-label={t('menu.addToPlaylist')} disabled={albumBusy} onclick={() => (pickerOpen = true)}><ListPlus size={20} /></button>
+		<button class="act play" aria-label={t('nowplaying.playPause')} disabled={albumBusy} onclick={playAlbum}><Play size={20} /></button>
 		<button class="act" aria-label={t('menu.like')} disabled={albumBusy} onclick={likeAlbum}><Heart size={20} /></button>
 		<button class="act" aria-label={t('menu.share')} disabled={albumBusy} onclick={shareAlbum}><Share2 size={20} /></button>
 	</div>
@@ -343,7 +343,7 @@
 	.back { position: absolute; left: 0; top: 8px; background: none; border: none; color: var(--color-text); cursor: pointer; display: grid; place-items: center; width: 36px; height: 36px; }
 	.cover { width: 160px; height: 160px; border-radius: 12px; margin: 8px auto 12px; background-size: cover; background-position: center; box-shadow: 0 12px 34px rgba(0,0,0,0.5); }
 	.hero h1 { font-size: 1.5rem; margin: 0; }
-	.artist { color: var(--color-text); font-size: 14px; margin: 4px 0 0; opacity: 0.85; }
+	.artist { color: var(--color-text); font-size: calc(14px * var(--fs-artist, 1)); margin: 4px 0 0; opacity: 0.85; }
 	.note { color: var(--color-text-muted); font-size: 12px; margin-top: 4px; }
 	.info { color: var(--color-text-muted); font-size: 12px; margin-top: 6px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
 	.muted { color: var(--color-text-muted); font-size: 14px; }
@@ -353,8 +353,8 @@
 	.rank { width: 18px; text-align: center; color: var(--color-text-muted); font-size: 13px; flex: none; }
 	.art { width: 44px; height: 44px; border-radius: 6px; background-size: cover; background-position: center; flex: none; }
 	.meta { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-	.r-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-	.r-sub { font-size: 12px; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.r-title { font-size: calc(14px * var(--fs-title, 1)); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.r-sub { font-size: calc(12px * var(--fs-artist, 1)); color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.toast { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 14px); z-index: 90; background: #000; color: #fff; padding: 10px 16px; border-radius: 999px; font-size: 13px; box-shadow: var(--shadow-lg); }
 
 	/* ---- loading skeletons (global .sk in app.css supplies the grey + shimmer; these size the

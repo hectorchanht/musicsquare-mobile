@@ -621,30 +621,30 @@
 	   both widened the row AND defeated the marquee (its clientWidth grew to the text width so
 	   scrollWidth>clientWidth never tripped). Pinning min-width:0 holds the 130px basis, so the
 	   labels clip to the cover width and the marquee correctly detects + scrolls the overflow. */
-	.album { flex: 0 0 130px; min-width: 0; max-width: 130px; background: none; border: none; padding: 0; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 4px; transition: transform 0.12s ease; }
+	.album { flex: 0 0 calc(130px * var(--cover-scale, 1)); min-width: 0; max-width: calc(130px * var(--cover-scale, 1)); background: none; border: none; padding: 0; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 4px; transition: transform 0.12s ease; }
 	.album:active { transform: scale(0.96); }
-	.al-cover { position: relative; overflow: hidden; width: 130px; height: 130px; border-radius: 10px; background-size: cover; background-position: center; background-color: var(--color-surface-2); }
+	.al-cover { position: relative; overflow: hidden; width: calc(130px * var(--cover-scale, 1)); height: calc(130px * var(--cover-scale, 1)); border-radius: 10px; background-size: cover; background-position: center; background-color: var(--color-surface-2); }
 	.al-cover.round { border-radius: 50%; }
 	/* w87: COMPACT density — tighter tiles + gaps so more fit per shelf row. Comfortable
 	   (the default) keeps the values above. The class is set on .section from
 	   settings.homeDensity, so toggling the setting re-sizes every shelf/grid live. */
 	.section.compact .albumrow { gap: 8px; }
-	.section.compact .album { flex-basis: 96px; }
-	.section.compact .al-cover { width: 96px; height: 96px; }
-	.section.compact .grid { gap: 8px; grid-template-columns: repeat(4, 1fr); }
+	.section.compact .album { flex-basis: calc(96px * var(--cover-scale, 1)); max-width: calc(96px * var(--cover-scale, 1)); }
+	.section.compact .al-cover { width: calc(96px * var(--cover-scale, 1)); height: calc(96px * var(--cover-scale, 1)); }
+	.section.compact .grid { gap: 8px; }
 	/* FIX-B: real cover (Last.fm or CAA) layered over the gradient span; onerror hides it
 	   (a 404 → the gradient shows). inherit border-radius so the round variant clips it. */
 	.al-cover-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 	.al-cover.skeleton { background: linear-gradient(110deg, #1a1a22 30%, #24242f 50%, #1a1a22 70%); background-size: 200% 100%; animation: sk 1.2s infinite; }
 	@keyframes sk { to { background-position: -200% 0; } }
-	.al-name { font-size: 12px; font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.al-name { font-size: calc(12px * var(--fs-title, 1)); font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.al-name.center { text-align: center; }
-	.al-count { font-size: 11px; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.al-count { font-size: calc(11px * var(--fs-artist, 1)); color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	/* Marquee animation now lives globally in app.css (transform-based .marquee-inner). The
 	   clip element keeps overflow:hidden + white-space:nowrap above; when text overflows the
 	   use:marquee action sets --marquee-dx + .marquee-on and the inner span scrolls. */
 	/* Fallback grid (D-06). */
-	.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+	.grid { display: grid; grid-template-columns: repeat(var(--home-grid-cols, 3), 1fr); gap: 12px; }
 	.tile {
 		position: relative; aspect-ratio: 1 / 1; border-radius: var(--radius-md);
 		overflow: hidden; cursor: pointer; border: none; padding: 0; background: var(--color-surface-2);
@@ -654,8 +654,8 @@
 	.art { position: absolute; inset: 0; background-size: cover; background-position: center; }
 	.scrim { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 55%); }
 	.label { position: absolute; left: 7px; right: 7px; bottom: 6px; text-align: left; }
-	.t-title { font-size: 11px; font-weight: 700; line-height: 1.2; color: #fff; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-	.t-artist { font-size: 10px; color: #d8d8de; margin-top: 2px; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.t-title { font-size: calc(11px * var(--fs-title, 1)); font-weight: 700; line-height: 1.2; color: #fff; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+	.t-artist { font-size: calc(10px * var(--fs-artist, 1)); color: #d8d8de; margin-top: 2px; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.q { position: absolute; top: 6px; right: 6px; font-size: 8px; font-weight: 700; padding: 2px 5px; border-radius: 4px; background: rgba(0,0,0,0.55); color: #fff; }
 	.error { color: #ff7a90; font-size: 14px; }
 	.toast { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 14px); z-index: 90; background: #000; color: #fff; padding: 10px 16px; border-radius: 999px; font-size: 13px; box-shadow: var(--shadow-lg); }

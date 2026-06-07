@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { ChevronLeft, ChevronRight, Globe, LayoutGrid, Languages, Music, Radio, Database, Info } from '@lucide/svelte';
+	import { ChevronLeft, ChevronRight, Globe, Type, LayoutGrid, Languages, Music, Radio, Database, Info } from '@lucide/svelte';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { t, type TranslationKey } from '$lib/i18n';
 	import type { Component } from 'svelte';
@@ -12,6 +12,7 @@
 	// (Listen history moved to the Library page → /library "History" tab.)
 	const groups: { href: string; icon: Component; title: TranslationKey; desc: TranslationKey }[] = [
 		{ href: '/settings/general', icon: Globe, title: 'settings.groupGeneral', desc: 'settings.groupGeneralDesc' },
+		{ href: '/settings/appearance', icon: Type, title: 'settings.groupAppearance', desc: 'settings.groupAppearanceDesc' },
 		{ href: '/settings/home', icon: LayoutGrid, title: 'settings.groupHome', desc: 'settings.groupHomeDesc' },
 		{ href: '/settings/translation', icon: Languages, title: 'settings.groupTranslation', desc: 'settings.groupTranslationDesc' },
 		{ href: '/settings/playback', icon: Music, title: 'settings.groupPlayback', desc: 'settings.groupPlaybackDesc' },

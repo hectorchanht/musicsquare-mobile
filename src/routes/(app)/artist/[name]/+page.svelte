@@ -235,8 +235,8 @@
 	.albumrow { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; }
 	.album { flex: 0 0 130px; background: none; border: none; padding: 0; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 4px; }
 	.al-cover { width: 130px; height: 130px; border-radius: 10px; background-size: cover; background-position: center; }
-	.al-name { font-size: 12px; font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-	.al-count { font-size: 11px; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.al-name { font-size: calc(12px * var(--fs-title, 1)); font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.al-count { font-size: calc(11px * var(--fs-artist, 1)); color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	/* FIX-C: marquee-bounce a truncated label (self-contained per-file; mirrors home page).
 	   use:marquee adds .marquee-on + --marquee-dx only when overflowing AND not reduced-motion;
 	   we animate text-indent within the clipped box (bounce via alternate), dropping ellipsis. */
@@ -259,8 +259,8 @@
 	.rank { width: 18px; text-align: center; color: var(--color-text-muted); font-size: 13px; flex: none; }
 	.art { width: 44px; height: 44px; border-radius: 6px; background-size: cover; background-position: center; flex: none; }
 	.meta { display: flex; flex-direction: column; min-width: 0; }
-	.r-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-	.r-sub { font-size: 12px; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.r-title { font-size: calc(14px * var(--fs-title, 1)); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.r-sub { font-size: calc(12px * var(--fs-artist, 1)); color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.muted { color: var(--color-text-muted); font-size: 14px; }
 
 	/* ---- loading skeletons (global .sk in app.css supplies the grey + shimmer; these size the

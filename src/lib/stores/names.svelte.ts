@@ -110,12 +110,36 @@ class Names {
 	}
 
 	/**
-	 * Last.fm bio → app/device language, automatically (quick-260607-f4y). No manual picker
-	 * and no skip list: appLang ⊆ LyricsLang and is never 'off', so this always attempts;
-	 * `shouldTranslate` no-ops when the bio is already in the app language (e.g. en bio + en app).
+	 * Last.fm bio → target chosen by `settings.bioLang` (quick-260607-fnp): `'auto'` follows the
+	 * app/device language (default), `'off'` leaves the bio untranslated, otherwise an explicit
+	 * language. No skip list. `shouldTranslate` no-ops when the bio is already in the target.
 	 */
 	dnBio(text: string): string {
-		return this.resolve(text, settings.appLang, []);
+		const target = settings.bioLang === 'auto' ? settings.appLang : settings.bioLang;
+		return this.resolve(text, target, []);
+	}
+
+	/** Drop ALL cached name/bio translations — in-memory maps + every `openmusic:name-tr:*` key.
+	 * Used by the Data settings tab. Bumps `rev` so live resolvers re-render from originals. */
+	clearCache(): void {
+		this.cache.clear();
+		this.pending.clear();
+		this.hydrated.clear();
+		for (const timer of this.timers.values()) clearTimeout(timer);
+		this.timers.clear();
+		if (browser) {
+			try {
+				const keys: string[] = [];
+				for (let i = 0; i < localStorage.length; i++) {
+					const k = localStorage.key(i);
+					if (k && k.startsWith('openmusic:name-tr:')) keys.push(k);
+				}
+				for (const k of keys) localStorage.removeItem(k);
+			} catch {
+				/* ignore */
+			}
+		}
+		this.rev++;
 	}
 }
 

@@ -864,12 +864,9 @@
 	   without bumping the parent's `overflow: hidden` clip. word-break/overflow-wrap force
 	   even unbroken-character runs (CJK with no spaces, or long URLs) to wrap inside the
 	   column instead of being clipped at the edges. */
-	.lyrics { text-align: center; line-height: 2.1; padding: 0 8px; }
+	.lyrics { text-align: center; line-height: 1.3; }
 	.lyrics p { font-size: calc(1rem * var(--fs-lyrics, 1)); color: var(--color-text-muted); transition: color 0.2s ease, transform 0.2s ease; margin: 0; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
-	/* Active scale dropped from 1.04 → 1.02 so the visual emphasis stays but the line edges
-	   no longer overshoot the parent (1.04 × parent-width = clipped at both ends on lines
-	   that already span the column). Bold weight + color contrast carries most of the focus. */
-	.lyrics p.active { color: var(--color-text); font-weight: 700; transform: scale(1.02); }
+	.lyrics p.active { color: var(--color-text); font-weight: 700; }
 	/* paren-derived sibling line — slightly smaller / lower contrast than the parent so the
 	   reader can tell "this is the embedded-translation part" at a glance. */
 	.lyrics p.paren { font-size: calc(0.9rem * var(--fs-lyrics, 1)); opacity: 0.85; }

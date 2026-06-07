@@ -30,6 +30,7 @@
 <header class="head">
 	<button class="back" aria-label={t('settings.backToSettings')} onclick={() => goto('/settings')}><ChevronLeft size={22} /></button>
 	<h1>{t('settings.groupAppearance')}</h1>
+	<button class="reset" onclick={() => { if (confirm(t('settings.resetConfirm'))) { settings.resetAppearance(); } }}>{t('settings.resetGroup')}</button>
 </header>
 
 <section>
@@ -72,6 +73,9 @@
 
 <style>
 	.head { display: flex; align-items: center; gap: 8px; padding: 14px 0 12px; }
+	.head h1 { flex: 1; }
+	.reset { background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text-muted); padding: 6px 12px; border-radius: 999px; font-size: 12px; cursor: pointer; }
+	.reset:hover { color: var(--color-text); }
 	.back { background: none; border: none; color: var(--color-text); cursor: pointer; display: grid; place-items: center; width: 36px; height: 36px; }
 	.head h1 { font-size: 1.4rem; margin: 0; }
 	section { margin: 18px 0; }

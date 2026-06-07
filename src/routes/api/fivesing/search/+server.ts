@@ -1,10 +1,14 @@
-// 5sing search edge proxy (quick-260607-hvu).
+// 5sing search edge proxy (quick-260607-hvu; k3y: caches.default at 1h).
 //
 // Calls `search.5sing.kugou.com/home/json?keyword=…&sort=1&page=…&pagesize=…` (Kugou's UGC
 // platform). Verified reachable from a non-CN edge (researcher probe, 2026-06-07).
 // Passthrough only: the adapter does the reshape + <em> tag stripping client-side. No
 // secrets, no signed-state — mirrors the deezer/search posture (own-origin CORS, OPTIONS
 // 204 preflight, native AbortSignal.timeout, fetchWithRetry).
+//
+// k3y: edge cache via Cloudflare's caches.default at TTL 1h. UGC search ranking shifts
+// faster than catalogue covers, so an hour is the right tradeoff between freshness and
+// hammering the upstream on every repeat search.
 import type { RequestHandler } from './$types';
 import { fetchWithRetry, corsHeaders } from '$lib/proxy/http';
 
@@ -13,12 +17,27 @@ import { fetchWithRetry, corsHeaders } from '$lib/proxy/http';
 // Workers ALLOW outbound http: fetches, so the proxy uses http to match the upstream. The
 // CLIENT still talks to this route over its own-origin https — no mixed-content surface.
 const FS_SEARCH = 'http://search.5sing.kugou.com/home/json';
+const TTL = 3600; // 1h
 
-function jsonPassthrough(body: unknown, origin: string | null): Response {
-	return new Response(JSON.stringify(body), {
-		status: 200,
-		headers: { ...corsHeaders(origin), 'content-type': 'application/json' }
-	});
+interface EdgeCache {
+	match(request: Request): Promise<Response | undefined>;
+	put(request: Request, response: Response): Promise<void>;
+}
+interface EdgeCacheStorage {
+	default?: EdgeCache;
+}
+function edgeCache(): EdgeCache | null {
+	if (typeof caches === 'undefined') return null;
+	return (caches as unknown as EdgeCacheStorage).default ?? null;
+}
+
+function jsonPassthrough(body: unknown, origin: string | null, ttl?: number): Response {
+	const headers: Record<string, string> = {
+		...corsHeaders(origin),
+		'content-type': 'application/json'
+	};
+	if (ttl != null) headers['Cache-Control'] = `public, max-age=${ttl}`;
+	return new Response(JSON.stringify(body), { status: 200, headers });
 }
 
 export const GET: RequestHandler = async ({ url, request }) => {
@@ -36,13 +55,30 @@ export const GET: RequestHandler = async ({ url, request }) => {
 		`${FS_SEARCH}?keyword=${encodeURIComponent(keyword)}` +
 		`&sort=1&page=${page}&pagesize=${pagesize}`;
 
+	const cache = edgeCache();
+	const cacheReq = new Request(url.toString());
+
+	if (cache) {
+		const hit = await cache.match(cacheReq);
+		if (hit) {
+			const cached = await hit.json();
+			return jsonPassthrough(cached, origin, TTL);
+		}
+	}
+
 	try {
 		const res = await fetchWithRetry(upstream, { signal: AbortSignal.timeout(8000) }, 2);
 		const body = await res.json();
-		return jsonPassthrough(body, origin);
+		if (cache) {
+			const cached = new Response(JSON.stringify(body), {
+				status: 200,
+				headers: { 'content-type': 'application/json', 'Cache-Control': `public, max-age=${TTL}` }
+			});
+			await cache.put(cacheReq, cached);
+		}
+		return jsonPassthrough(body, origin, TTL);
 	} catch {
-		// Upstream error → empty list (the source's per-source error is recorded by the
-		// search fan-out; we don't leak upstream error text).
+		// Upstream error → empty list (NO cache write — next retry can succeed).
 		return jsonPassthrough({ list: [] }, origin);
 	}
 };

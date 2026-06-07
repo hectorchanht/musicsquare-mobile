@@ -19,10 +19,18 @@
 //    (short-circuits to null immediately if the caller's signal is already aborted), so a
 //    slow/hung response can never pile up against the CAP=3 + total-max backfill pool.
 
+import { cached } from './ttl-cache';
+
 const PROXY_PATH = '/api/deezer/search';
 const CHART_PATH = '/api/deezer/chart';
 const RELATED_PATH = '/api/deezer/related';
 const FETCH_TIMEOUT_MS = 6000;
+// k3y client-side TTLs. The proxies already edge-cache at 24h; these wrappers eliminate the
+// repeat NETWORK ROUNDTRIP entirely for same-session re-queries (no edge hit at all). Covers
+// rarely change; search/related change slowly.
+const TTL_COVER = 24 * 60 * 60 * 1000; // 24h — matches edge TTL
+const TTL_SEARCH = 60 * 60 * 1000;     // 1h — search/related are less stable than covers
+const TTL_RELATED = 60 * 60 * 1000;
 
 /** The proxy's client-facing reshape (mirrors the +server.ts DeezerCover interface). */
 interface DeezerCover {
@@ -69,15 +77,17 @@ const EMPTY_CHART: DeezerChartResult = { tracks: [], artists: [] };
  */
 export async function deezerChart(limit = 18, signal?: AbortSignal): Promise<DeezerChartResult> {
 	if (signal?.aborted) return EMPTY_CHART;
-	try {
-		const url = `${CHART_PATH}?${new URLSearchParams({ limit: String(limit) }).toString()}`;
-		const res = await fetch(url, { signal: combinedSignal(signal) });
-		if (!res.ok) return EMPTY_CHART;
-		const data = (await res.json()) as Partial<DeezerChartResult>;
-		return { tracks: data.tracks ?? [], artists: data.artists ?? [] };
-	} catch {
-		return EMPTY_CHART;
-	}
+	return cached(`dz:chart:${limit}`, TTL_RELATED, async () => {
+		try {
+			const url = `${CHART_PATH}?${new URLSearchParams({ limit: String(limit) }).toString()}`;
+			const res = await fetch(url, { signal: combinedSignal(signal) });
+			if (!res.ok) return EMPTY_CHART;
+			const data = (await res.json()) as Partial<DeezerChartResult>;
+			return { tracks: data.tracks ?? [], artists: data.artists ?? [] };
+		} catch {
+			return EMPTY_CHART;
+		}
+	});
 }
 
 /**
@@ -132,8 +142,11 @@ export async function deezerSongCover(
 	if (signal?.aborted) return null;
 	const term = `${artist ?? ''} ${title ?? ''}`.trim();
 	if (!term) return null;
-	const result = await fetchDeezer(term, signal);
-	return result?.cover ?? null;
+	// k3y client cache: memo the resolved cover so repeat lookups skip the edge round-trip.
+	return cached(`dz:cover:song:${term}`, TTL_COVER, async () => {
+		const result = await fetchDeezer(term, signal);
+		return result?.cover ?? null;
+	});
 }
 
 /**
@@ -148,8 +161,10 @@ export async function deezerArtistCover(
 	if (signal?.aborted) return null;
 	const term = (artist ?? '').trim();
 	if (!term) return null;
-	const result = await fetchDeezer(term, signal);
-	return result?.artistPicture ?? null;
+	return cached(`dz:cover:artist:${term}`, TTL_COVER, async () => {
+		const result = await fetchDeezer(term, signal);
+		return result?.artistPicture ?? null;
+	});
 }
 
 /**
@@ -165,15 +180,19 @@ export async function deezerSearchTopN(
 	if (signal?.aborted) return [];
 	const clean = (term ?? '').trim();
 	if (!clean) return [];
-	const url = `${PROXY_PATH}?${new URLSearchParams({ q: clean, limit: String(limit) }).toString()}`;
-	try {
-		const res = await fetch(url, { signal: combinedSignal(signal) });
-		if (!res.ok) return [];
-		const data = (await res.json()) as DeezerCover;
-		return data.results ?? [];
-	} catch {
-		return [];
-	}
+	// k3y client cache: key by (term, limit). Repeat callers (dedupe-deezer hot path) skip
+	// the network entirely for an hour.
+	return cached(`dz:search:${clean}|${limit}`, TTL_SEARCH, async () => {
+		const url = `${PROXY_PATH}?${new URLSearchParams({ q: clean, limit: String(limit) }).toString()}`;
+		try {
+			const res = await fetch(url, { signal: combinedSignal(signal) });
+			if (!res.ok) return [] as DeezerHit[];
+			const data = (await res.json()) as DeezerCover;
+			return data.results ?? [];
+		} catch {
+			return [] as DeezerHit[];
+		}
+	});
 }
 
 /**
@@ -190,13 +209,15 @@ export async function deezerRelatedArtists(
 	if (signal?.aborted) return [];
 	const clean = (artist ?? '').trim();
 	if (!clean) return [];
-	const url = `${RELATED_PATH}?${new URLSearchParams({ artist: clean, limit: String(limit) }).toString()}`;
-	try {
-		const res = await fetch(url, { signal: combinedSignal(signal) });
-		if (!res.ok) return [];
-		const data = (await res.json()) as { artists?: string[] };
-		return Array.isArray(data?.artists) ? data!.artists! : [];
-	} catch {
-		return [];
-	}
+	return cached(`dz:related:${clean}|${limit}`, TTL_RELATED, async () => {
+		const url = `${RELATED_PATH}?${new URLSearchParams({ artist: clean, limit: String(limit) }).toString()}`;
+		try {
+			const res = await fetch(url, { signal: combinedSignal(signal) });
+			if (!res.ok) return [] as string[];
+			const data = (await res.json()) as { artists?: string[] };
+			return Array.isArray(data?.artists) ? data!.artists! : [];
+		} catch {
+			return [] as string[];
+		}
+	});
 }

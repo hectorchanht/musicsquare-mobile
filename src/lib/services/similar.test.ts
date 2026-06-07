@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getSimilarArtists, buildSimilarQueue } from './similar';
 import * as catalog from './catalog';
+import { __clearSearchCache } from './ttl-cache';
 import { makeUid, type SourceId, type Track } from '$lib/sources/types';
 
 // Mirrors catalog.test.ts mk() factory — a minimal valid Track for fixtures.
@@ -43,9 +44,11 @@ function stubSimilarFetch(artists: string[]) {
 	);
 }
 
+beforeEach(() => { __clearSearchCache(); });
 afterEach(() => {
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
+	__clearSearchCache();
 });
 
 describe('getSimilarArtists', () => {

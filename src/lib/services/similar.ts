@@ -12,10 +12,12 @@ import { searchAll } from '$lib/services/catalog';
 import { dedupeBest } from '$lib/services/dedupe';
 import { deezerRelatedArtists } from '$lib/services/deezer';
 import { settings } from '$lib/stores/settings.svelte';
+import { cached } from '$lib/services/ttl-cache';
 import type { Track } from '$lib/sources/types';
 
 const SIMILAR_ARTIST_COUNT = 8; // how many similar artists to search (top N)
 const FALLBACK_LIMIT = 20; // same-artist fallback cap (matches the Related tab)
+const TTL_SIMILAR = 60 * 60 * 1000; // k3y: 1h client cache for similar-artist lookups
 
 /**
  * Fetch artists similar to `artist`. Last.fm primary; on empty (no LASTFM_KEY, or Last.fm
@@ -24,17 +26,21 @@ const FALLBACK_LIMIT = 20; // same-artist fallback cap (matches the Related tab)
  * caller falls back to same-artist (today). Returns the clean name list (never throws).
  */
 export async function getSimilarArtists(artist: string): Promise<string[]> {
-	try {
-		const res = await fetch(
-			`/api/similar?artist=${encodeURIComponent(artist)}&limit=${SIMILAR_ARTIST_COUNT}`
-		);
-		const data = (await res.json()) as { artists?: string[] };
-		if (data?.artists?.length) return data.artists;
-	} catch {
-		/* fall through to Deezer */
-	}
-	// jau: Deezer is the metadata-only fallback. Same shape, no secret.
-	return deezerRelatedArtists(artist, SIMILAR_ARTIST_COUNT);
+	const clean = (artist ?? '').trim();
+	if (!clean) return [];
+	return cached(`lf:similar:${clean}|${SIMILAR_ARTIST_COUNT}`, TTL_SIMILAR, async () => {
+		try {
+			const res = await fetch(
+				`/api/similar?artist=${encodeURIComponent(clean)}&limit=${SIMILAR_ARTIST_COUNT}`
+			);
+			const data = (await res.json()) as { artists?: string[] };
+			if (data?.artists?.length) return data.artists;
+		} catch {
+			/* fall through to Deezer */
+		}
+		// jau: Deezer is the metadata-only fallback. Same shape, no secret.
+		return deezerRelatedArtists(clean, SIMILAR_ARTIST_COUNT);
+	});
 }
 
 /**

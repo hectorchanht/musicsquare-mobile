@@ -3,6 +3,7 @@
 import { browser } from '$app/environment';
 import type { SourceId } from '$lib/sources/types';
 import { detectAppLang, type AppLang } from '$lib/i18n';
+import { DEFAULTS } from '$lib/config/defaults';
 import {
 	DEFAULT_SECTION_ORDER,
 	clampShelfSize,
@@ -292,13 +293,67 @@ class Settings {
 		else delete r.dataset.reduceMotion;
 	}
 
-	/** Reset the appearance scales to their defaults (used by the Data tab). Persists + applies. */
+	/** Reset the appearance scales to their defaults (k3y: now reads `DEFAULTS.appearance`
+	 *  from config/defaults.ts). Used by the /settings/appearance reset button + Data tab. */
 	resetAppearance() {
-		this.fontScaleTitle = 100;
-		this.fontScaleArtist = 100;
-		this.fontScaleLyrics = 100;
-		this.coverScale = 100;
-		this.homeGridCols = 3;
+		const d = DEFAULTS.appearance;
+		this.fontScaleTitle = d.fontScaleTitle;
+		this.fontScaleArtist = d.fontScaleArtist;
+		this.fontScaleLyrics = d.fontScaleLyrics;
+		this.coverScale = d.coverScale;
+		this.homeGridCols = d.homeGridCols;
+		this.save();
+	}
+
+	/** Reset the General settings group (app language, accent, reduce-motion). k3y. */
+	resetGeneral() {
+		const d = DEFAULTS.general;
+		this.appLang = d.appLang;
+		this.accent = d.accent;
+		this.reduceMotion = d.reduceMotion;
+		this.save();
+	}
+
+	/** Reset the Translation settings (all per-part target langs + skip whitelists + mode). k3y. */
+	resetTranslation() {
+		const d = DEFAULTS.translation;
+		this.lyricsLang = d.lyricsLang;
+		this.artistLang = d.artistLang;
+		this.titleLang = d.titleLang;
+		this.lastfmLang = d.lastfmLang;
+		this.bioLang = d.bioLang;
+		this.artistSkip = [...d.artistSkip];
+		this.titleSkip = [...d.titleSkip];
+		this.lyricsSkip = [...d.lyricsSkip];
+		this.lastfmSkip = [...d.lastfmSkip];
+		this.translateMode = d.translateMode;
+		this.save();
+	}
+
+	/** Reset the Playback settings (quality + source + auto-expand + per-source toggles). k3y. */
+	resetPlayback() {
+		const d = DEFAULTS.playback;
+		this.defaultQuality = d.defaultQuality;
+		this.downloadQuality = d.downloadQuality;
+		this.defaultSource = d.defaultSource;
+		this.autoExpandOnPlay = d.autoExpandOnPlay;
+		this.enabledSources = { ...d.enabledSources };
+		this.save();
+	}
+
+	/** Reset the Home layout settings (section order/hidden + tag/country selection + size +
+	 *  density + landing tab + chrome toggles). k3y. */
+	resetHome() {
+		const d = DEFAULTS.home;
+		this.homeSectionOrder = [...d.homeSectionOrder];
+		this.homeHidden = [...d.homeHidden];
+		this.homeTags = [...d.homeTags];
+		this.homeCountries = [...d.homeCountries];
+		this.homeShelfSize = d.homeShelfSize;
+		this.homeLandingTab = d.homeLandingTab;
+		this.homeDensity = d.homeDensity;
+		this.homeShowSearchPill = d.homeShowSearchPill;
+		this.homeShowRandomize = d.homeShowRandomize;
 		this.save();
 	}
 }

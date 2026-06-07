@@ -10,6 +10,7 @@ import {
 	getArtistTopAlbums,
 	getAlbumTracklist
 } from './lastfm';
+import { __clearSearchCache } from './ttl-cache';
 import type { Track } from '$lib/sources/types';
 
 // services/lastfm.ts is the CLIENT enrichment service. It only ever sees the clean
@@ -40,8 +41,8 @@ function track(over: Partial<Track> = {}): Track {
 	};
 }
 
-beforeEach(() => vi.restoreAllMocks());
-afterEach(() => vi.restoreAllMocks());
+beforeEach(() => { vi.restoreAllMocks(); __clearSearchCache(); });
+afterEach(() => { vi.restoreAllMocks(); __clearSearchCache(); });
 
 /** Stub fetch returning a per-method clean LastfmInfo shape. */
 function stubInfo(byMethod: Record<string, object>) {

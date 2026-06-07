@@ -1,4 +1,4 @@
-// Jamendo search edge proxy (quick-260607-ixw).
+// Jamendo search edge proxy (quick-260607-ixw; k3y: caches.default at 1h).
 //
 // Calls api.jamendo.com/v3.0/tracks/?client_id=…&search=…&audioformat=mp32&limit=N&offset=M.
 // The client_id is PUBLIC (Jamendo sends it on every API URL by design) but lives in
@@ -9,17 +9,36 @@
 // `audioformat=mp32` returns a direct progressive mp3 in the `audio` field — plays in
 // HTML5 <audio> with no MSE, no DASH, no DRM. The Jamendo client_secret Jamendo issues is
 // ONLY needed for OAuth flows we don't implement; it never reaches this route.
+//
+// k3y: edge cache via Cloudflare's caches.default. Mirrors the wv8 deezer/search posture —
+// CORS-free cached body, own-origin Request as cache key, origin re-applied per request on a hit.
+// TTL 1h: Jamendo's catalogue moves slowly; an hourly refresh is plenty.
 import type { RequestHandler } from './$types';
 import type { Env } from '$lib/proxy/proxy-types';
 import { fetchWithRetry, corsHeaders } from '$lib/proxy/http';
 
 const JM_BASE = 'https://api.jamendo.com/v3.0/tracks/';
+const TTL = 3600; // 1h — search metadata is stable enough
 
-function jsonPassthrough(body: unknown, origin: string | null): Response {
-	return new Response(JSON.stringify(body), {
-		status: 200,
-		headers: { ...corsHeaders(origin), 'content-type': 'application/json' }
-	});
+interface EdgeCache {
+	match(request: Request): Promise<Response | undefined>;
+	put(request: Request, response: Response): Promise<void>;
+}
+interface EdgeCacheStorage {
+	default?: EdgeCache;
+}
+function edgeCache(): EdgeCache | null {
+	if (typeof caches === 'undefined') return null;
+	return (caches as unknown as EdgeCacheStorage).default ?? null;
+}
+
+function jsonPassthrough(body: unknown, origin: string | null, ttl?: number): Response {
+	const headers: Record<string, string> = {
+		...corsHeaders(origin),
+		'content-type': 'application/json'
+	};
+	if (ttl != null) headers['Cache-Control'] = `public, max-age=${ttl}`;
+	return new Response(JSON.stringify(body), { status: 200, headers });
 }
 
 export const GET: RequestHandler = async ({ url, request, platform }) => {
@@ -48,11 +67,32 @@ export const GET: RequestHandler = async ({ url, request, platform }) => {
 		`&search=${encodeURIComponent(search)}` +
 		`&audioformat=mp32&limit=${limit}&offset=${offset}`;
 
+	// k3y: edge cache key = own-origin Request (never the upstream URL — the client_id must
+	// never reach the cache key surface). Guarded for the dev runtime (no Cache API).
+	const cache = edgeCache();
+	const cacheReq = new Request(url.toString());
+
+	if (cache) {
+		const hit = await cache.match(cacheReq);
+		if (hit) {
+			const cached = await hit.json();
+			return jsonPassthrough(cached, origin, TTL);
+		}
+	}
+
 	try {
 		const res = await fetchWithRetry(upstream, { signal: AbortSignal.timeout(8000) }, 2);
 		const body = await res.json();
-		return jsonPassthrough(body, origin);
+		if (cache) {
+			const cached = new Response(JSON.stringify(body), {
+				status: 200,
+				headers: { 'content-type': 'application/json', 'Cache-Control': `public, max-age=${TTL}` }
+			});
+			await cache.put(cacheReq, cached);
+		}
+		return jsonPassthrough(body, origin, TTL);
 	} catch {
+		// Upstream error → empty (NO cache write so the next retry can succeed).
 		return jsonPassthrough({ headers: { status: 'success', code: 0 }, results: [] }, origin);
 	}
 };

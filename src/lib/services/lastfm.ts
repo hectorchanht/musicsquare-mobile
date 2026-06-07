@@ -15,8 +15,13 @@
 //    (NowPlaying), not here. This service only SUPPLIES the placeholder-filtered
 //    candidate (`lastfmArt`); it never decides whether to swap.
 import type { Track } from '$lib/sources/types';
+import { cached } from './ttl-cache';
 
 const MAX_TAGS = 5;
+// k3y client-side TTL for Last.fm /api/lastfm/info calls. The edge already caches
+// upstream; this layer cuts the round-trip to zero on repeat same-session lookups
+// (artist/track/album enrich + chart/tag/geo/album-tracklist all go through here).
+const TTL_LASTFM = 60 * 60 * 1000; // 1h
 
 /** Clean additive enrichment shape the UI merges onto a Track. */
 export interface EnrichResult {
@@ -43,16 +48,21 @@ interface LastfmInfo {
 
 const EMPTY: EnrichResult = { tags: [], bio: null, bioUrl: null, lastfmArt: null };
 
-/** Fetch one getInfo call → clean LastfmInfo. Resolves to {} on ANY failure (never throws). */
+/** Fetch one getInfo call → clean LastfmInfo. Resolves to {} on ANY failure (never throws).
+ *  k3y: memoized 1h by the sorted-param key so repeat enrich/chart calls skip the network. */
 async function fetchInfo(params: Record<string, string>): Promise<LastfmInfo> {
-	try {
-		const qs = new URLSearchParams(params).toString();
-		const res = await fetch(`/api/lastfm/info?${qs}`);
-		const data = (await res.json()) as LastfmInfo;
-		return data ?? {};
-	} catch {
-		return {};
-	}
+	const qs = new URLSearchParams(
+		Object.entries(params).sort(([a], [b]) => a.localeCompare(b))
+	).toString();
+	return cached(`lf:info:${qs}`, TTL_LASTFM, async () => {
+		try {
+			const res = await fetch(`/api/lastfm/info?${qs}`);
+			const data = (await res.json()) as LastfmInfo;
+			return data ?? {};
+		} catch {
+			return {} as LastfmInfo;
+		}
+	});
 }
 
 function capTags(tags?: string[]): string[] {

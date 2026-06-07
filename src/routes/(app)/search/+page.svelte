@@ -410,11 +410,11 @@
 	.bar { display: flex; gap: 8px; margin-bottom: 14px; }
 	.bar input {
 		flex: 1; min-width: 0; background: var(--color-surface-2); border: 1px solid var(--color-border);
-		color: var(--color-text); border-radius: 12px; padding: 12px 14px; font-size: 15px; outline: none;
+		color: var(--color-text); border-radius: 999px; padding: 12px 14px; font-size: 15px; outline: none;
 	}
 	.bar input:focus { border-color: var(--color-primary); }
 	.bar button {
-		background: var(--color-primary); border: none; color: #fff; border-radius: 12px;
+		background: var(--color-primary); border: none; color: #fff; border-radius: 999px;
 		padding: 0 18px; font-weight: 700; cursor: pointer;
 		display: inline-flex; align-items: center; justify-content: center; min-width: 64px;
 	}

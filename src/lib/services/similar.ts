@@ -10,6 +10,7 @@
 // the clean { artists: string[] } list (threat T-5ug-01).
 import { searchAll } from '$lib/services/catalog';
 import { dedupeBest } from '$lib/services/dedupe';
+import { deezerRelatedArtists } from '$lib/services/deezer';
 import { settings } from '$lib/stores/settings.svelte';
 import type { Track } from '$lib/sources/types';
 
@@ -17,9 +18,10 @@ const SIMILAR_ARTIST_COUNT = 8; // how many similar artists to search (top N)
 const FALLBACK_LIMIT = 20; // same-artist fallback cap (matches the Related tab)
 
 /**
- * Fetch artists similar to `artist` via the server proxy. Returns the clean name
- * list, or [] on any failure / when no key is configured (the proxy returns
- * { artists: [] } in that case, so the caller transparently falls back).
+ * Fetch artists similar to `artist`. Last.fm primary; on empty (no LASTFM_KEY, or Last.fm
+ * dry/errored) fall through to Deezer's `artist/{id}/related` via /api/deezer/related
+ * (quick-260607-jau — gives the no-key state a genuinely useful path). On both miss the
+ * caller falls back to same-artist (today). Returns the clean name list (never throws).
  */
 export async function getSimilarArtists(artist: string): Promise<string[]> {
 	try {
@@ -27,10 +29,12 @@ export async function getSimilarArtists(artist: string): Promise<string[]> {
 			`/api/similar?artist=${encodeURIComponent(artist)}&limit=${SIMILAR_ARTIST_COUNT}`
 		);
 		const data = (await res.json()) as { artists?: string[] };
-		return data?.artists ?? [];
+		if (data?.artists?.length) return data.artists;
 	} catch {
-		return [];
+		/* fall through to Deezer */
 	}
+	// jau: Deezer is the metadata-only fallback. Same shape, no secret.
+	return deezerRelatedArtists(artist, SIMILAR_ARTIST_COUNT);
 }
 
 /**

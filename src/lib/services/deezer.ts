@@ -21,12 +21,25 @@
 
 const PROXY_PATH = '/api/deezer/search';
 const CHART_PATH = '/api/deezer/chart';
+const RELATED_PATH = '/api/deezer/related';
 const FETCH_TIMEOUT_MS = 6000;
 
 /** The proxy's client-facing reshape (mirrors the +server.ts DeezerCover interface). */
 interface DeezerCover {
 	cover: string | null;
 	artistPicture: string | null;
+	/** Top-N reshaped hits when the proxy was called with `&limit=N>1` (quick-260607-jau). */
+	results?: DeezerHit[];
+}
+
+/** One reshaped Deezer search hit (jau). Mirrors the +server.ts DeezerHit interface. */
+export interface DeezerHit {
+	id: string;
+	title: string;
+	artist: string;
+	album: string;
+	cover: string | null;
+	preview: string | null;
 }
 
 /** Chart item shapes (mirror the /api/deezer/chart +server.ts reshape + lastfm Discovery* shapes). */
@@ -137,4 +150,53 @@ export async function deezerArtistCover(
 	if (!term) return null;
 	const result = await fetchDeezer(term, signal);
 	return result?.artistPicture ?? null;
+}
+
+/**
+ * Search Deezer for top-N normalized hits (quick-260607-jau). Used for cross-source dedupe
+ * signals + metadata enrichment. Returns [] on miss/abort/throw (never throws). The proxy
+ * caps `limit` to [1,25].
+ */
+export async function deezerSearchTopN(
+	term: string,
+	limit = 10,
+	signal?: AbortSignal
+): Promise<DeezerHit[]> {
+	if (signal?.aborted) return [];
+	const clean = (term ?? '').trim();
+	if (!clean) return [];
+	const url = `${PROXY_PATH}?${new URLSearchParams({ q: clean, limit: String(limit) }).toString()}`;
+	try {
+		const res = await fetch(url, { signal: combinedSignal(signal) });
+		if (!res.ok) return [];
+		const data = (await res.json()) as DeezerCover;
+		return data.results ?? [];
+	} catch {
+		return [];
+	}
+}
+
+/**
+ * Fetch related artists (by name) via Deezer's `artist/{id}/related` endpoint, proxied as
+ * `/api/deezer/related?artist=…&limit=…`. Returns the cleaned name list, or [] on
+ * miss/abort/throw. Used as a fallback for similar.ts when LASTFM_KEY is absent / Last.fm
+ * returns empty (quick-260607-jau).
+ */
+export async function deezerRelatedArtists(
+	artist: string,
+	limit = 8,
+	signal?: AbortSignal
+): Promise<string[]> {
+	if (signal?.aborted) return [];
+	const clean = (artist ?? '').trim();
+	if (!clean) return [];
+	const url = `${RELATED_PATH}?${new URLSearchParams({ artist: clean, limit: String(limit) }).toString()}`;
+	try {
+		const res = await fetch(url, { signal: combinedSignal(signal) });
+		if (!res.ok) return [];
+		const data = (await res.json()) as { artists?: string[] };
+		return Array.isArray(data?.artists) ? data!.artists! : [];
+	} catch {
+		return [];
+	}
 }

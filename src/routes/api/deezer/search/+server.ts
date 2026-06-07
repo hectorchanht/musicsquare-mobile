@@ -33,6 +33,22 @@ const TTL = 86400;
 export interface DeezerCover {
 	cover: string | null;
 	artistPicture: string | null;
+	/** Top-N reshaped track hits (quick-260607-jau). Empty when `limit=1` (default — keeps
+	 *  the existing cover-backfill consumers payload tiny + backward-compatible). When the
+	 *  caller passes `?limit=N` (clamped to [1,25]) this populates with normalized hits for
+	 *  dedupe/recommendation use. Cover-only callers ignore the field. */
+	results?: DeezerHit[];
+}
+
+/** One Deezer search hit, reshaped to a normalized shape the client can consume. */
+export interface DeezerHit {
+	id: string;
+	title: string;
+	artist: string;
+	album: string;
+	cover: string | null;
+	/** 30-second mp3 preview Deezer returns publicly (never the full track — that needs `arl`). */
+	preview: string | null;
 }
 
 // The Cloudflare Cache API extends the standard CacheStorage with a `default` cache
@@ -83,15 +99,22 @@ function safeImageUrl(raw: string | null | undefined): string | null {
 
 // ---- Deezer response sub-shapes (only the fields we read; all optional — untrusted JSON). ----
 interface DzAlbum {
+	id?: number;
+	title?: string;
 	cover_xl?: string;
 	cover_big?: string;
 	cover_medium?: string;
 }
 interface DzArtist {
+	id?: number;
+	name?: string;
 	picture_xl?: string;
 	picture_big?: string;
 }
 interface DzResult {
+	id?: number;
+	title?: string;
+	preview?: string;
 	album?: DzAlbum;
 	artist?: DzArtist;
 }
@@ -100,21 +123,54 @@ interface DeezerSearchResponse {
 	total?: number;
 }
 
-/**
- * Reshape a Deezer search envelope into { cover, artistPicture } from data[0]. The cover
- * prefers cover_xl → cover_big → cover_medium; the artist picture prefers picture_xl →
- * picture_big. Both are run through safeImageUrl (off-host / non-https / CSS-breaker → null).
- * Empty data → both null. Funnel point for future charts/info extension (scope: search only).
- */
-function reshapeSearch(data: DeezerSearchResponse): DeezerCover {
-	const top = data?.data?.[0];
-	if (!top) return { cover: null, artistPicture: null };
-	const rawCover = top.album?.cover_xl ?? top.album?.cover_big ?? top.album?.cover_medium ?? null;
-	const rawPicture = top.artist?.picture_xl ?? top.artist?.picture_big ?? null;
+/** Safe preview URL — only https + on a cdnt-preview.dzcdn.net (the 30s mp3 host). */
+function safePreviewUrl(raw: string | null | undefined): string | null {
+	if (!raw) return null;
+	if (/[)\s"'\\(]/.test(raw)) return null;
+	try {
+		const u = new URL(raw);
+		if (u.protocol !== 'https:') return null;
+		const host = u.hostname.toLowerCase();
+		const ok = host.endsWith('.dzcdn.net');
+		return ok ? u.href : null;
+	} catch {
+		return null;
+	}
+}
+
+/** Normalize one Deezer hit to the client-facing shape. */
+function reshapeHit(it: DzResult | undefined): DeezerHit | null {
+	if (!it || it.id === undefined || it.id === null) return null;
+	const rawCover = it.album?.cover_xl ?? it.album?.cover_big ?? it.album?.cover_medium ?? null;
 	return {
+		id: String(it.id),
+		title: it.title ?? '',
+		artist: it.artist?.name ?? '',
+		album: it.album?.title ?? '',
+		cover: safeImageUrl(rawCover),
+		preview: safePreviewUrl(it.preview)
+	};
+}
+
+/**
+ * Reshape a Deezer search envelope. `limit=1` (cover-mode) yields the cheap legacy payload
+ * (cover/artistPicture from data[0] only) so existing backfill callers stay byte-compatible.
+ * `limit>1` populates `results` with up to `limit` normalized hits for dedupe/recommendation
+ * callers (quick-260607-jau).
+ */
+function reshapeSearch(data: DeezerSearchResponse, limit: number): DeezerCover {
+	const top = data?.data?.[0];
+	const rawCover = top?.album?.cover_xl ?? top?.album?.cover_big ?? top?.album?.cover_medium ?? null;
+	const rawPicture = top?.artist?.picture_xl ?? top?.artist?.picture_big ?? null;
+	const base: DeezerCover = {
 		cover: safeImageUrl(rawCover),
 		artistPicture: safeImageUrl(rawPicture)
 	};
+	if (limit > 1) {
+		const arr = Array.isArray(data?.data) ? data!.data!.slice(0, limit) : [];
+		base.results = arr.map(reshapeHit).filter((h): h is DeezerHit => h !== null);
+	}
+	return base;
 }
 
 export const GET: RequestHandler = async ({ url, request }) => {
@@ -126,9 +182,13 @@ export const GET: RequestHandler = async ({ url, request }) => {
 	// Empty/missing q → empty result with NO upstream fetch (T-wv8-01 short-circuit).
 	if (!q) return jsonResult({ cover: null, artistPicture: null }, origin);
 
+	// jau: optional ?limit param (clamped [1,25]). Default 1 = backward-compat cover mode;
+	// >1 surfaces `results` for dedupe/recommendation use without breaking existing callers.
+	const limit = Math.min(25, Math.max(1, Number(url.searchParams.get('limit')) || 1));
+
 	// Passthrough-only upstream: q is encodeURIComponent'd into the fixed search string — no
-	// command/template construction (T-wv8-01). limit=1 keeps the payload tiny.
-	const upstream = `${DEEZER_SEARCH}?q=${encodeURIComponent(q)}&limit=1`;
+	// command/template construction (T-wv8-01).
+	const upstream = `${DEEZER_SEARCH}?q=${encodeURIComponent(q)}&limit=${limit}`;
 
 	// Cache key = the OWN-ORIGIN request (NEVER the upstream api.deezer.com URL — T-wv8-06).
 	// Guarded for the dev runtime (`vite dev` has no Cache API) so local dev still hits live.
@@ -140,10 +200,14 @@ export const GET: RequestHandler = async ({ url, request }) => {
 		if (hit) {
 			// Re-apply CORS for THIS request's origin (WR-01). The cached entry stores a
 			// CORS-FREE body, so a cross-origin (preview vs prod) hit never receives a prior
-			// requester's Access-Control-Allow-Origin.
+			// requester's Access-Control-Allow-Origin. `results` (jau) is preserved when present.
 			const cached = (await hit.json()) as DeezerCover;
 			return jsonResult(
-				{ cover: cached.cover ?? null, artistPicture: cached.artistPicture ?? null },
+				{
+					cover: cached.cover ?? null,
+					artistPicture: cached.artistPicture ?? null,
+					...(cached.results ? { results: cached.results } : {})
+				},
 				origin,
 				TTL
 			);
@@ -154,7 +218,7 @@ export const GET: RequestHandler = async ({ url, request }) => {
 		// Bounded retry + native timeout (T-wv8-04, 429/5xx backoff is free).
 		const res = await fetchWithRetry(upstream, { signal: AbortSignal.timeout(8000) }, 2);
 		const data = (await res.json()) as DeezerSearchResponse;
-		const result = reshapeSearch(data);
+		const result = reshapeSearch(data, limit);
 		if (cache) {
 			// Cache a CORS-FREE copy (origin re-applied per request on a hit, WR-01).
 			const cached = new Response(JSON.stringify(result satisfies DeezerCover), {

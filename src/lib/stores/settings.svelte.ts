@@ -41,6 +41,9 @@ export type LyricsLang =
 export type TranslateMode = 'replace' | 'below';
 export type DefaultQuality = 'auto' | 'lossless' | '320' | '128';
 export type DefaultSource = 'auto' | SourceId;
+/** UI theme. Light theme overrides surface/text/border tokens via `[data-theme='light']`
+ *  in app.css; dark is the default (no data-theme attribute). */
+export type Theme = 'dark' | 'light';
 
 const KEY = 'openmusic:settings:v1';
 const DEFAULT_ACCENT = '#7c5cff';
@@ -127,6 +130,9 @@ class Settings {
 	defaultSource = $state<DefaultSource>('auto');
 	accent = $state(DEFAULT_ACCENT);
 	reduceMotion = $state(false);
+	/** Light/dark theme. Default 'dark' (today's design). applyTheme() flips
+	 *  the `data-theme` attribute on <html>. */
+	theme = $state<Theme>('dark');
 	autoExpandOnPlay = $state(false);
 
 	// --- home layout (quick-260606-w87) ---------------------------------------------
@@ -196,6 +202,7 @@ class Settings {
 				this.defaultSource = (v.defaultSource as DefaultSource) ?? 'auto';
 				this.accent = (v.accent as string) ?? DEFAULT_ACCENT;
 				this.reduceMotion = !!v.reduceMotion;
+				this.theme = v.theme === 'light' ? 'light' : 'dark';
 				this.autoExpandOnPlay = !!v.autoExpandOnPlay;
 				// --- home layout (w87) — every default reproduces today's home -----------
 				// Arrays use an Array.isArray guard → fall back to the today-equivalent
@@ -259,6 +266,7 @@ class Settings {
 					defaultSource: this.defaultSource,
 					accent: this.accent,
 					reduceMotion: this.reduceMotion,
+					theme: this.theme,
 					autoExpandOnPlay: this.autoExpandOnPlay,
 					// --- home layout (w87) ---
 					homeSectionOrder: this.homeSectionOrder,
@@ -291,6 +299,10 @@ class Settings {
 		r.style.setProperty('--home-grid-cols', String(this.homeGridCols));
 		if (this.reduceMotion) r.dataset.reduceMotion = '1';
 		else delete r.dataset.reduceMotion;
+		// Light/dark theme: set `data-theme="light"` for the light token set; remove the attr
+		// for the default dark theme so `:root` rules apply without any extra specificity.
+		if (this.theme === 'light') r.dataset.theme = 'light';
+		else delete r.dataset.theme;
 	}
 
 	/** Reset the appearance scales to their defaults (k3y: now reads `DEFAULTS.appearance`
@@ -305,12 +317,13 @@ class Settings {
 		this.save();
 	}
 
-	/** Reset the General settings group (app language, accent, reduce-motion). k3y. */
+	/** Reset the General settings group (app language, accent, reduce-motion, theme). k3y. */
 	resetGeneral() {
 		const d = DEFAULTS.general;
 		this.appLang = d.appLang;
 		this.accent = d.accent;
 		this.reduceMotion = d.reduceMotion;
+		this.theme = d.theme;
 		this.save();
 	}
 

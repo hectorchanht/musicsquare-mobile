@@ -18,7 +18,7 @@ import {
 	type HomeSectionId
 } from '$lib/services/home-layout';
 import type { SourceId } from '$lib/sources/types';
-import type { LyricsLang, SourceLang, TranslateMode, DefaultQuality, DefaultSource } from '$lib/stores/settings.svelte';
+import type { LyricsLang, SourceLang, TranslateMode, DefaultQuality, DefaultSource, Theme } from '$lib/stores/settings.svelte';
 
 /** The accent-color hex used when the user hasn't picked one. Pulled out so the General
  *  reset can restore it without importing from settings.svelte.ts (circular). */
@@ -30,7 +30,10 @@ export const DEFAULT_ACCENT = '#7c5cff';
 export const GENERAL_DEFAULTS = {
 	appLang: 'en' as AppLang,
 	accent: DEFAULT_ACCENT,
-	reduceMotion: false
+	reduceMotion: false,
+	/** Light/dark theme — default 'dark' (today's design). 'light' flips data-theme on <html>
+	 *  to surface the `[data-theme='light']` token overrides in app.css. */
+	theme: 'dark' as Theme
 } as const;
 
 // ---- Appearance (per-part sizing) ------------------------------------------------------

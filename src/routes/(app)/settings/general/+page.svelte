@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { ChevronLeft, Globe, Palette, Zap } from '@lucide/svelte';
-	import { settings, ACCENT_PRESETS } from '$lib/stores/settings.svelte';
+	import { ChevronLeft, Globe, Palette, Zap, Sun, Moon } from '@lucide/svelte';
+	import { settings, ACCENT_PRESETS, type Theme } from '$lib/stores/settings.svelte';
 	import { t, type AppLang } from '$lib/i18n';
 
 	onMount(() => settings.load());
@@ -29,6 +29,7 @@
 	function setAppLang(v: AppLang) { settings.appLang = v; settings.save(); }
 	function setAccent(hex: string) { settings.accent = hex; settings.save(); }
 	function toggleMotion() { settings.reduceMotion = !settings.reduceMotion; settings.save(); }
+	function setTheme(v: Theme) { settings.theme = v; settings.save(); }
 </script>
 
 <svelte:head><title>{t('settings.title')}</title></svelte:head>
@@ -45,6 +46,14 @@
 		{#each appLangs as l (l.v)}
 			<button class="chip" class:on={settings.appLang === l.v} onclick={() => setAppLang(l.v)}>{l.label}</button>
 		{/each}
+	</div>
+</section>
+
+<section>
+	<h2><Sun size={15} /> {t('settings.theme')}</h2>
+	<div class="seg">
+		<button class:on={settings.theme === 'dark'} onclick={() => setTheme('dark')}><Moon size={15} /> {t('settings.themeDark')}</button>
+		<button class:on={settings.theme === 'light'} onclick={() => setTheme('light')}><Sun size={15} /> {t('settings.themeLight')}</button>
 	</div>
 </section>
 
@@ -77,6 +86,9 @@
 	.chips { display: flex; flex-wrap: wrap; gap: 8px; }
 	.chip { background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text); padding: 8px 14px; border-radius: 999px; font-size: 13px; cursor: pointer; }
 	.chip.on { background: var(--color-primary); color: #fff; border-color: transparent; }
+	.seg { display: inline-flex; background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: 999px; padding: 3px; gap: 3px; }
+	.seg button { background: none; border: none; color: var(--color-text-muted); padding: 7px 16px; border-radius: 999px; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+	.seg button.on { background: var(--color-primary); color: #fff; }
 	.swatches { display: flex; gap: 12px; }
 	.swatch { width: 34px; height: 34px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
 	.swatch.on { border-color: #fff; box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px currentColor; }

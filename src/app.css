@@ -33,6 +33,19 @@
   --home-grid-cols: 3;
 }
 
+/* Light theme (settings.theme === 'light'). Overrides the surface/text/border tokens only —
+   the accent + per-source brand colors stay the same so the visual identity holds. Applied
+   via `<html data-theme="light">` from settings.applyTheme(). Default remains dark
+   (the :root above). */
+:root[data-theme='light'] {
+  --color-bg: #f7f7fa;
+  --color-surface: #ffffff;
+  --color-surface-2: #ececf2;
+  --color-border: #c5c5cf;
+  --color-text: #1a1a22;
+  --color-text-muted: #5a5a66;
+}
+
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 body {

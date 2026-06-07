@@ -13,10 +13,10 @@
 	import { dedupeBest } from '$lib/services/dedupe';
 	import { translateLines } from '$lib/services/translate';
 	import { shouldTranslate } from '$lib/i18n/detect';
-	import { enrichTrack, type EnrichResult } from '$lib/services/lastfm';
+	import { enrichTrack } from '$lib/services/lastfm';
 	import { longpress } from '$lib/actions/longpress';
+	import { marquee } from '$lib/actions/marquee';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
-	import TagChips from '$lib/components/TagChips.svelte';
 	import { parseLRC, type LyricLine } from '$lib/services/lrc';
 	import { createVelocityTracker } from '$lib/gestures/velocity';
 	import type { Track } from '$lib/sources/types';
@@ -175,7 +175,6 @@
 	// result only if the uid still matches (race guard, mirrors the related/trKey
 	// idiom). A non-Last.fm track / absent key resolves to the all-empty shape, so
 	// nothing renders and the source cover is never disturbed.
-	let enrich = $state<EnrichResult | null>(null);
 	let enrichedFor = '';
 	let swappedCover = $state<string | null>(null);
 	$effect(() => {
@@ -183,11 +182,11 @@
 		const uid = cur?.uid ?? '';
 		if (!cur || enrichedFor === uid) return;
 		enrichedFor = uid;
-		enrich = null;
 		swappedCover = null; // reset — never carry the previous track's swapped art
 		void enrichTrack(cur).then((r) => {
 			if (player.current?.uid !== uid) return; // track changed mid-flight — discard
-			enrich = r;
+			// Tags/genre chips are hidden now (quick-260607-f4y) — enrichment is kept ONLY for
+			// the hi-res Last.fm cover-art adoption below.
 			if (r.lastfmArt) maybeSwapCover(r.lastfmArt, cur);
 		});
 	});
@@ -514,11 +513,18 @@
 	></div>
 
 	<div class="meta">
-		<div class="title">{player.current ? names.dnTitle(player.current.title) : ''}</div>
-		<button class="artist" onclick={openArtist}>{player.current ? names.dnArtist(player.current.artist) : ''}</button>
+		<!-- {#key uid}: .title/.artist are single persistent nodes, so the marquee action would
+		     never re-measure on a track change (box width is unchanged). Re-keying remounts them
+		     per track → fresh measure. Genre/tag chips intentionally hidden (quick-260607-f4y). -->
+		{#key player.current?.uid}
+			<div class="title" use:marquee>{player.current ? names.dnTitle(player.current.title) : ''}</div>
+			<button class="artist" use:marquee onclick={openArtist}>{player.current ? names.dnArtist(player.current.artist) : ''}</button>
+		{/key}
 	</div>
 
-	<TagChips tags={enrich?.tags ?? []} />
+	{#if player.error}
+		<p class="np-error" role="alert">{player.error}</p>
+	{/if}
 
 	<div class="prog">
 		<div class="track" onclick={seek} onkeydown={seekKey} role="slider" tabindex="0" aria-label={t('nowplaying.seek')} aria-valuenow={Math.round(frac * 100)}>
@@ -636,8 +642,20 @@
 	.np.reflow .bar { position: absolute; top: 0; left: 18px; right: 18px; z-index: 2; }
 	.np.reflow .meta { position: relative; z-index: 2; margin-top: -42px; padding: 0 2px; }
 	.np.reflow .title { text-shadow: 0 1px 6px rgba(0,0,0,0.6); }
-	.title { font-size: 1.5rem; font-weight: 800; line-height: 1.2; }
-	.artist { background: black; border: none; padding: 2px; border-radius: 4px; color: var(--color-text-muted); font-size: 1rem; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+	.title { font-size: 1.5rem; font-weight: 800; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.artist { display: inline-block; max-width: 100%; vertical-align: bottom; background: black; border: none; padding: 2px; border-radius: 4px; color: var(--color-text-muted); font-size: 1rem; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	/* Marquee-bounce title/artist when they overflow (reuses the home/artist use:marquee action,
+	   which adds .marquee-on + --marquee-dx). Reduced-motion → static ellipsis (the action also
+	   no-ops, defense-in-depth). :global() keeps the .title/.artist scope through svelte-check. */
+	@media (prefers-reduced-motion: no-preference) {
+		.title:global(.marquee-on),
+		.artist:global(.marquee-on) { text-overflow: clip; animation: marquee-bounce 6s ease-in-out infinite alternate; }
+	}
+	@keyframes marquee-bounce {
+		0%, 15% { text-indent: 0; }
+		85%, 100% { text-indent: calc(-1 * var(--marquee-dx, 0px)); }
+	}
+	.np-error { color: #ff6b6b; font-size: 13px; text-align: center; margin: 2px 2px 10px; }
 	.prog { margin: 4px 0 10px; }
 	.track { position: relative; height: 14px; display: flex; align-items: center; cursor: pointer; }
 	.track::before { content: ''; position: absolute; left: 0; right: 0; height: 4px; border-radius: 4px; background: rgba(255,255,255,0.18); }

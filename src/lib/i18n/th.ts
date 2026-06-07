@@ -234,6 +234,7 @@ const th: Dict = {
 	"artist.trackMany": "{count} แทร็ก",
 	"artist.albumLabel": "อัลบั้ม",
 	"artist.hitSongs": "เพลงฮิต",
+	"artist.moreLikeThis": "ศิลปินที่คล้ายกัน",
 	"artist.noSongs": "ไม่พบเพลงสำหรับ {name}",
 	"album.title": "{name} · openmusic",
 	"album.back": "กลับ",

@@ -234,6 +234,7 @@ const tr: Dict = {
 	"artist.trackMany": "{count} parça",
 	"artist.albumLabel": "Albüm",
 	"artist.hitSongs": "Popüler şarkılar",
+	"artist.moreLikeThis": "Benzer sanatçılar",
 	"artist.noSongs": "{name} için şarkı bulunamadı.",
 	"album.title": "{name} · openmusic",
 	"album.back": "Geri",

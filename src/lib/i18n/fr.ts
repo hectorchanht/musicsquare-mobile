@@ -234,6 +234,7 @@ const fr: Dict = {
 	"artist.trackMany": "{count} pistes",
 	"artist.albumLabel": "Album",
 	"artist.hitSongs": "Chansons à succès",
+	"artist.moreLikeThis": "Similaires",
 	"artist.noSongs": "Aucune chanson trouvée pour {name}.",
 	"album.title": "{name} · openmusic",
 	"album.back": "Retour",

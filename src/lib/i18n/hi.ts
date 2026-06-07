@@ -234,6 +234,7 @@ const hi: Dict = {
 	"artist.trackMany": "{count} tracks",
 	"artist.albumLabel": "एलबम",
 	"artist.hitSongs": "हिट गाने",
+	"artist.moreLikeThis": "समान कलाकार",
 	"artist.noSongs": "No songs found for {name}.",
 	"album.title": "{name} · openmusic",
 	"album.back": "वापस",

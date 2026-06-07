@@ -234,6 +234,7 @@ const ar: Dict = {
 	"artist.trackMany": "{count} tracks",
 	"artist.albumLabel": "الألبوم",
 	"artist.hitSongs": "ضرب الأغاني",
+	"artist.moreLikeThis": "فنانون مشابهون",
 	"artist.noSongs": "لم يتم العثور على أغاني لـ {name}.",
 	"album.title": "{name} · openmusic",
 	"album.back": "العودة",

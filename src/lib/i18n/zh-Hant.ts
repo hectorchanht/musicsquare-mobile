@@ -262,6 +262,7 @@ const zhHant: Dict = {
 	'artist.trackMany': '{count} 首歌曲',
 	'artist.albumLabel': '專輯',
 	'artist.hitSongs': '熱門歌曲',
+	'artist.moreLikeThis': '相似歌手',
 	'artist.noSongs': '找不到 {name} 的歌曲。',
 
 	// --- album ---

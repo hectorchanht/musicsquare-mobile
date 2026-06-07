@@ -234,6 +234,7 @@ const vi: Dict = {
 	"artist.trackMany": "{count} tracks",
 	"artist.albumLabel": "Album",
 	"artist.hitSongs": "Bài hát hay",
+	"artist.moreLikeThis": "Tương tự",
 	"artist.noSongs": "Không tìm thấy bài hát nào cho {name}.",
 	"album.title": "{name} · openmusic",
 	"album.back": "Quay lại",

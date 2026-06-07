@@ -17,6 +17,9 @@
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import TagChips from '$lib/components/TagChips.svelte';
 	import { enrichArtist, getArtistTopAlbums, type EnrichResult, type DiscoveryAlbum } from '$lib/services/lastfm';
+	import { getSimilarArtists } from '$lib/services/similar';
+	import { deezerArtistCover } from '$lib/services/deezer';
+	import { mapWithConcurrency } from '$lib/services/discovery';
 	import type { Track } from '$lib/sources/types';
 
 	let menuTrack = $state<Track | null>(null);
@@ -51,6 +54,14 @@
 	// In-flight flag for the Albums skeleton (an empty result and "still loading" are both
 	// `albums.length === 0`, so the settle is tracked explicitly).
 	let albumsLoading = $state(true);
+
+	// "More like this" shelf (quick-260607-jip). getSimilarArtists() chains Last.fm → Deezer
+	// (jau-added fallback) → same-artist. Each related artist gets its avatar via Deezer's
+	// artist-picture endpoint (4 in-flight cap; never throws). Race-guarded on `name`.
+	type RelatedArtist = { name: string; image: string | null };
+	let related = $state<RelatedArtist[]>([]);
+	let relatedFor = '';
+	let relatedLoading = $state(true);
 
 	function fallbackCover(t: Track): string {
 		const h = (t.uid.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 47) % 360;
@@ -114,6 +125,32 @@
 				.finally(() => {
 					if (albumsFor === n) albumsLoading = false;
 				});
+		}
+	});
+
+	// SEPARATE more-like-this effect (jip). getSimilarArtists chains LF → Deezer → []. Each
+	// name then resolves its avatar via the existing Deezer artist-picture proxy. Capped at
+	// 4 in-flight. Race-guarded; empty list → section hides.
+	$effect(() => {
+		const n = name;
+		if (n && relatedFor !== n) {
+			relatedFor = n;
+			related = [];
+			relatedLoading = true;
+			void (async () => {
+				try {
+					const names = await getSimilarArtists(n);
+					if (relatedFor !== n) return; // race guard
+					if (!names.length) return;
+					const withCovers = await mapWithConcurrency(names, 4, async (nm: string) => ({
+						name: nm,
+						image: await deezerArtistCover(nm).catch(() => null)
+					}));
+					if (relatedFor === n) related = withCovers;
+				} finally {
+					if (relatedFor === n) relatedLoading = false;
+				}
+			})();
 		}
 	});
 </script>
@@ -217,6 +254,33 @@
 	</section>
 {/if}
 
+<!-- More like this (jip) — round avatar shelf, tap to navigate to that artist. -->
+{#if relatedLoading}
+	<section>
+		<h2>{t('artist.moreLikeThis')}</h2>
+		<div class="albumrow">
+			{#each Array(6) as _, i (i)}
+				<div class="album" aria-hidden="true">
+					<span class="al-cover round sk"></span>
+					<span class="sk sk-albumname"></span>
+				</div>
+			{/each}
+		</div>
+	</section>
+{:else if related.length}
+	<section>
+		<h2>{t('artist.moreLikeThis')}</h2>
+		<div class="albumrow" use:dragScroll>
+			{#each related as a (a.name)}
+				<button class="album" onclick={() => goto('/artist/' + encodeURIComponent(a.name))}>
+					<span class="al-cover round" style:background-image={a.image ? `url(${a.image})` : fallbackCoverSeed(a.name)}></span>
+					<span class="al-name center" use:marquee><span class="marquee-inner">{names.dnArtist(a.name)}</span></span>
+				</button>
+			{/each}
+		</div>
+	</section>
+{/if}
+
 <TrackMenu track={menuTrack} open={menuOpen} onclose={() => (menuOpen = false)} />
 
 <style>
@@ -235,7 +299,9 @@
 	.albumrow { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; }
 	.album { flex: 0 0 130px; background: none; border: none; padding: 0; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 4px; }
 	.al-cover { width: 130px; height: 130px; border-radius: 10px; background-size: cover; background-position: center; }
+	.al-cover.round { border-radius: 50%; }
 	.al-name { font-size: calc(12px * var(--fs-title, 1)); font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.al-name.center { text-align: center; }
 	.al-count { font-size: calc(11px * var(--fs-artist, 1)); color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	/* Marquee animation lives globally in app.css (transform-based .marquee-inner). The
 	   .al-name / .al-count clips above + the use:marquee action + inner .marquee-inner span

@@ -262,6 +262,7 @@ const en = {
 	'artist.trackMany': '{count} tracks',
 	'artist.albumLabel': 'Album',
 	'artist.hitSongs': 'Hit songs',
+	'artist.moreLikeThis': 'More like this',
 	'artist.noSongs': 'No songs found for {name}.',
 
 	// --- album ---

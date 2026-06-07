@@ -234,6 +234,7 @@ const ru: Dict = {
 	"artist.trackMany": "{count} треков",
 	"artist.albumLabel": "Альбом",
 	"artist.hitSongs": "Хиты",
+	"artist.moreLikeThis": "Похожие",
 	"artist.noSongs": "Песни для {name} не найдены.",
 	"album.title": "{name} · openmusic",
 	"album.back": "Назад",

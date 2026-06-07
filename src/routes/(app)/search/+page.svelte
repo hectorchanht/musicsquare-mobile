@@ -2,6 +2,7 @@
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { searchAll } from '$lib/services/catalog';
 	import { dedupeBest } from '$lib/services/dedupe';
+	import { dedupeBestWithDeezer } from '$lib/services/dedupe-deezer';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { player } from '$lib/stores/player.svelte';
 	import { names } from '$lib/stores/names.svelte';
@@ -112,6 +113,14 @@
 			page = 1;
 			hasMore = results.length > 0;
 			persistSession(); // D-02: store the fresh set (overwrites the prior session)
+			// jip: Deezer-boosted re-rank AFTER first paint. Runs in background; the sync
+			// `dedupeBest` result is already on-screen, this just swaps in better picks for
+			// groups where >1 CN source returned the same song. Aborts on supersede.
+			void dedupeBestWithDeezer(interleaved, settings.preferredSource, ac.signal).then((boosted) => {
+				if (myAc.signal.aborted || kw !== q.trim()) return;
+				results = boosted;
+				persistSession();
+			});
 		} catch (err) {
 			// WR-01: a superseded query (AbortError) must NOT clobber state or flag failure.
 			if (err instanceof DOMException && err.name === 'AbortError') return;

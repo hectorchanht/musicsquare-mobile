@@ -234,6 +234,7 @@ const id: Dict = {
 	"artist.trackMany": "{count} lagu",
 	"artist.albumLabel": "Album",
 	"artist.hitSongs": "Lagu-lagu hit",
+	"artist.moreLikeThis": "Mirip ini",
 	"artist.noSongs": "Tidak ditemukan lagu untuk {name}.",
 	"album.title": "{name} · openmusic",
 	"album.back": "Kembali",

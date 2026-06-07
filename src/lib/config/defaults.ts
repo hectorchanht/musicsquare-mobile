@@ -41,6 +41,11 @@ export const APPEARANCE_DEFAULTS = {
 	fontScaleTitle: 100,
 	fontScaleArtist: 100,
 	fontScaleLyrics: 100,
+	/** Now-playing title font scale — separate slider from `fontScaleTitle` because NP's
+	 *  base size is ~1.5rem vs ~14px on list pages, so the same multiplier looks lopsided. */
+	fontScaleNpTitle: 100,
+	/** Now-playing artist font scale — paired with fontScaleNpTitle, same rationale. */
+	fontScaleNpArtist: 100,
 	coverScale: 100,
 	homeGridCols: 3
 } as const;
@@ -62,7 +67,9 @@ export const TRANSLATION_DEFAULTS = {
 	translateMode: 'below' as TranslateMode,
 	/** Hide translations for lyrics lines extracted from a `(...)` clause. Default OFF —
 	 *  parens-translations render alongside the parent line. */
-	lyricsHideParenTranslation: false
+	lyricsHideParenTranslation: false,
+	/** Hide the parens-derived lines themselves (skip rendering them). Default OFF. */
+	lyricsHideParenLines: false
 } as const;
 
 // ---- Playback --------------------------------------------------------------------------

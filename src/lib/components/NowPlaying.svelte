@@ -745,15 +745,17 @@
 					{#if translating}<p class="tr-hint">{t('nowplaying.translating')}</p>{/if}
 					<div class="lyrics" role="group" aria-label={t('nowplaying.lyrics')} bind:this={lyricsEl} onpointerdown={lyricsTouched} onwheel={lyricsWheel}>
 						{#each lines as l, i (i)}
-							{@const hideTrForLine = l.fromParen && settings.lyricsHideParenTranslation}
-							<p class:active={i === activeLine} class:paren={l.fromParen}>
-								{#if showTr && settings.translateMode === 'replace' && !hideTrForLine}
-									{translated[i]}
-								{:else}
-									{l.text}
-									{#if showTr && !hideTrForLine}<span class="tr">{translated[i]}</span>{/if}
-								{/if}
-							</p>
+							{#if !(l.fromParen && settings.lyricsHideParenLines)}
+								{@const hideTrForLine = l.fromParen && settings.lyricsHideParenTranslation}
+								<p class:active={i === activeLine} class:paren={l.fromParen}>
+									{#if showTr && settings.translateMode === 'replace' && !hideTrForLine}
+										{translated[i]}
+									{:else}
+										{l.text}
+										{#if showTr && !hideTrForLine}<span class="tr">{translated[i]}</span>{/if}
+									{/if}
+								</p>
+							{/if}
 						{/each}
 					</div>
 				{:else}<p class="empty">{t('nowplaying.noLyrics')}</p>{/if}
@@ -816,8 +818,11 @@
 	   in dark / near-white in light) and the text colour inverts to match (`--color-text`),
 	   giving black-on-white in light theme + white-on-black in dark theme. `display: inline-block`
 	   sizes the pill to the text instead of stretching across the column. */
-	.title { display: inline-block; max-width: 100%; vertical-align: bottom; background: var(--color-bg); color: var(--color-text); padding: 2px 6px; border-radius: 6px; font-size: calc(1.5rem * var(--fs-title, 1)); font-weight: 800; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-	.artist { display: inline-block; max-width: 100%; vertical-align: bottom; background: var(--color-bg); border: none; padding: 2px 6px; border-radius: 6px; color: var(--color-text); font-size: calc(1rem * var(--fs-artist, 1)); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	/* NP big title/artist use the dedicated --fs-np-* multipliers (separated from --fs-title /
+	   --fs-artist used by list pages). The base sizes diverge enough that one shared slider
+	   couldn't both raise the list rows AND keep NP balanced; two sliders solve it. */
+	.title { display: inline-block; max-width: 100%; vertical-align: bottom; background: var(--color-bg); color: var(--color-text); padding: 2px 6px; border-radius: 6px; font-size: calc(1.5rem * var(--fs-np-title, 1)); font-weight: 800; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.artist { display: inline-block; max-width: 100%; vertical-align: bottom; background: var(--color-bg); border: none; padding: 2px 6px; border-radius: 6px; color: var(--color-text); font-size: calc(1rem * var(--fs-np-artist, 1)); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	/* Marquee lives globally in app.css (transform-based .marquee-inner). The .title/.artist
 	   clips above + the use:marquee action + inner .marquee-inner span in the markup are the
 	   only per-file pieces — the global rule animates them. (gmy unified the drift.) */

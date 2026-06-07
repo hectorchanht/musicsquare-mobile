@@ -20,6 +20,8 @@
 	function setTitle(v: number) { settings.fontScaleTitle = v; settings.save(); }
 	function setArtist(v: number) { settings.fontScaleArtist = v; settings.save(); }
 	function setLyrics(v: number) { settings.fontScaleLyrics = v; settings.save(); }
+	function setNpTitle(v: number) { settings.fontScaleNpTitle = v; settings.save(); }
+	function setNpArtist(v: number) { settings.fontScaleNpArtist = v; settings.save(); }
 	function setCover(v: number) { settings.coverScale = v; settings.save(); }
 	function setCols(v: number) { settings.homeGridCols = v; settings.save(); }
 	const num = (e: Event) => Number((e.currentTarget as HTMLInputElement).value);
@@ -52,6 +54,18 @@
 		<div class="lab"><span>{t('settings.fontSizeLyrics')}</span><span class="val">{settings.fontScaleLyrics}%</span></div>
 		<input type="range" min={FONT_SCALE_MIN} max={FONT_SCALE_MAX} step="5" value={settings.fontScaleLyrics} oninput={(e) => setLyrics(num(e))} />
 		<span class="prev muted" style:font-size={`${1 * settings.fontScaleLyrics / 100}rem`}>You and I stargazing</span>
+	</div>
+
+	<div class="ctl">
+		<div class="lab"><span>{t('settings.fontSizeNpTitle')}</span><span class="val">{settings.fontScaleNpTitle}%</span></div>
+		<input type="range" min={FONT_SCALE_MIN} max={FONT_SCALE_MAX} step="5" value={settings.fontScaleNpTitle} oninput={(e) => setNpTitle(num(e))} />
+		<span class="prev" style:font-size={`${1.5 * settings.fontScaleNpTitle / 100}rem`}>Stargazing</span>
+	</div>
+
+	<div class="ctl">
+		<div class="lab"><span>{t('settings.fontSizeNpArtist')}</span><span class="val">{settings.fontScaleNpArtist}%</span></div>
+		<input type="range" min={FONT_SCALE_MIN} max={FONT_SCALE_MAX} step="5" value={settings.fontScaleNpArtist} oninput={(e) => setNpArtist(num(e))} />
+		<span class="prev muted" style:font-size={`${1 * settings.fontScaleNpArtist / 100}rem`}>Myles Smith</span>
 	</div>
 </section>
 

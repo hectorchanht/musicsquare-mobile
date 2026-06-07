@@ -29,6 +29,11 @@
   --fs-title: 1;
   --fs-artist: 1;
   --fs-lyrics: 1;
+  /* Separate NP title/artist multipliers — base sizes diverge between NP (~1.5rem) and list
+     surfaces (~14px), so a single multiplier looked lopsided on whichever surface wasn't
+     the user's target. Defaults to 1× so a fresh install matches today's NP design. */
+  --fs-np-title: 1;
+  --fs-np-artist: 1;
   --cover-scale: 1;
   --home-grid-cols: 3;
 }

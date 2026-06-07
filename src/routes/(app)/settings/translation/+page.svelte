@@ -125,6 +125,12 @@
 		<span class="sw" class:on={settings.lyricsHideParenTranslation}></span>
 	</button>
 	<p class="muted">{t('settings.lyricsHideParenTranslationNote')}</p>
+
+	<button class="row-toggle" onclick={() => { settings.lyricsHideParenLines = !settings.lyricsHideParenLines; settings.save(); }}>
+		<span>{t('settings.lyricsHideParenLines')}</span>
+		<span class="sw" class:on={settings.lyricsHideParenLines}></span>
+	</button>
+	<p class="muted">{t('settings.lyricsHideParenLinesNote')}</p>
 </section>
 
 <hr class="div" />

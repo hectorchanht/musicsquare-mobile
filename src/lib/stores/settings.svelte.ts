@@ -111,6 +111,10 @@ class Settings {
 	 *  split out of their parent (typically an embedded-translation in the original LRC).
 	 *  Off by default → those lines render + translate like any other line. */
 	lyricsHideParenTranslation = $state<boolean>(false);
+	/** Hide the parens-derived lines themselves (the LRC's embedded clause). When ON, only
+	 *  the parent line shows; the parenthesised content is dropped from the rendered list.
+	 *  Independent of lyricsHideParenTranslation — combine for "show plain English-only". */
+	lyricsHideParenLines = $state<boolean>(false);
 
 	// --- appearance / per-part sizing (quick-260607-fnp) -----------------------------------
 	// Percent scales (100 = today's size). Applied app-wide as CSS custom properties in
@@ -121,6 +125,12 @@ class Settings {
 	fontScaleArtist = $state<number>(100);
 	/** LYRICS line font scale, percent (clamped 70–160). */
 	fontScaleLyrics = $state<number>(100);
+	/** NOW-PLAYING title font scale, percent (clamped 70–160). Separate from fontScaleTitle
+	 *  because NP base size is 1.5rem vs ~14px on list pages — same multiplier looks lopsided. */
+	fontScaleNpTitle = $state<number>(100);
+	/** NOW-PLAYING artist font scale, percent (clamped 70–160). Separate from fontScaleArtist
+	 *  for the same reason — NP artist baseline is 1rem vs ~12px on list pages. */
+	fontScaleNpArtist = $state<number>(100);
 	/** Home COVER/tile size scale, percent (clamped 70–150). */
 	coverScale = $state<number>(100);
 	/** Home fallback-grid COLUMN count (clamped 2–5; default 3 = today). */
@@ -198,10 +208,13 @@ class Settings {
 				this.fontScaleTitle = clampInt(v.fontScaleTitle, FONT_SCALE_MIN, FONT_SCALE_MAX, 100);
 				this.fontScaleArtist = clampInt(v.fontScaleArtist, FONT_SCALE_MIN, FONT_SCALE_MAX, 100);
 				this.fontScaleLyrics = clampInt(v.fontScaleLyrics, FONT_SCALE_MIN, FONT_SCALE_MAX, 100);
+				this.fontScaleNpTitle = clampInt(v.fontScaleNpTitle, FONT_SCALE_MIN, FONT_SCALE_MAX, 100);
+				this.fontScaleNpArtist = clampInt(v.fontScaleNpArtist, FONT_SCALE_MIN, FONT_SCALE_MAX, 100);
 				this.coverScale = clampInt(v.coverScale, COVER_SCALE_MIN, COVER_SCALE_MAX, 100);
 				this.homeGridCols = clampInt(v.homeGridCols, GRID_COLS_MIN, GRID_COLS_MAX, 3);
 				this.translateMode = (v.translateMode as TranslateMode) ?? 'below';
 				this.lyricsHideParenTranslation = !!v.lyricsHideParenTranslation;
+				this.lyricsHideParenLines = !!v.lyricsHideParenLines;
 				this.defaultQuality = (v.defaultQuality as DefaultQuality) ?? '128';
 				this.downloadQuality = (v.downloadQuality as DefaultQuality) ?? 'lossless';
 				this.defaultSource = (v.defaultSource as DefaultSource) ?? 'auto';
@@ -263,10 +276,13 @@ class Settings {
 					fontScaleTitle: this.fontScaleTitle,
 					fontScaleArtist: this.fontScaleArtist,
 					fontScaleLyrics: this.fontScaleLyrics,
+					fontScaleNpTitle: this.fontScaleNpTitle,
+					fontScaleNpArtist: this.fontScaleNpArtist,
 					coverScale: this.coverScale,
 					homeGridCols: this.homeGridCols,
 					translateMode: this.translateMode,
 					lyricsHideParenTranslation: this.lyricsHideParenTranslation,
+					lyricsHideParenLines: this.lyricsHideParenLines,
 					defaultQuality: this.defaultQuality,
 					downloadQuality: this.downloadQuality,
 					defaultSource: this.defaultSource,
@@ -301,6 +317,8 @@ class Settings {
 		r.style.setProperty('--fs-title', String(this.fontScaleTitle / 100));
 		r.style.setProperty('--fs-artist', String(this.fontScaleArtist / 100));
 		r.style.setProperty('--fs-lyrics', String(this.fontScaleLyrics / 100));
+		r.style.setProperty('--fs-np-title', String(this.fontScaleNpTitle / 100));
+		r.style.setProperty('--fs-np-artist', String(this.fontScaleNpArtist / 100));
 		r.style.setProperty('--cover-scale', String(this.coverScale / 100));
 		r.style.setProperty('--home-grid-cols', String(this.homeGridCols));
 		if (this.reduceMotion) r.dataset.reduceMotion = '1';
@@ -318,6 +336,8 @@ class Settings {
 		this.fontScaleTitle = d.fontScaleTitle;
 		this.fontScaleArtist = d.fontScaleArtist;
 		this.fontScaleLyrics = d.fontScaleLyrics;
+		this.fontScaleNpTitle = d.fontScaleNpTitle;
+		this.fontScaleNpArtist = d.fontScaleNpArtist;
 		this.coverScale = d.coverScale;
 		this.homeGridCols = d.homeGridCols;
 		this.save();
@@ -347,6 +367,7 @@ class Settings {
 		this.lastfmSkip = [...d.lastfmSkip];
 		this.translateMode = d.translateMode;
 		this.lyricsHideParenTranslation = d.lyricsHideParenTranslation;
+		this.lyricsHideParenLines = d.lyricsHideParenLines;
 		this.save();
 	}
 

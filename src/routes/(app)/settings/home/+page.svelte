@@ -35,7 +35,11 @@
 		'top-hits': 'settings.homeSectionTopHits',
 		'top-artists': 'settings.homeSectionTopArtists',
 		tags: 'settings.homeSectionTags',
-		countries: 'settings.homeSectionCountries'
+		countries: 'settings.homeSectionCountries',
+		liked: 'settings.homeSectionLiked',
+		downloads: 'settings.homeSectionDownloads',
+		playlists: 'settings.homeSectionPlaylists',
+		history: 'settings.homeSectionHistory'
 	};
 
 	const order = $derived(resolveSectionOrder(settings.homeSectionOrder));

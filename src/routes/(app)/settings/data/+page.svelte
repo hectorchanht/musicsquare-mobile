@@ -10,6 +10,7 @@
 	import { t } from '$lib/i18n';
 
 	const TOP_PICKS_KEY = 'openmusic:top-picks:v1';
+	const HOME_LIBRARY_KEY = 'openmusic:home-library:v1';
 	let msg = $state('');
 	let counts = $state({ liked: 0, playlists: 0, downloads: 0 });
 
@@ -21,7 +22,11 @@
 
 	function flash(m: string) { msg = m; setTimeout(() => (msg = ''), 1800); }
 
-	function clearPicks() { try { localStorage.removeItem(TOP_PICKS_KEY); } catch { /* */ } flash(t('settings.picksCleared')); }
+	function clearPicks() {
+		try { localStorage.removeItem(TOP_PICKS_KEY); } catch { /* */ }
+		try { localStorage.removeItem(HOME_LIBRARY_KEY); } catch { /* */ } // hhd: also reset library shelves
+		flash(t('settings.picksCleared'));
+	}
 	function clearNameCache() { names.clearCache(); flash(t('settings.nameCacheCleared')); }
 	function clearCovers() { clearCoverCache(); flash(t('settings.coverCacheCleared')); }
 	function clearSearchHistory() { try { localStorage.removeItem(SEARCH_HISTORY_KEY); } catch { /* */ } flash(t('settings.searchHistoryCleared')); }

@@ -18,8 +18,17 @@ import {
 // render — they clamp / drop / fall back to defaults. These tests are fully deterministic.
 
 describe('HOME_SECTIONS / DEFAULT_SECTION_ORDER', () => {
-	it('is the four discovery group ids in canonical order', () => {
-		expect(HOME_SECTIONS).toEqual(['top-hits', 'top-artists', 'tags', 'countries']);
+	it('is the eight home group ids in canonical order (hhd: liked/downloads pin first, library blocks last)', () => {
+		expect(HOME_SECTIONS).toEqual([
+			'liked',
+			'downloads',
+			'top-hits',
+			'top-artists',
+			'tags',
+			'countries',
+			'playlists',
+			'history'
+		]);
 	});
 
 	it('DEFAULT_SECTION_ORDER deep-equals HOME_SECTIONS (preserves today fixed order)', () => {
@@ -55,17 +64,26 @@ describe('resolveSectionOrder', () => {
 		expect(resolveSectionOrder(['countries', 'top-hits'])).toEqual([
 			'countries',
 			'top-hits',
+			// missing ids appended in canonical (HOME_SECTIONS) order
+			'liked',
+			'downloads',
 			'top-artists',
-			'tags'
+			'tags',
+			'playlists',
+			'history'
 		]);
 	});
 
 	it('drops ids not in HOME_SECTIONS (unknown/old ids ignored) and still covers every id', () => {
 		expect(resolveSectionOrder(['bogus', 'tags'])).toEqual([
 			'tags',
+			'liked',
+			'downloads',
 			'top-hits',
 			'top-artists',
-			'countries'
+			'countries',
+			'playlists',
+			'history'
 		]);
 	});
 
@@ -73,13 +91,26 @@ describe('resolveSectionOrder', () => {
 		expect(resolveSectionOrder(['tags', 'tags', 'top-hits'])).toEqual([
 			'tags',
 			'top-hits',
+			'liked',
+			'downloads',
 			'top-artists',
-			'countries'
+			'countries',
+			'playlists',
+			'history'
 		]);
 	});
 
 	it('a full valid permutation is returned as-is', () => {
-		const order = ['tags', 'countries', 'top-artists', 'top-hits'];
+		const order = [
+			'tags',
+			'countries',
+			'top-artists',
+			'top-hits',
+			'liked',
+			'downloads',
+			'playlists',
+			'history'
+		];
 		expect(resolveSectionOrder(order)).toEqual(order);
 	});
 });

@@ -108,7 +108,7 @@ export const DEFAULT_HOME_COUNTRIES: string[] = [
  * which matches the current four-block layout and keeps the persisted order tiny + stable
  * regardless of which tags/countries the user has selected.
  */
-export const HOME_SECTIONS = ['top-hits', 'top-artists', 'tags', 'countries'] as const;
+export const HOME_SECTIONS = ['liked', 'downloads', 'top-hits', 'top-artists', 'tags', 'countries', 'playlists', 'history'] as const;
 
 export type HomeSectionId = (typeof HOME_SECTIONS)[number];
 

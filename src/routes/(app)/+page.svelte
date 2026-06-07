@@ -32,6 +32,8 @@
 	import { backfillCovers, backfillArtistCovers } from '$lib/services/cover-backfill';
 	import { decodeTrack } from '$lib/services/share';
 	import { player } from '$lib/stores/player.svelte';
+	import { library } from '$lib/stores/library.svelte';
+	import { history as playHistory } from '$lib/stores/history.svelte';
 	import { names } from '$lib/stores/names.svelte';
 	import { t } from '$lib/i18n';
 	import { longpress } from '$lib/actions/longpress';
@@ -82,6 +84,95 @@
 	// buildDiversePicks grid so the home page is never blank signed-out / no-key.
 	let useFallback = $state(false);
 	let fallbackSongs = $state<Track[]>([]);
+
+	// --- Library-sourced home shelves (quick-260607-hhd) ---------------------------
+	// Local-only shelves built from the user's library + history. They behave like the
+	// chart shelves: appear in /settings/home as reorderable + show/hide entries, the
+	// Randomize button reshuffles them, and the picked uid sets are cached separately so
+	// a page refresh restores the same arrangement. Each shelf is hidden at render time
+	// when its source is empty (no header, no row).
+	let likedShelf = $state<Track[]>([]);
+	let downloadsShelf = $state<Track[]>([]);
+	let historyShelf = $state<Track[]>([]);
+	let playlistShelves = $state<{ id: string; name: string; tracks: Track[] }[]>([]);
+	const LIBRARY_CACHE_KEY = 'openmusic:home-library:v1';
+	type LibraryShelfCache = {
+		v: 1;
+		liked?: string[];
+		downloads?: string[];
+		history?: string[];
+		playlists?: Record<string, string[]>;
+	};
+	function pickN<T>(arr: T[], n: number, randomize: boolean): T[] {
+		if (arr.length <= n) return randomize ? shuffle(arr) : [...arr];
+		if (!randomize) return arr.slice(0, n);
+		// Reservoir-style: shuffle a copy then take N.
+		const copy = [...arr];
+		for (let i = copy.length - 1; i > 0; i--) {
+			const j = Math.floor(Math.random() * (i + 1));
+			[copy[i], copy[j]] = [copy[j], copy[i]];
+		}
+		return copy.slice(0, n);
+	}
+	function buildLibraryShelves(randomize: boolean) {
+		const cap = clampShelfSize(settings.homeShelfSize);
+		likedShelf = pickN(library.liked, cap, randomize);
+		downloadsShelf = pickN(library.downloads, cap, randomize);
+		// History entries carry the full track on `.track`; the latest are at the front.
+		// HistoryEntry IS the playable Track whitelist (audioUrl re-resolves on play()).
+		const historyTracks = playHistory.entries as unknown as Track[];
+		historyShelf = pickN(historyTracks, cap, randomize);
+		playlistShelves = library.playlists
+			.filter((p) => p.tracks.length > 0)
+			.map((p) => ({ id: p.id, name: p.name, tracks: pickN(p.tracks, cap, randomize) }));
+		saveLibraryCache();
+	}
+	function saveLibraryCache() {
+		const payload: LibraryShelfCache = {
+			v: 1,
+			liked: likedShelf.map((t) => t.uid),
+			downloads: downloadsShelf.map((t) => t.uid),
+			history: historyShelf.map((t) => t.uid),
+			playlists: Object.fromEntries(playlistShelves.map((s) => [s.id, s.tracks.map((t) => t.uid)]))
+		};
+		try {
+			localStorage.setItem(LIBRARY_CACHE_KEY, JSON.stringify(payload));
+		} catch {
+			/* quota — non-fatal */
+		}
+	}
+	function loadLibraryCache(): LibraryShelfCache | null {
+		try {
+			const raw = localStorage.getItem(LIBRARY_CACHE_KEY);
+			if (!raw) return null;
+			const v: unknown = JSON.parse(raw);
+			if (v && typeof v === 'object' && (v as LibraryShelfCache).v === 1) return v as LibraryShelfCache;
+			return null;
+		} catch {
+			return null;
+		}
+	}
+	function applyLibraryCache(c: LibraryShelfCache) {
+		// Resolve cached uids → live Track refs from the live stores. A uid not found in the live
+		// store is dropped (e.g. user un-liked the song between sessions); the shelf shrinks but
+		// never holds stale Track objects.
+		const byUidArr = (src: Track[]) => {
+			const idx = new Map(src.map((t) => [t.uid, t]));
+			return (uids: string[] | undefined) => (uids ?? []).map((u) => idx.get(u)).filter(Boolean) as Track[];
+		};
+		likedShelf = byUidArr(library.liked)(c.liked);
+		downloadsShelf = byUidArr(library.downloads)(c.downloads);
+		// HistoryEntry IS the playable Track whitelist (audioUrl re-resolves on play()).
+		const historyTracks = playHistory.entries as unknown as Track[];
+		historyShelf = byUidArr(historyTracks)(c.history);
+		playlistShelves = library.playlists
+			.filter((p) => p.tracks.length > 0)
+			.map((p) => ({ id: p.id, name: p.name, tracks: byUidArr(p.tracks)(c.playlists?.[p.id]) }))
+			// A playlist whose CACHED picks no longer resolve (e.g. all tracks removed) still
+			// renders nothing — let buildLibraryShelves repopulate it next Randomize. Drop empties
+			// so the shelf header doesn't render either.
+			.filter((s) => s.tracks.length > 0);
+	}
 
 	let loading = $state(true);
 	let error = $state<string | null>(null);
@@ -265,6 +356,10 @@
 	// FETCHES and OVERWRITES the cache below with the freshly-shuffled arrangement.
 	let refreshGen = 0;
 	async function refresh(seedQueue = true, background = false, randomize = false) {
+		// quick-260607-hhd: library-sourced shelves rebuild on every refresh. They cost ~0
+		// (pure JS reads of in-memory stores + a localStorage write) so we don't gate by
+		// `background`. Randomize=true picks fresh random subsets; otherwise stable order.
+		buildLibraryShelves(randomize);
 		const gen = ++refreshGen;
 		if (!background) loading = true;
 		error = null;
@@ -430,6 +525,14 @@
 		// w87: ensure the home-layout config is loaded before cache/refresh reads it. load()
 		// is idempotent (its own `loaded` guard), so the layout's onMount call is harmless.
 		settings.load();
+		// hhd: library + history feed the new local-source shelves. load() is idempotent on both.
+		library.load();
+		playHistory.load();
+		// Hydrate the library shelves instantly from the persisted uid set so the same picks
+		// survive page refresh. Falls back to a fresh non-randomize build when no cache exists.
+		const libCache = loadLibraryCache();
+		if (libCache) applyLibraryCache(libCache);
+		else buildLibraryShelves(false);
 
 		// Shared link: /?play=<token> → reconstruct the track stub and play it.
 		const token = new URLSearchParams(location.search).get('play');
@@ -517,6 +620,10 @@
 				{:else if id === 'top-artists'}{@render topArtistsBlock()}
 				{:else if id === 'tags'}{@render tagsBlock()}
 				{:else if id === 'countries'}{@render countriesBlock()}
+				{:else if id === 'liked'}{@render likedBlock()}
+				{:else if id === 'downloads'}{@render downloadsBlock()}
+				{:else if id === 'playlists'}{@render playlistsBlock()}
+				{:else if id === 'history'}{@render historyBlock()}
 				{/if}
 			{/if}
 		{/each}
@@ -587,6 +694,52 @@
 					<span class="al-count" use:marquee><span class="marquee-inner">{names.dnArtist(item.artist)}</span></span>
 				</button>
 			{/each}
+		</div>
+	{/each}
+{/snippet}
+
+{#snippet librarySongRow(track: Track)}
+	<button class="album" use:longpress onlongpress={() => { menuTrack = track; menuOpen = true; }} onclick={() => player.play(track, { fresh: true })}>
+		<span class="al-cover" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track.uid)}>
+			{#if track.cover}<img class="al-cover-img" src={track.cover} loading="lazy" alt="" onerror={hideOnError} />{/if}
+		</span>
+		<span class="al-name" use:marquee><span class="marquee-inner">{names.dnTitle(track.title)}</span></span>
+		<span class="al-count" use:marquee><span class="marquee-inner">{names.dnArtist(track.artist)}</span></span>
+	</button>
+{/snippet}
+
+{#snippet likedBlock()}
+	{#if likedShelf.length}
+		<div class="subhead">{t('settings.homeSectionLiked')}</div>
+		<div class="albumrow" use:dragScroll>
+			{#each likedShelf as track (track.uid)}{@render librarySongRow(track)}{/each}
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet downloadsBlock()}
+	{#if downloadsShelf.length}
+		<div class="subhead">{t('settings.homeSectionDownloads')}</div>
+		<div class="albumrow" use:dragScroll>
+			{#each downloadsShelf as track (track.uid)}{@render librarySongRow(track)}{/each}
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet historyBlock()}
+	{#if historyShelf.length}
+		<div class="subhead">{t('settings.homeSectionHistory')}</div>
+		<div class="albumrow" use:dragScroll>
+			{#each historyShelf as track (track.uid)}{@render librarySongRow(track)}{/each}
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet playlistsBlock()}
+	{#each playlistShelves as shelf (shelf.id)}
+		<div class="subhead">{shelf.name}</div>
+		<div class="albumrow" use:dragScroll>
+			{#each shelf.tracks as track (track.uid)}{@render librarySongRow(track)}{/each}
 		</div>
 	{/each}
 {/snippet}

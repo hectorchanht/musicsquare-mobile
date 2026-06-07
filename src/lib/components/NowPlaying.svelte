@@ -80,9 +80,24 @@
 	const lines = $derived<LyricLine[]>(
 		player.current?.lrc ? splitParenLines(parseLRC(player.current.lrc)) : []
 	);
+	// When multiple lyric lines share a timestamp (common in CN LRCs that ship the original
+	// + an inline translation as two consecutive entries at the same time), pick the FIRST
+	// of the group as active rather than walking past with `<=` (which lands on the LAST
+	// equal-timestamp line — usually the translation, making the translated line appear
+	// active instead of the original). Forward-scan, only advance idx when t > maxTime so
+	// ties stay with the earliest-rendered line (the original / parent).
 	const activeLine = $derived.by(() => {
 		let idx = -1;
-		for (let i = 0; i < lines.length; i++) if (lines[i].time <= player.currentTime) idx = i;
+		let maxTime = -1;
+		const now = player.currentTime;
+		for (let i = 0; i < lines.length; i++) {
+			const t = lines[i].time;
+			if (t > now) break;
+			if (t > maxTime) {
+				maxTime = t;
+				idx = i;
+			}
+		}
 		return idx;
 	});
 	let lyricsEl = $state<HTMLElement | null>(null);

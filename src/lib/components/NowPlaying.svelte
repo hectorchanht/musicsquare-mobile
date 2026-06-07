@@ -726,7 +726,11 @@
 	/* Progress + transport are HIDDEN in full state — the sheet covers them anyway, and the
 	   mini-bar's compact layout doesn't have room. Tap the play button in the top bar instead. */
 	.np.fullshrink .prog, .np.fullshrink .transport { display: none; }
-	/* Reserve top space so the SHEET (which is absolute-positioned) sits BELOW the mini-bar. */
+	/* m4e-followup: push the absolute-positioned sheet down by the mini-bar's height so the
+	   top row (cover + title + artist + play) is visible above the queue. The sheet's
+	   `inset:0` was covering the entire viewport including the mini-bar at z:2-3 (sheet z:5).
+	   Mini-bar contents stay at their lower z; sheet just sits below them spatially now. */
+	.np.fullshrink .sheet.full { inset: 64px 0 0 0; }
 	.np.fullshrink { padding-top: 64px; }
 	.title { font-size: calc(1.5rem * var(--fs-title, 1)); font-weight: 800; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.artist { display: inline-block; max-width: 100%; vertical-align: bottom; background: black; border: none; padding: 2px; border-radius: 4px; color: var(--color-text-muted); font-size: calc(1rem * var(--fs-artist, 1)); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

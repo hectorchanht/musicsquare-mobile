@@ -328,13 +328,52 @@
 		return () => window.removeEventListener('keydown', onKey);
 	});
 
-	// ---- cover drag-down to collapse ----
+	// ---- NP top drag-down to collapse ----
+	// Wrapping container (.np-top) carries the drag, so a downward swipe ANYWHERE on the
+	// cover/meta/prog/transport collapses the player back to the nowbar. The sheet area
+	// (grip/subnav/panel) is OUTSIDE this wrapper — it owns its own up/down snap machine.
+	//
+	// Slop-threshold capture: pointerdown just records the start position; no capture, no
+	// `dragging=true`, no preventDefault. Only after the user moves ≥SLOP px vertically AND
+	// the vertical component dominates the horizontal one does the wrapper claim the gesture
+	// (setPointerCapture + dragging=true). Below that threshold the click reaches the button /
+	// progress-bar / artist link normally, so taps don't get hijacked.
 	let dragY = $state(0);
 	let dragging = $state(false);
+	let dragArmed = false;
 	let startY = 0;
-	function coverDown(e: PointerEvent) { dragging = true; startY = e.clientY; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); }
-	function coverMove(e: PointerEvent) { if (dragging) dragY = Math.max(0, e.clientY - startY); }
-	function coverUp() { if (!dragging) return; dragging = false; if (dragY > 120) player.collapse(); dragY = 0; }
+	let startX = 0;
+	const DRAG_SLOP = 8;
+	function npTopDown(e: PointerEvent) {
+		dragArmed = true;
+		dragging = false;
+		startY = e.clientY;
+		startX = e.clientX;
+	}
+	function npTopMove(e: PointerEvent) {
+		if (!dragArmed) return;
+		const dy = e.clientY - startY;
+		const dx = e.clientX - startX;
+		if (!dragging) {
+			// Claim the gesture only once it's clearly a downward vertical drag — protects
+			// taps + horizontal gestures (marquee scroll on long titles, future swipe).
+			if (dy > DRAG_SLOP && Math.abs(dy) > Math.abs(dx)) {
+				dragging = true;
+				(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+			} else {
+				return;
+			}
+		}
+		dragY = Math.max(0, dy);
+	}
+	function npTopUp() {
+		const wasDragging = dragging;
+		dragArmed = false;
+		dragging = false;
+		if (!wasDragging) return; // tap path — let the click handler do its thing
+		if (dragY > 120) player.collapse();
+		dragY = 0;
+	}
 
 	// ---- sheet: 3-state snap machine (closed / half / full) ----
 	// translateY is measured in "full coordinates": 0 = full (sheet fills .np),
@@ -585,16 +624,25 @@
 		<button class="icon" aria-label={t('nowplaying.options')} onclick={() => openMenu(player.current)}><MoreVertical /></button>
 	</header>
 
+	<!-- Wrapping container so the whole top half of NP (cover + meta + prog + transport)
+	     accepts the swipe-down-to-collapse gesture. Slop-thresholded capture: a tap on any
+	     button/artist link inside still fires its click handler normally; only a clear
+	     vertical drag claims the gesture and translates the panel downward. -->
+	<div
+		class="np-top"
+		role="group"
+		aria-label={t('nowplaying.albumArt')}
+		onpointerdown={npTopDown}
+		onpointermove={npTopMove}
+		onpointerup={npTopUp}
+		onpointercancel={npTopUp}
+	>
 	<div
 		class="cover"
 		role="button"
 		tabindex="0"
 		bind:this={coverEl}
 		aria-label={t('nowplaying.albumArt')}
-		onpointerdown={coverDown}
-		onpointermove={coverMove}
-		onpointerup={coverUp}
-		onpointercancel={coverUp}
 		style:background-image={effectiveCover ? `url(${effectiveCover})` : fallbackCover(player.current)}
 	></div>
 
@@ -635,6 +683,7 @@
 		<button class="t" class:on={player.repeatMode !== 'off'} aria-label={player.repeatMode === 'one' ? t('nowplaying.repeatModeOne') : player.repeatMode === 'all' ? t('nowplaying.repeatModeAll') : t('nowplaying.repeat')} onclick={() => player.cycleRepeat()}>
 			{#if player.repeatMode === 'one'}<Repeat1 size={20} />{:else}<Repeat size={20} />{/if}
 		</button>
+	</div>
 	</div>
 
 	<div
@@ -721,10 +770,13 @@
 <style>
 	.np { position: fixed; inset: 0; z-index: 50; background: var(--color-bg); display: flex; flex-direction: column; padding: 0px 18px env(safe-area-inset-bottom); overflow: hidden; }
 	.bar { display: flex; align-items: center; justify-content: space-between; }
-	.bar .ctx { font-size: 12px; color: var(--color-text-muted); }
 	.icon { background: none; border: none; color: var(--color-text); cursor: pointer; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; }
 	.icon:hover { background: var(--color-surface-2); }
-	.cover { position: relative; z-index: 1; width: min(72vw, 320px); height: auto; aspect-ratio: 1/1; margin: 4px auto; border-radius: 16px; background-size: cover; background-position: center; box-shadow: 0 18px 50px rgba(0,0,0,0.5); cursor: grab; touch-action: none; transition: width 0.32s cubic-bezier(.22,1,.36,1), height 0.32s cubic-bezier(.22,1,.36,1), margin 0.32s cubic-bezier(.22,1,.36,1), border-radius 0.32s cubic-bezier(.22,1,.36,1); }
+	/* The .np-top wrapper carries the drag-down gesture (slop-thresholded so clicks still
+	   fire). touch-action: pan-x leaves horizontal scrolling intact (none here, but
+	   defensive) while letting our pointer handlers own vertical motion. */
+	.np-top { touch-action: pan-x; }
+	.cover { position: relative; z-index: 1; width: min(72vw, 320px); height: auto; aspect-ratio: 1/1; margin: 4px auto; border-radius: 16px; background-size: cover; background-position: center; box-shadow: 0 18px 50px rgba(0,0,0,0.5); cursor: grab; transition: width 0.32s cubic-bezier(.22,1,.36,1), height 0.32s cubic-bezier(.22,1,.36,1), margin 0.32s cubic-bezier(.22,1,.36,1), border-radius 0.32s cubic-bezier(.22,1,.36,1); }
 	.cover:active { cursor: grabbing; }
 	.meta { margin: 4px 2px 12px; transition: margin 0.32s cubic-bezier(.22,1,.36,1); display: flex; flex-direction: column; align-items: flex-start; gap: 0px; }
 	/* Reflow (sheet half/full): cover becomes a full-bleed YT-Music banner that the

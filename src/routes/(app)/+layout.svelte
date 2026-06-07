@@ -4,7 +4,6 @@
 	import { goto } from '$app/navigation';
 	import { House, Search, Library, Play, Pause, Loader } from '@lucide/svelte';
 	import { player } from '$lib/stores/player.svelte';
-	import { captureFrom } from '$lib/stores/morph.svelte';
 	import { library } from '$lib/stores/library.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { LANDING_PATHS } from '$lib/services/home-layout';
@@ -50,76 +49,6 @@
 	function cover(track: { cover: string | null } | null): string {
 		return 'linear-gradient(145deg,#3a2d63,#1a1326)';
 	}
-
-	// ---- Shared-element expand (gte) -----------------------------------------
-	// Click handler: snapshot the now-bar's cover/title/artist rects → expand.
-	// NowPlaying.onMount reads the rects, applies inverse FLIP transforms, then a
-	// CSS transition morphs the elements into their NP slots.
-	let nowbarEl = $state<HTMLDivElement | null>(null);
-	let liftDy = $state(0);          // current swipe-up displacement (negative px)
-	let liftActive = $state(false);  // a swipe is in progress (drives transform + skip click)
-	let liftScale = $state(1);
-	let liftId = -1;
-	const LIFT_THRESHOLD = 60; // px — commit threshold for swipe-up expand
-
-	function captureNowbarRects(): boolean {
-		const root = nowbarEl;
-		if (!root) return false;
-		const art = root.querySelector<HTMLElement>('.np-art');
-		const title = root.querySelector<HTMLElement>('.np-title');
-		const artist = root.querySelector<HTMLElement>('.np-artist');
-		return captureFrom(art, title, artist);
-	}
-
-	function openNowPlaying() {
-		// Best-effort capture; if it fails (no DOM/SSR), NowPlaying falls back to today's fly.
-		captureNowbarRects();
-		player.expand();
-	}
-
-	// ---- swipe-up gesture on the nowbar ----
-	let liftStartY = 0;
-	function liftDown(e: PointerEvent) {
-		// Ignore presses on the inner play/pause button (it has its own onclick).
-		if ((e.target as HTMLElement).closest('.np-btn')) return;
-		liftId = e.pointerId;
-		liftStartY = e.clientY;
-		liftDy = 0;
-		liftActive = false;
-		// Pointer capture can throw on synthesized/edge-case pointers — defensive guard so we
-		// never abort the gesture state machine before liftDy/liftScale get cleared.
-		try { (e.currentTarget as HTMLElement).setPointerCapture?.(liftId); } catch { /* */ }
-	}
-	function liftMove(e: PointerEvent) {
-		if (liftId < 0 || e.pointerId !== liftId) return;
-		const dy = e.clientY - liftStartY;
-		// Only enter drag mode on UPWARD motion past 6px — keeps the tap path intact.
-		if (!liftActive && dy < -6) liftActive = true;
-		if (!liftActive) return;
-		// Resist downward / past threshold so the gesture feels bounded.
-		liftDy = Math.min(0, dy);
-		const progress = Math.min(1, -liftDy / LIFT_THRESHOLD);
-		liftScale = 1 + progress * 0.06; // up to 1.06× visual hint
-	}
-	function liftUp(e: PointerEvent) {
-		if (liftId < 0 || e.pointerId !== liftId) return;
-		try { (e.currentTarget as HTMLElement).releasePointerCapture?.(liftId); } catch { /* */ }
-		liftId = -1;
-		const past = -liftDy >= LIFT_THRESHOLD;
-		// Reset transient state. captureRects must happen BEFORE expand so the rects reflect
-		// the nowbar's RESTING geometry (the inverse transform we'd otherwise capture would
-		// poison the FLIP delta computation).
-		liftDy = 0;
-		liftScale = 1;
-		if (past) {
-			liftActive = false; // suppress the synthetic click that follows pointerup
-			openNowPlaying();
-		} else {
-			// Snap back. Defer flipping liftActive=false so the click still fires only when
-			// there was no real drag.
-			setTimeout(() => (liftActive = false), 50);
-		}
-	}
 </script>
 
 <div class="app">
@@ -134,16 +63,7 @@
 		     takes over and the bar swaps to the determinate progress fill. -->
 		{@const np = player.current ?? player.pendingTrack}
 		{@const resolving = !player.current && !!player.pendingTrack}
-		<div class="nowbar"
-			class:lifting={liftActive}
-			role="region"
-			aria-label={t('nowbar.openNowPlaying')}
-			bind:this={nowbarEl}
-			style:transform={liftDy ? `translateY(${liftDy}px) scale(${liftScale})` : undefined}
-			onpointerdown={liftDown}
-			onpointermove={liftMove}
-			onpointerup={liftUp}
-			onpointercancel={liftUp}>
+		<div class="nowbar">
 			<div class="np-prog" class:indet={player.loading}>
 				{#if player.loading}
 					<i class="sliver"></i>
@@ -151,7 +71,7 @@
 					<i style:width={`${player.duration > 0 ? (player.currentTime / player.duration) * 100 : 0}%`}></i>
 				{/if}
 			</div>
-			<button class="np-open" aria-label={t('nowbar.openNowPlaying')} disabled={resolving} onclick={() => { if (liftActive) return; openNowPlaying(); }}>
+			<button class="np-open" aria-label={t('nowbar.openNowPlaying')} disabled={resolving} onclick={() => player.expand()}>
 				<span class="np-art" style:background-image={np?.cover ? `url(${np.cover})` : cover(np)}></span>
 				<span class="np-meta">
 					<span class="np-title">{names.dnTitle(np?.title ?? '')}</span>
@@ -221,10 +141,7 @@
 		z-index: 20;
 		overflow: hidden;
 		backdrop-filter: blur(2px);
-		transition: transform 0.18s cubic-bezier(.22,1,.36,1);
-		touch-action: pan-y; /* let vertical pan be ours; keep horizontal swipes for browser */
 	}
-	.nowbar.lifting { transition: none; }
 	.np-prog {
 		position: absolute;
 		top: 0;

@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { onMount, tick, untrack } from 'svelte';
+	import { untrack } from 'svelte';
 	import { fly } from 'svelte/transition';
-	import { takeFrom, prefersReducedMotion, type MorphFrom } from '$lib/stores/morph.svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { goto } from '$app/navigation';
 	import { ChevronDown, MoreVertical, Shuffle, SkipBack, SkipForward, Play, Pause, Repeat, Repeat1, GripVertical } from '@lucide/svelte';
@@ -27,99 +26,6 @@
 	// shuffle/repeat moved to the store (gte) so the audio `ended` handler + next() can read
 	// them. The transport buttons below bind to player.shuffle / player.repeatMode directly.
 
-	// ---- Shared-element morph from the now-bar (gte / Part 5) ----------------------
-	// The now-bar's onclick / swipe-up captures the rects of its .np-art / .np-title /
-	// .np-artist into the module-scoped morph store BEFORE flipping player.expanded=true.
-	// On mount we read those rects, measure our own target rects, and apply inverse FLIP
-	// transforms to .cover / .title / .artist + an inverse font-size to the text — so they
-	// VISUALLY appear at the now-bar slots. Then on the next frame we drop the transforms;
-	// CSS transitions on transform + font-size morph them into their rest state. The other
-	// chrome (.bar / .prog / .transport / .sheet) gets a .morph-in class on .np that
-	// animates each in from opacity:0 + scale(0.96) on the same duration. If no rects were
-	// captured (e.g. direct ?play= link, autoExpandOnPlay, or reduce-motion) the morph is
-	// skipped and the existing transition:fly fallback runs.
-	// coverEl is already declared further down for the drag-down-to-collapse handler — we reuse it.
-	let titleEl2 = $state<HTMLDivElement | null>(null);
-	let artistEl2 = $state<HTMLButtonElement | null>(null);
-	let morphActive = $state(false);       // drives :class on .np for chrome fade-in
-	let morphRunning = $state(false);      // suppresses transition:fly when we own the entry
-	const MORPH_DURATION = 320;            // matches existing fly duration
-	function applyMorphFrom(from: MorphFrom) {
-		if (!coverEl || !titleEl2 || !artistEl2) return;
-		const toCover = coverEl.getBoundingClientRect();
-		const toTitle = titleEl2.getBoundingClientRect();
-		const toArtist = artistEl2.getBoundingClientRect();
-		const toTitleFs = parseFloat(getComputedStyle(titleEl2).fontSize) || 0;
-		const toArtistFs = parseFloat(getComputedStyle(artistEl2).fontSize) || 0;
-		// FLIP: translate from→to delta, then scale to from-size; origin = 0 0.
-		function inverse(el: HTMLElement, fromRect: { left: number; top: number; width: number; height: number }, toRect: DOMRect) {
-			const dx = fromRect.left - toRect.left;
-			const dy = fromRect.top - toRect.top;
-			const sx = toRect.width > 0 ? fromRect.width / toRect.width : 1;
-			const sy = toRect.height > 0 ? fromRect.height / toRect.height : 1;
-			el.style.transformOrigin = '0 0';
-			el.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
-			el.style.transition = 'none';
-		}
-		inverse(coverEl, from.art, toCover);
-		// Title/artist: keep transform on the WHOLE element (so it lands in the right slot) but
-		// also slam font-size to the from value so the text doesn't pre-grow inside the scaled
-		// box. Animate both transform and font-size to the rest state.
-		inverse(titleEl2, from.title, toTitle);
-		inverse(artistEl2, from.artist, toArtist);
-		if (from.title.fontPx) titleEl2.style.fontSize = `${from.title.fontPx}px`;
-		if (from.artist.fontPx) artistEl2.style.fontSize = `${from.artist.fontPx}px`;
-		// Two rAFs: let the inverse paint, then enable the transition + drop the transforms.
-		requestAnimationFrame(() => {
-			requestAnimationFrame(() => {
-				const ease = `cubic-bezier(.22,1,.36,1)`;
-				const t = `transform ${MORPH_DURATION}ms ${ease}, font-size ${MORPH_DURATION}ms ${ease}`;
-				coverEl!.style.transition = t;
-				titleEl2!.style.transition = t;
-				artistEl2!.style.transition = t;
-				coverEl!.style.transform = '';
-				titleEl2!.style.transform = '';
-				artistEl2!.style.transform = '';
-				titleEl2!.style.fontSize = `${toTitleFs}px`;
-				artistEl2!.style.fontSize = `${toArtistFs}px`;
-				// Drop .morph NOW (same frame as the transform release) so the chrome animates
-				// IN parallel with the cover/title/artist morphing into place. Pure CSS handles
-				// the chrome side; we just flip the class.
-				morphActive = false;
-				// Inline-style cleanup happens AFTER the transition finishes so the CSS rules
-				// own the rest state (no lingering inline `transition:` overrides).
-				const clear = () => {
-					if (coverEl) {
-						coverEl.style.transition = '';
-						coverEl.style.transform = '';
-						coverEl.style.transformOrigin = '';
-					}
-					if (titleEl2) {
-						titleEl2.style.transition = '';
-						titleEl2.style.transform = '';
-						titleEl2.style.transformOrigin = '';
-						titleEl2.style.fontSize = '';
-					}
-					if (artistEl2) {
-						artistEl2.style.transition = '';
-						artistEl2.style.transform = '';
-						artistEl2.style.transformOrigin = '';
-						artistEl2.style.fontSize = '';
-					}
-					morphRunning = false;
-				};
-				setTimeout(clear, MORPH_DURATION + 60);
-			});
-		});
-	}
-	onMount(() => {
-		const from = takeFrom();
-		if (!from || prefersReducedMotion()) return; // no FLIP — today's fly handles it
-		morphRunning = true;
-		morphActive = true;
-		// Wait one tick so the DOM (cover/.meta) is mounted before measuring/transforming.
-		void tick().then(() => applyMorphFrom(from));
-	});
 
 	// shared context menu for current track + long-pressed queue/related rows
 	let menuTrack = $state<Track | null>(null);
@@ -612,9 +518,7 @@
 <section
 	class="np"
 	class:reflow={sheetState !== 'closed'}
-	class:morph={morphActive}
-	in:fly={{ y: 600, duration: morphRunning ? 0 : 320, easing: cubicOut }}
-	out:fly={{ y: 600, duration: 320, easing: cubicOut }}
+	transition:fly={{ y: 600, duration: 320, easing: cubicOut }}
 	style:transform={dragY ? `translateY(${dragY}px)` : undefined}
 	style:transition={dragging ? 'none' : 'transform 0.28s cubic-bezier(.22,1,.36,1)'}
 >
@@ -644,8 +548,8 @@
 		     marquee in app.css drives them (gmy unified the artist + NowPlaying drift onto one
 		     system). Genre/tag chips intentionally hidden (quick-260607-f4y). -->
 		{#key player.current?.uid}
-			<div class="title" bind:this={titleEl2} use:marquee><span class="marquee-inner">{player.current ? names.dnTitle(player.current.title) : ''}</span></div>
-			<button class="artist" bind:this={artistEl2} use:marquee onclick={openArtist}><span class="marquee-inner">{player.current ? names.dnArtist(player.current.artist) : ''}</span></button>
+			<div class="title" use:marquee><span class="marquee-inner">{player.current ? names.dnTitle(player.current.title) : ''}</span></div>
+			<button class="artist" use:marquee onclick={openArtist}><span class="marquee-inner">{player.current ? names.dnArtist(player.current.artist) : ''}</span></button>
 		{/key}
 	</div>
 
@@ -816,17 +720,4 @@
 	.lyrics .tr { display: block; font-size: 0.82em; font-weight: 400; color: var(--color-text-muted); margin-top: 2px; }
 	.tr-hint { text-align: center; font-size: 11px; color: var(--color-primary); margin: 0 0 6px; }
 	.empty { color: var(--color-text-muted); font-size: 14px; text-align: center; padding: 24px; }
-
-	/* Shared-element morph (gte): when .np is born with .morph, the chrome AROUND the
-	   cover/title/artist (header bar, progress, transport, sheet) starts hidden + slightly
-	   shrunk + pushed down, then settles to rest over the same 320ms as the FLIP. The
-	   transitions are pure CSS — JS only flips the .morph class on the .np root on/off. */
-	.np.morph .bar,
-	.np.morph .prog,
-	.np.morph .transport,
-	.np.morph .sheet { opacity: 0; transform: scale(0.96) translateY(8px); transition: opacity 320ms cubic-bezier(.22,1,.36,1), transform 320ms cubic-bezier(.22,1,.36,1); }
-	/* Once .morph is removed (after the inverse-transform pass), the chrome animates back
-	   to rest. Using a NESTED rule: while .morph is set the start state above sticks; the
-	   instant .morph is dropped, the transition runs to the natural state below. */
-	.np .bar, .np .prog, .np .transport, .np .sheet { transition: opacity 320ms cubic-bezier(.22,1,.36,1), transform 320ms cubic-bezier(.22,1,.36,1); }
 </style>

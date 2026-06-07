@@ -127,11 +127,11 @@ class Settings {
 				// the browser; otherwise the saved choice always wins. (browser-guarded above.)
 				this.appLang = (v.appLang as AppLang) ?? detectAppLang(navigator.language);
 				this.lyricsLang = (v.lyricsLang as LyricsLang) ?? 'off';
-				// Non-destructive migration: a saved `nameLang` mirrors into BOTH new
-				// per-part targets. New `artistLang`/`titleLang` win when present.
-				const savedNameLang = (v as { nameLang?: LyricsLang }).nameLang;
-				this.artistLang = (v.artistLang as LyricsLang) ?? savedNameLang ?? 'off';
-				this.titleLang = (v.titleLang as LyricsLang) ?? savedNameLang ?? 'off';
+				// Names default to NO translation (quick-260607-f4y): the legacy `nameLang`
+				// migration is intentionally dropped so returning users are NOT auto-translated.
+				// Only an explicit per-part `artistLang`/`titleLang` opts back in.
+				this.artistLang = (v.artistLang as LyricsLang) ?? 'off';
+				this.titleLang = (v.titleLang as LyricsLang) ?? 'off';
 				this.lastfmLang = (v.lastfmLang as LyricsLang) ?? 'off';
 				this.artistSkip = Array.isArray(v.artistSkip) ? (v.artistSkip as SourceLang[]) : [];
 				this.titleSkip = Array.isArray(v.titleSkip) ? (v.titleSkip as SourceLang[]) : [];
@@ -184,8 +184,8 @@ class Settings {
 				JSON.stringify({
 					appLang: this.appLang,
 					lyricsLang: this.lyricsLang,
-					// `nameLang` is now a read-only migration source (load() still reads it),
-					// so we stop writing it; the per-part fields below supersede it.
+					// `nameLang` is fully retired (quick-260607-f4y): no longer written and no
+					// longer read on load. The per-part fields below are the only name targets.
 					artistLang: this.artistLang,
 					titleLang: this.titleLang,
 					lastfmLang: this.lastfmLang,

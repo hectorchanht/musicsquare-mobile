@@ -108,6 +108,15 @@ class Names {
 	dnLastfm(text: string): string {
 		return this.resolve(text, settings.lastfmLang, settings.lastfmSkip);
 	}
+
+	/**
+	 * Last.fm bio → app/device language, automatically (quick-260607-f4y). No manual picker
+	 * and no skip list: appLang ⊆ LyricsLang and is never 'off', so this always attempts;
+	 * `shouldTranslate` no-ops when the bio is already in the app language (e.g. en bio + en app).
+	 */
+	dnBio(text: string): string {
+		return this.resolve(text, settings.appLang, []);
+	}
 }
 
 export const names = new Names();

@@ -85,11 +85,12 @@
 	}
 	function setMode(v: TranslateMode) { settings.translateMode = v; settings.save(); }
 
+	// Bio info (quick-260607-f4y) is NOT a per-part picker — it auto-translates to the app
+	// language, so it renders as a read-only note section below instead of in this list.
 	const parts: { key: PartKey; headingKey: TranslationKey; noteKey: TranslationKey }[] = [
 		{ key: 'artist', headingKey: 'settings.translateArtist', noteKey: 'settings.translateArtistNote' },
 		{ key: 'title', headingKey: 'settings.translateTitle', noteKey: 'settings.translateTitleNote' },
-		{ key: 'lyrics', headingKey: 'settings.lyricsTranslation', noteKey: 'settings.translateLyricsNote' },
-		{ key: 'lastfm', headingKey: 'settings.translateLastfm', noteKey: 'settings.translateLastfmNote' }
+		{ key: 'lyrics', headingKey: 'settings.lyricsTranslation', noteKey: 'settings.translateLyricsNote' }
 	];
 </script>
 
@@ -120,6 +121,11 @@
 		</div>
 	</section>
 {/each}
+
+<section>
+	<h2><Languages size={15} /> {t('settings.translateLastfm')}</h2>
+	<p class="muted">{t('settings.translateLastfmNote')}</p>
+</section>
 
 <section>
 	<h2><Replace size={15} /> {t('settings.translateMode')}</h2>

@@ -136,8 +136,9 @@
 		<div class="herotags"><TagChips tags={enrich.tags} /></div>
 	{/if}
 
-	<!-- Bio (D-07: English-as-is, HTML-stripped — NOT translated). Gated on
-	     BOTH bio AND bioUrl so the required attribution link is never missing (D-08). -->
+	<!-- Bio (quick-260607-f4y: HTML-stripped, auto-translated to the app language via
+	     names.dnBio — bio is one of the only two translated surfaces). Gated on BOTH bio
+	     AND bioUrl so the required attribution link is never missing (D-08). -->
 	{#if enrichLoading}
 		<section class="bio" aria-hidden="true">
 			<span class="sk sk-h2"></span>
@@ -148,7 +149,7 @@
 	{:else if enrich?.bio && enrich?.bioUrl}
 		<section class="bio">
 			<h2>{t('lastfm.about')}</h2>
-			<p>{enrich.bio}</p>
+			<p>{names.dnBio(enrich.bio)}</p>
 			<a class="readmore" href={enrich.bioUrl} target="_blank" rel="noopener noreferrer">{t('lastfm.readMore')}</a>
 		</section>
 	{/if}

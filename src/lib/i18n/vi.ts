@@ -155,6 +155,8 @@ const vi: Dict = {
 	"nowplaying.playPause": "Phát/tạm dừng",
 	"nowplaying.next": "Tiếp theo",
 	"nowplaying.repeat": "Lặp lại",
+	"nowplaying.repeatModeOne": "Lặp một",
+	"nowplaying.repeatModeAll": "Lặp tất cả",
 	"nowplaying.collapsePanel": "Thu gọn bảng điều khiển",
 	"nowplaying.expandPanel": "Bảng mở rộng",
 	"nowplaying.upNext": "Tiếp theo",

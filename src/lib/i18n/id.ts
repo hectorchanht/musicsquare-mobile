@@ -155,6 +155,8 @@ const id: Dict = {
 	"nowplaying.playPause": "Putar/jeda",
 	"nowplaying.next": "Selanjutnya",
 	"nowplaying.repeat": "Ulangi",
+	"nowplaying.repeatModeOne": "Ulangi satu",
+	"nowplaying.repeatModeAll": "Ulangi semua",
 	"nowplaying.collapsePanel": "Ciutkan panel",
 	"nowplaying.expandPanel": "Perluas panel",
 	"nowplaying.upNext": "Selanjutnya",

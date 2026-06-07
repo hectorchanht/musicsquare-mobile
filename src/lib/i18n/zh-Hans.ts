@@ -173,6 +173,8 @@ const zhHans: Dict = {
 	'nowplaying.playPause': '播放／暂停',
 	'nowplaying.next': '下一首',
 	'nowplaying.repeat': '重复播放',
+	'nowplaying.repeatModeOne': '单曲循环',
+	'nowplaying.repeatModeAll': '列表循环',
 	'nowplaying.collapsePanel': '收起面板',
 	'nowplaying.expandPanel': '展开面板',
 	'nowplaying.upNext': '待播列表',

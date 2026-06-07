@@ -155,6 +155,8 @@ const ar: Dict = {
 	"nowplaying.playPause": "تشغيل/إيقاف مؤقت",
 	"nowplaying.next": "التالي",
 	"nowplaying.repeat": "كرر",
+	"nowplaying.repeatModeOne": "تكرار واحد",
+	"nowplaying.repeatModeAll": "تكرار الكل",
 	"nowplaying.collapsePanel": "طي اللوحة",
 	"nowplaying.expandPanel": "قم بتوسيع اللوحة",
 	"nowplaying.upNext": "التالي",

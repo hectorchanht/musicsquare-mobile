@@ -155,6 +155,8 @@ const de: Dict = {
 	"nowplaying.playPause": "Abspielen/Pause",
 	"nowplaying.next": "Als nächstes",
 	"nowplaying.repeat": "Wiederholen",
+	"nowplaying.repeatModeOne": "Eins wiederholen",
+	"nowplaying.repeatModeAll": "Alle wiederholen",
 	"nowplaying.collapsePanel": "Bedienfeld ausblenden",
 	"nowplaying.expandPanel": "Bereich erweitern",
 	"nowplaying.upNext": "Als nächstes",

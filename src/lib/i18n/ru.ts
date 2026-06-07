@@ -155,6 +155,8 @@ const ru: Dict = {
 	"nowplaying.playPause": "Воспроизведение/пауза",
 	"nowplaying.next": "Далее",
 	"nowplaying.repeat": "Повторить",
+	"nowplaying.repeatModeOne": "Повторять одну",
+	"nowplaying.repeatModeAll": "Повторять все",
 	"nowplaying.collapsePanel": "Свернуть панель",
 	"nowplaying.expandPanel": "Развернуть панель",
 	"nowplaying.upNext": "Далее",

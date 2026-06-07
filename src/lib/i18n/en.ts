@@ -172,6 +172,8 @@ const en = {
 	'nowplaying.playPause': 'Play/pause',
 	'nowplaying.next': 'Next',
 	'nowplaying.repeat': 'Repeat',
+	'nowplaying.repeatModeOne': 'Repeat one',
+	'nowplaying.repeatModeAll': 'Repeat all',
 	'nowplaying.collapsePanel': 'Collapse panel',
 	'nowplaying.expandPanel': 'Expand panel',
 	'nowplaying.upNext': 'Up Next',

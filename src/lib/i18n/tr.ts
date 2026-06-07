@@ -155,6 +155,8 @@ const tr: Dict = {
 	"nowplaying.playPause": "Oynat/duraklat",
 	"nowplaying.next": "Sonraki",
 	"nowplaying.repeat": "Tekrarla",
+	"nowplaying.repeatModeOne": "Birini tekrarla",
+	"nowplaying.repeatModeAll": "Tümünü tekrarla",
 	"nowplaying.collapsePanel": "Paneli daralt",
 	"nowplaying.expandPanel": "Paneli genişlet",
 	"nowplaying.upNext": "Sonraki",

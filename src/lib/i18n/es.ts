@@ -155,6 +155,8 @@ const es: Dict = {
 	"nowplaying.playPause": "Reproducir/pausar",
 	"nowplaying.next": "Siguiente",
 	"nowplaying.repeat": "repetir",
+	"nowplaying.repeatModeOne": "Repetir una",
+	"nowplaying.repeatModeAll": "Repetir todo",
 	"nowplaying.collapsePanel": "Contraer panel",
 	"nowplaying.expandPanel": "Expandir panel",
 	"nowplaying.upNext": "A continuación",

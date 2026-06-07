@@ -3,7 +3,7 @@
 	import { fly } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import { goto } from '$app/navigation';
-	import { ChevronDown, MoreVertical, Shuffle, SkipBack, SkipForward, Play, Pause, Repeat, GripVertical } from '@lucide/svelte';
+	import { ChevronDown, MoreVertical, Shuffle, SkipBack, SkipForward, Play, Pause, Repeat, Repeat1, GripVertical } from '@lucide/svelte';
 	import { player, fmtTime } from '$lib/stores/player.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { names } from '$lib/stores/names.svelte';
@@ -23,8 +23,8 @@
 
 	type Tab = 'queue' | 'lyrics' | 'related';
 	let tab = $state<Tab>('lyrics');
-	let shuffle = $state(false);
-	let repeat = $state(false);
+	// shuffle/repeat moved to the store (gte) so the audio `ended` handler + next() can read
+	// them. The transport buttons below bind to player.shuffle / player.repeatMode directly.
 
 	// shared context menu for current track + long-pressed queue/related rows
 	let menuTrack = $state<Track | null>(null);
@@ -249,6 +249,34 @@
 		// the track menu) pushes/pops — desyncing history depth so the menu can't be dismissed.
 		untrack(() => overlays.open('nowplaying', () => player.collapse()));
 		return () => untrack(() => overlays.dismiss('nowplaying'));
+	});
+
+	// ---- Keyboard shortcuts (gte) — Space/←/→ on the open NowPlaying overlay.
+	// NowPlaying only renders while player.expanded, so mount == overlay open; the cleanup
+	// removes the listener on collapse. Suppress when typing in inputs / textareas / contentEditable
+	// or while an IME composition is active so we never break text entry.
+	$effect(() => {
+		if (typeof window === 'undefined') return;
+		function isTextEntry(el: EventTarget | null): boolean {
+			if (!(el instanceof HTMLElement)) return false;
+			const tag = el.tagName;
+			if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+			return el.isContentEditable;
+		}
+		const onKey = (e: KeyboardEvent) => {
+			if (e.isComposing) return;
+			if (isTextEntry(e.target)) return;
+			if (e.key === ' ' || e.code === 'Space') {
+				e.preventDefault();
+				player.toggle();
+			} else if (e.key === 'ArrowLeft') {
+				player.prev();
+			} else if (e.key === 'ArrowRight') {
+				player.next();
+			}
+		};
+		window.addEventListener('keydown', onKey);
+		return () => window.removeEventListener('keydown', onKey);
 	});
 
 	// ---- cover drag-down to collapse ----
@@ -540,13 +568,15 @@
 	</div>
 
 	<div class="transport" bind:this={transportEl}>
-		<button class="t" class:on={shuffle} aria-label={t('nowplaying.shuffle')} onclick={() => (shuffle = !shuffle)}><Shuffle size={20} /></button>
+		<button class="t" class:on={player.shuffle} aria-label={t('nowplaying.shuffle')} onclick={() => player.toggleShuffle()}><Shuffle size={20} /></button>
 		<button class="t" aria-label={t('nowplaying.previous')} onclick={() => player.prev()}><SkipBack size={26} /></button>
 		<button class="play" aria-label={t('nowplaying.playPause')} onclick={() => player.toggle()}>
 			{#if player.playing}<Pause size={26} />{:else}<Play size={26} />{/if}
 		</button>
 		<button class="t" aria-label={t('nowplaying.next')} onclick={() => player.next()}><SkipForward size={26} /></button>
-		<button class="t" class:on={repeat} aria-label={t('nowplaying.repeat')} onclick={() => (repeat = !repeat)}><Repeat size={20} /></button>
+		<button class="t" class:on={player.repeatMode !== 'off'} aria-label={player.repeatMode === 'one' ? t('nowplaying.repeatModeOne') : player.repeatMode === 'all' ? t('nowplaying.repeatModeAll') : t('nowplaying.repeat')} onclick={() => player.cycleRepeat()}>
+			{#if player.repeatMode === 'one'}<Repeat1 size={20} />{:else}<Repeat size={20} />{/if}
+		</button>
 	</div>
 
 	<div

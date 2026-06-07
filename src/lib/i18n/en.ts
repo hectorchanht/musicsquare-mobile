@@ -135,6 +135,7 @@ const en = {
 	'settings.homeSectionCountries': 'Country shelves',
 	'settings.homeSectionLiked': 'Liked songs',
 	'settings.homeSectionDownloads': 'Downloads',
+	'settings.homeSectionFavArtists': 'Favourite artists',
 	'settings.homeSectionPlaylists': 'Playlists',
 	'settings.homeSectionHistory': 'Recently played',
 	'settings.dragToReorder': 'Drag the grip to reorder · toggle to show/hide',
@@ -234,6 +235,8 @@ const en = {
 	'toast.shareCopied': 'Share link copied',
 	'toast.liked': 'Liked',
 	'toast.unliked': 'Removed from liked',
+	'toast.artistFavorited': 'Added to favourite artists',
+	'toast.artistUnfavorited': 'Removed from favourite artists',
 	'settings.sourcesAdvanced': 'Advanced — Sources',
 	'settings.sourcesAdvancedNote': 'Disable a source to hide it from search.',
 	'menu.shuffleQueue': 'Shuffle queue',
@@ -267,6 +270,10 @@ const en = {
 	'artist.hitSongs': 'Hit songs',
 	'artist.moreLikeThis': 'More like this',
 	'artist.noSongs': 'No songs found for {name}.',
+	'artist.favorite': 'Favourite',
+	'artist.unfavorite': 'Favourited',
+	'artist.playArtist': 'Play',
+	'artist.share': 'Share',
 
 	// --- album ---
 	'album.title': '{name} · openmusic',

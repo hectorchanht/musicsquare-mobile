@@ -38,6 +38,7 @@
 		countries: 'settings.homeSectionCountries',
 		liked: 'settings.homeSectionLiked',
 		downloads: 'settings.homeSectionDownloads',
+		'fav-artists': 'settings.homeSectionFavArtists',
 		playlists: 'settings.homeSectionPlaylists',
 		history: 'settings.homeSectionHistory'
 	};

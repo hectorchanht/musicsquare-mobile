@@ -18,10 +18,11 @@ import {
 // render — they clamp / drop / fall back to defaults. These tests are fully deterministic.
 
 describe('HOME_SECTIONS / DEFAULT_SECTION_ORDER', () => {
-	it('is the eight home group ids in canonical order (hhd: liked/downloads pin first, library blocks last)', () => {
+	it('is the nine home group ids in canonical order (kmn: fav-artists added after downloads)', () => {
 		expect(HOME_SECTIONS).toEqual([
 			'liked',
 			'downloads',
+			'fav-artists',
 			'top-hits',
 			'top-artists',
 			'tags',
@@ -67,6 +68,7 @@ describe('resolveSectionOrder', () => {
 			// missing ids appended in canonical (HOME_SECTIONS) order
 			'liked',
 			'downloads',
+			'fav-artists',
 			'top-artists',
 			'tags',
 			'playlists',
@@ -79,6 +81,7 @@ describe('resolveSectionOrder', () => {
 			'tags',
 			'liked',
 			'downloads',
+			'fav-artists',
 			'top-hits',
 			'top-artists',
 			'countries',
@@ -93,6 +96,7 @@ describe('resolveSectionOrder', () => {
 			'top-hits',
 			'liked',
 			'downloads',
+			'fav-artists',
 			'top-artists',
 			'countries',
 			'playlists',
@@ -108,10 +112,20 @@ describe('resolveSectionOrder', () => {
 			'top-hits',
 			'liked',
 			'downloads',
+			'fav-artists',
 			'playlists',
 			'history'
 		];
 		expect(resolveSectionOrder(order)).toEqual(order);
+	});
+
+	it('kmn: legacy saved order without fav-artists has it appended (existing-user upgrade path)', () => {
+		const legacy = ['liked', 'downloads', 'top-hits', 'top-artists', 'tags', 'countries', 'playlists', 'history'];
+		const r = resolveSectionOrder(legacy);
+		expect(r).toContain('fav-artists');
+		// User's saved order preserved, fav-artists appended in canonical position (after history here)
+		expect(r.slice(0, legacy.length)).toEqual(legacy);
+		expect(r[legacy.length]).toBe('fav-artists');
 	});
 });
 

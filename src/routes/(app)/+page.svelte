@@ -95,6 +95,9 @@
 	let downloadsShelf = $state<Track[]>([]);
 	let historyShelf = $state<Track[]>([]);
 	let playlistShelves = $state<{ id: string; name: string; tracks: Track[] }[]>([]);
+	// kmn: favourite artists shelf (round avatars). Covers backfill via the existing
+	// backfillArtistCovers chain (Deezer → iTunes) on mount + whenever the list changes.
+	let favArtistsShelf = $state<{ name: string }[]>([]);
 	const LIBRARY_CACHE_KEY = 'openmusic:home-library:v1';
 	type LibraryShelfCache = {
 		v: 1;
@@ -102,6 +105,8 @@
 		downloads?: string[];
 		history?: string[];
 		playlists?: Record<string, string[]>;
+		/** kmn: fav-artists shelf — names only (cover backfills on render). */
+		favArtists?: string[];
 	};
 	function pickN<T>(arr: T[], n: number, randomize: boolean): T[] {
 		if (arr.length <= n) return randomize ? shuffle(arr) : [...arr];
@@ -125,6 +130,16 @@
 		playlistShelves = library.playlists
 			.filter((p) => p.tracks.length > 0)
 			.map((p) => ({ id: p.id, name: p.name, tracks: pickN(p.tracks, cap, randomize) }));
+		// kmn: favourite artists — same shape as topArtists tiles (name only; cover backfills).
+		favArtistsShelf = pickN(library.favArtists, cap, randomize).map((n) => ({ name: n }));
+		// Schedule a cover backfill for the rendered fav-artist names (Deezer → iTunes chain,
+		// post-paint, capped + cached; same posture as the top-artists tier).
+		if (favArtistsShelf.length) {
+			void backfillArtistCovers(favArtistsShelf.map((a) => a.name), {
+				onResolved: () => coverVer++,
+				max: favArtistsShelf.length
+			});
+		}
 		saveLibraryCache();
 	}
 	function saveLibraryCache() {
@@ -133,7 +148,8 @@
 			liked: likedShelf.map((t) => t.uid),
 			downloads: downloadsShelf.map((t) => t.uid),
 			history: historyShelf.map((t) => t.uid),
-			playlists: Object.fromEntries(playlistShelves.map((s) => [s.id, s.tracks.map((t) => t.uid)]))
+			playlists: Object.fromEntries(playlistShelves.map((s) => [s.id, s.tracks.map((t) => t.uid)])),
+			favArtists: favArtistsShelf.map((a) => a.name)
 		};
 		try {
 			localStorage.setItem(LIBRARY_CACHE_KEY, JSON.stringify(payload));
@@ -172,6 +188,20 @@
 			// renders nothing — let buildLibraryShelves repopulate it next Randomize. Drop empties
 			// so the shelf header doesn't render either.
 			.filter((s) => s.tracks.length > 0);
+		// kmn: fav-artists — restore the saved ordering, filtered to names still in the live
+		// library bucket. An entry the user un-favourited between sessions is dropped. When the
+		// cache predates this feature (no `favArtists` key) seed from live library — non-destructive
+		// migration so existing users see their fav-artists immediately on first load.
+		const liveFav = new Set(library.favArtists.map((n) => n.trim().toLowerCase()));
+		const cachedNames = c.favArtists ?? null;
+		favArtistsShelf = (cachedNames !== null ? cachedNames.filter((n) => liveFav.has(n.trim().toLowerCase())) : library.favArtists)
+			.map((n) => ({ name: n }));
+		if (favArtistsShelf.length) {
+			void backfillArtistCovers(favArtistsShelf.map((a) => a.name), {
+				onResolved: () => coverVer++,
+				max: favArtistsShelf.length
+			});
+		}
 	}
 
 	let loading = $state(true);
@@ -622,6 +652,7 @@
 				{:else if id === 'countries'}{@render countriesBlock()}
 				{:else if id === 'liked'}{@render likedBlock()}
 				{:else if id === 'downloads'}{@render downloadsBlock()}
+				{:else if id === 'fav-artists'}{@render favArtistsBlock()}
 				{:else if id === 'playlists'}{@render playlistsBlock()}
 				{:else if id === 'history'}{@render historyBlock()}
 				{/if}
@@ -731,6 +762,23 @@
 		<div class="subhead">{t('settings.homeSectionHistory')}</div>
 		<div class="albumrow" use:dragScroll>
 			{#each historyShelf as track (track.uid)}{@render librarySongRow(track)}{/each}
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet favArtistsBlock()}
+	{#if favArtistsShelf.length}
+		<div class="subhead">{t('settings.homeSectionFavArtists')}</div>
+		<div class="albumrow" use:dragScroll>
+			{#each favArtistsShelf as a (a.name)}
+				{@const artistCover = tileCover({ image: null, mbid: null, artistName: a.name })}
+				<button class="album" onclick={() => goto('/artist/' + encodeURIComponent(a.name))}>
+					<span class="al-cover round" style:background-image={fallbackCover(a.name)}>
+						{#if artistCover}<img class="al-cover-img" src={artistCover} loading="lazy" alt="" onerror={hideOnError} />{/if}
+					</span>
+					<span class="al-name center" use:marquee><span class="marquee-inner">{names.dnArtist(a.name)}</span></span>
+				</button>
+			{/each}
 		</div>
 	{/if}
 {/snippet}

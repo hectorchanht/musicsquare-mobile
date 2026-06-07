@@ -136,6 +136,7 @@ const zhHans: Dict = {
 	'settings.homeSectionCountries': '地区专区',
 	'settings.homeSectionLiked': '我喜欢的歌',
 	'settings.homeSectionDownloads': '已下载',
+	'settings.homeSectionFavArtists': '收藏的歌手',
 	'settings.homeSectionPlaylists': '播放列表',
 	'settings.homeSectionHistory': '最近播放',
 	'settings.dragToReorder': '拖动握把以重新排序 · 切换以显示／隐藏',
@@ -235,6 +236,8 @@ const zhHans: Dict = {
 	'toast.shareCopied': '已复制分享链接',
 	'toast.liked': '已收藏',
 	'toast.unliked': '已取消收藏',
+	'toast.artistFavorited': '已加入收藏的歌手',
+	'toast.artistUnfavorited': '已从收藏的歌手中移除',
 	'settings.sourcesAdvanced': '高级 — 音乐来源',
 	'settings.sourcesAdvancedNote': '禁用某来源可将其隐藏于搜索结果。',
 	'menu.shuffleQueue': '随机播放队列',
@@ -267,6 +270,10 @@ const zhHans: Dict = {
 	'artist.hitSongs': '热门歌曲',
 	'artist.moreLikeThis': '相似歌手',
 	'artist.noSongs': '找不到 {name} 的歌曲。',
+	'artist.favorite': '收藏',
+	'artist.unfavorite': '已收藏',
+	'artist.playArtist': '播放',
+	'artist.share': '分享',
 
 	// --- album ---
 	'album.title': '{name} · openmusic',

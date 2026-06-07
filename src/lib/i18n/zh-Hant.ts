@@ -136,6 +136,7 @@ const zhHant: Dict = {
 	'settings.homeSectionCountries': '地區專區',
 	'settings.homeSectionLiked': '我喜歡的歌',
 	'settings.homeSectionDownloads': '已下載',
+	'settings.homeSectionFavArtists': '收藏的歌手',
 	'settings.homeSectionPlaylists': '播放清單',
 	'settings.homeSectionHistory': '最近播放',
 	'settings.dragToReorder': '拖曳握把以重新排序 · 切換以顯示／隱藏',
@@ -235,6 +236,8 @@ const zhHant: Dict = {
 	'toast.shareCopied': '已複製分享連結',
 	'toast.liked': '已收藏',
 	'toast.unliked': '已取消收藏',
+	'toast.artistFavorited': '已加入收藏的歌手',
+	'toast.artistUnfavorited': '已從收藏的歌手中移除',
 	'settings.sourcesAdvanced': '進階 — 音樂來源',
 	'settings.sourcesAdvancedNote': '停用某來源可將其隱藏於搜尋結果。',
 	'menu.shuffleQueue': '隨機播放佇列',
@@ -267,6 +270,10 @@ const zhHant: Dict = {
 	'artist.hitSongs': '熱門歌曲',
 	'artist.moreLikeThis': '相似歌手',
 	'artist.noSongs': '找不到 {name} 的歌曲。',
+	'artist.favorite': '收藏',
+	'artist.unfavorite': '已收藏',
+	'artist.playArtist': '播放',
+	'artist.share': '分享',
 
 	// --- album ---
 	'album.title': '{name} · openmusic',

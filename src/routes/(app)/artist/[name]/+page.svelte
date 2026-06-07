@@ -5,10 +5,13 @@
 	// Not a true artist catalog — an approximation from cross-source search.
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
+	import { fly } from 'svelte/transition';
+	import { Heart, Play, Share2 } from '@lucide/svelte';
 	import { searchAll } from '$lib/services/catalog';
 	import { dedupeBest } from '$lib/services/dedupe';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { player } from '$lib/stores/player.svelte';
+	import { library } from '$lib/stores/library.svelte';
 	import { names } from '$lib/stores/names.svelte';
 	import { t } from '$lib/i18n';
 	import { longpress } from '$lib/actions/longpress';
@@ -71,6 +74,52 @@
 	function fallbackCoverSeed(seed: string): string {
 		const h = (seed.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 47) % 360;
 		return `linear-gradient(145deg, hsl(${h} 55% 32%), hsl(${(h + 40) % 360} 55% 18%))`;
+	}
+
+	// kmn: action-bar state. Heart fills when artist is in library.favArtists; play picks a
+	// random hit + queues all songs from this artist; share uses Web Share API.
+	const favArtist = $derived(library.isFavArtist(name));
+
+	// Local toast (same lightweight pattern as TrackMenu / home).
+	let toastMsg = $state('');
+	let toastTimer: ReturnType<typeof setTimeout> | null = null;
+	function toast(m: string) {
+		toastMsg = m;
+		if (toastTimer) clearTimeout(toastTimer);
+		toastTimer = setTimeout(() => (toastMsg = ''), 2000);
+	}
+
+	function toggleFavourite() {
+		const was = favArtist;
+		library.toggleFavArtist(name);
+		toast(was ? t('toast.artistUnfavorited') : t('toast.artistFavorited'));
+	}
+
+	function playArtistRandom() {
+		if (!songs.length) return;
+		const pickIdx = Math.floor(Math.random() * songs.length);
+		const picked = songs[pickIdx];
+		// Queue order = picked first, then the rest shuffled — same intent as the
+		// shuffle button on a playlist. player.play() handles ensureAhead growth.
+		const rest = songs.filter((_, i) => i !== pickIdx);
+		for (let i = rest.length - 1; i > 0; i--) {
+			const j = Math.floor(Math.random() * (i + 1));
+			[rest[i], rest[j]] = [rest[j], rest[i]];
+		}
+		player.setQueue([picked, ...rest]);
+		void player.play(picked, { fresh: true });
+	}
+
+	async function shareArtist() {
+		const url = typeof location !== 'undefined' ? `${location.origin}/artist/${encodeURIComponent(name)}` : `/artist/${encodeURIComponent(name)}`;
+		const title = name;
+		try {
+			const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
+			if (nav.share) await nav.share({ title, text: title, url });
+			else { await navigator.clipboard.writeText(url); toast(t('toast.shareCopied')); }
+		} catch {
+			/* user dismissed / clipboard blocked — no toast on cancel */
+		}
 	}
 
 	const hero = $derived(songs.find((t) => t.cover)?.cover ?? null);
@@ -174,6 +223,23 @@
 	{/if}
 	<h1>{names.dnArtist(name)}</h1>
 	<p class="note">{t('artist.derived', { count: songs.length })}</p>
+
+	<!-- kmn: action bar — Favourite / Play (random hit) / Share. Matches the album-page
+	     action-bar visual language (pill buttons, lucide icons). -->
+	<div class="actions">
+		<button class="act" class:on={favArtist} aria-label={favArtist ? t('artist.unfavorite') : t('artist.favorite')} onclick={toggleFavourite}>
+			<Heart size={18} fill={favArtist ? 'currentColor' : 'none'} />
+			<span>{favArtist ? t('artist.unfavorite') : t('artist.favorite')}</span>
+		</button>
+		<button class="act primary" aria-label={t('artist.playArtist')} disabled={loading || !songs.length} onclick={playArtistRandom}>
+			<Play size={18} fill="currentColor" />
+			<span>{t('artist.playArtist')}</span>
+		</button>
+		<button class="act" aria-label={t('artist.share')} onclick={shareArtist}>
+			<Share2 size={18} />
+			<span>{t('artist.share')}</span>
+		</button>
+	</div>
 
 	{#if enrich?.tags?.length}
 		<div class="herotags"><TagChips tags={enrich.tags} /></div>
@@ -289,6 +355,8 @@
 
 <TrackMenu track={menuTrack} open={menuOpen} onclose={() => (menuOpen = false)} />
 
+{#if toastMsg}<div class="toast" transition:fly={{ y: -20, duration: 180 }}>{toastMsg}</div>{/if}
+
 <style>
 	.hero { padding: 14px 0 18px; text-align: center; }
 	.back { display: block; text-align: left; color: var(--color-text-muted); font-size: 14px; margin-bottom: 8px; }
@@ -296,6 +364,16 @@
 	.hero h1 { font-size: 1.7rem; margin: 0; }
 	.note { color: var(--color-text-muted); font-size: 12px; margin-top: 4px; }
 	.herotags { display: flex; justify-content: center; margin-top: 8px; }
+	/* kmn: action bar — three pill buttons centered under the hero title/note. Mirrors the
+	   album-page action-bar visual language. */
+	.actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin: 14px 0 6px; }
+	.act { display: inline-flex; align-items: center; gap: 7px; background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text); padding: 9px 16px; border-radius: 999px; font-size: 13px; cursor: pointer; }
+	.act:hover { background: var(--color-surface); }
+	.act:disabled { opacity: 0.45; cursor: default; }
+	.act.on { color: var(--color-primary); border-color: var(--color-primary); }
+	.act.primary { background: var(--color-primary); color: #fff; border-color: transparent; }
+	.act.primary:hover { filter: brightness(1.06); }
+	.toast { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text); padding: 8px 14px; border-radius: 999px; font-size: 13px; z-index: 80; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
 	.bio { text-align: left; margin: 16px 0 0; }
 	.bio h2 { font-size: 1.1rem; margin: 0 0 8px; }
 	.bio p { color: var(--color-text-muted); font-size: 13px; line-height: 1.55; margin: 0; }

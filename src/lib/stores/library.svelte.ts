@@ -16,12 +16,17 @@ interface LibShape {
 	liked: Track[];
 	playlists: Playlist[];
 	downloads: Track[];
+	/** kmn: favourite artists (names). Optional in storage for non-destructive migration. */
+	favArtists?: string[];
 }
 
 class Library {
 	liked = $state<Track[]>([]);
 	playlists = $state<Playlist[]>([]);
 	downloads = $state<Track[]>([]);
+	/** kmn: favourite artists by canonical name (case-preserving). Used by the home
+	 *  fav-artists shelf and the artist-page favourite button. */
+	favArtists = $state<string[]>([]);
 	private loaded = false;
 
 	/** Hydrate from localStorage once, in the browser. Call from a layout onMount. */
@@ -35,6 +40,7 @@ class Library {
 				this.liked = v.liked ?? [];
 				this.playlists = v.playlists ?? [];
 				this.downloads = v.downloads ?? [];
+				this.favArtists = Array.isArray(v.favArtists) ? v.favArtists : [];
 			}
 		} catch {
 			/* corrupt/unavailable — start empty */
@@ -46,7 +52,12 @@ class Library {
 		try {
 			localStorage.setItem(
 				KEY,
-				JSON.stringify({ liked: this.liked, playlists: this.playlists, downloads: this.downloads })
+				JSON.stringify({
+					liked: this.liked,
+					playlists: this.playlists,
+					downloads: this.downloads,
+					favArtists: this.favArtists
+				})
 			);
 		} catch {
 			/* quota — non-fatal */
@@ -85,6 +96,27 @@ class Library {
 		this.save();
 	}
 
+	// ---- favArtists (kmn) -----------------------------------------------------------------
+	/** Case-preserving compare key. Match on a trimmed-lowercase fold so "Daft Punk" /
+	 *  "daft punk" / "  Daft Punk  " collapse to one entry. */
+	private favKey(name: string): string {
+		return (name ?? '').trim().toLowerCase();
+	}
+	isFavArtist(name: string): boolean {
+		const k = this.favKey(name);
+		if (!k) return false;
+		return this.favArtists.some((n) => this.favKey(n) === k);
+	}
+	toggleFavArtist(name: string) {
+		const clean = (name ?? '').trim();
+		if (!clean) return;
+		const k = this.favKey(clean);
+		this.favArtists = this.isFavArtist(clean)
+			? this.favArtists.filter((n) => this.favKey(n) !== k)
+			: [clean, ...this.favArtists];
+		this.save();
+	}
+
 	isDownloaded(uid: string): boolean {
 		return this.downloads.some((t) => t.uid === uid);
 	}
@@ -103,6 +135,7 @@ class Library {
 		this.liked = [];
 		this.playlists = [];
 		this.downloads = [];
+		this.favArtists = [];
 		this.save();
 	}
 }

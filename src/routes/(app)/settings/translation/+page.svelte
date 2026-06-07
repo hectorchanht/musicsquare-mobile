@@ -95,7 +95,11 @@
 	];
 	// Bio target options: Auto (follow app/device language — DEFAULT) + the standard list
 	// (Off + languages). `langs` already starts with Off, so just prepend Auto.
-	const bioOptions: { v: 'auto' | LyricsLang; label: string }[] = [{ v: 'auto', label: '' }, ...langs];
+	// const bioOptions: { v: 'auto' | LyricsLang; label: string }[] = [{ v: 'auto', label: '' }, ...langs];
+
+	// Prepend Auto, but filter out the existing 'auto' item from the rest of the array
+	const bioOptions = [{ v: 'auto' as const, label: '' }, ...langs.filter(l => l.v !== 'auto')];
+
 </script>
 
 <svelte:head><title>{t('settings.title')}</title></svelte:head>

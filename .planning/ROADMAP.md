@@ -547,7 +547,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 | 12. Scrobbling (online-only) | 0/TBD | Deferred → v1.3 | - |
 | 13. Loved-Tracks Sync | 0/TBD | Deferred → v1.3 | - |
 | 14. Search & Data Responsiveness | 2/2 | Complete    | 2026-06-06 |
-| 16. Playback Resilience Core | 3/3 | Complete   | 2026-06-10 |
+| 16. Playback Resilience Core | 3/3 | Complete    | 2026-06-10 |
 | 17. Up-Next Sourcing + Settings Plumbing | 0/TBD | Not started | - |
 | 18. Sleep Timer | 0/TBD | Not started | - |
 | 19. Track Menu Rework | 0/TBD | Not started | - |

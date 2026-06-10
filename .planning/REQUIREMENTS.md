@@ -102,10 +102,10 @@ Milestone v1.2. Music never stops + offline downloads + broad UX polish. Researc
 
 ### Playback Resilience
 
-- [ ] **PLAY-07**: When a track fails to play, the app automatically retries it across all other sources; if every source fails, a toast explains and the player auto-skips to the next track
-- [ ] **PLAY-08**: Playback never stops by itself except: sleep timer expiry, sudden offline, or the consecutive-failure loop-guard tripping (~5 failed skips → stop with one actionable sticky toast; rejected `play()` counts as a failure, never a silent no-op)
-- [ ] **PLAY-09**: Whenever the current track changes, the next track is prefetched (URL resolved ahead) so it starts immediately when the current one ends
-- [ ] **PLAY-10**: Repeat control has exactly 2 states — off / repeat-one; repeat-all is removed (continuation is handled by auto-generated up-next)
+- [x] **PLAY-07**: When a track fails to play, the app automatically retries it across all other sources; if every source fails, a toast explains and the player auto-skips to the next track
+- [x] **PLAY-08**: Playback never stops by itself except: sleep timer expiry, sudden offline, or the consecutive-failure loop-guard tripping (~5 failed skips → stop with one actionable sticky toast; rejected `play()` counts as a failure, never a silent no-op)
+- [x] **PLAY-09**: Whenever the current track changes, the next track is prefetched (URL resolved ahead) so it starts immediately when the current one ends
+- [x] **PLAY-10**: Repeat control has exactly 2 states — off / repeat-one; repeat-all is removed (continuation is handled by auto-generated up-next)
 
 ### Queue / Up-Next
 
@@ -311,10 +311,10 @@ Each v1.2 requirement maps to exactly one phase (16–24). See `.planning/ROADMA
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PLAY-07 | Phase 16 | Pending |
-| PLAY-08 | Phase 16 | Pending |
-| PLAY-09 | Phase 16 | Pending |
-| PLAY-10 | Phase 16 | Pending |
+| PLAY-07 | Phase 16 | Complete |
+| PLAY-08 | Phase 16 | Complete |
+| PLAY-09 | Phase 16 | Complete |
+| PLAY-10 | Phase 16 | Complete |
 | QUEUE-01 | Phase 17 | Pending |
 | QUEUE-02 | Phase 17 | Pending |
 | QUEUE-03 | Phase 17 | Pending |

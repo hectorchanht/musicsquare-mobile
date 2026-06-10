@@ -3,19 +3,24 @@
 import { browser } from '$app/environment';
 import type { SourceId } from '$lib/sources/types';
 import { detectAppLang, type AppLang } from '$lib/i18n';
-import { DEFAULTS, UPNEXT_DEFAULTS, type UpnextMode, type QueueContext } from '$lib/config/defaults';
+// WR-10: defaults.ts is the SINGLE source of truth — class-field init, load() fallbacks,
+// and the reset-group methods all read the same consts (the header in defaults.ts promises
+// exactly this). Never duplicate a default literal here.
+import {
+	DEFAULTS,
+	GENERAL_DEFAULTS,
+	APPEARANCE_DEFAULTS,
+	TRANSLATION_DEFAULTS,
+	PLAYBACK_DEFAULTS,
+	UPNEXT_DEFAULTS,
+	HOME_DEFAULTS,
+	type UpnextMode,
+	type QueueContext
+} from '$lib/config/defaults';
 // Pure util (no DOM/browser/store imports) — settings stays a LEAF store. Used by
 // applyTheme() to derive --color-primary-hover from the chosen accent (UX-07 root-cause fix).
 import { darken } from '$lib/services/color';
-import {
-	DEFAULT_SECTION_ORDER,
-	clampShelfSize,
-	SHELF_DEFAULT,
-	DEFAULT_HOME_TAGS,
-	DEFAULT_HOME_COUNTRIES,
-	type HomeDensity,
-	type HomeLandingTab
-} from '$lib/services/home-layout';
+import { clampShelfSize, type HomeDensity, type HomeLandingTab } from '$lib/services/home-layout';
 
 export type LyricsLang =
 	| 'off'
@@ -49,7 +54,8 @@ export type DefaultSource = 'auto' | SourceId;
 export type Theme = 'dark' | 'light';
 
 const KEY = 'openmusic:settings:v1';
-const DEFAULT_ACCENT = '#7c5cff';
+// (WR-10: the accent default lives in defaults.ts as GENERAL_DEFAULTS.accent / DEFAULT_ACCENT —
+// the duplicate local const that used to shadow it was removed.)
 
 /** Appearance-scale bounds (percent), shared by the store + the appearance settings UI.
  *  UX-03 / D-11: widened to 50–200. The clamp only WIDENS — previously-persisted 70–160
@@ -90,24 +96,24 @@ export type SourceLang =
 
 class Settings {
 	/** UI-chrome language (separate from content translation; stays en/zh-Hant/zh-Hans). */
-	appLang = $state<AppLang>('en');
+	appLang = $state<AppLang>(GENERAL_DEFAULTS.appLang);
 	/** Per-part CONTENT translation targets (independent; reuse LyricsLang incl. ja/ko). */
-	lyricsLang = $state<LyricsLang>('off');
+	lyricsLang = $state<LyricsLang>(TRANSLATION_DEFAULTS.lyricsLang);
 	/** Translate displayed ARTIST names to this language. */
-	artistLang = $state<LyricsLang>('off');
+	artistLang = $state<LyricsLang>(TRANSLATION_DEFAULTS.artistLang);
 	/** Translate displayed SONG/ALBUM titles to this language. */
-	titleLang = $state<LyricsLang>('off');
+	titleLang = $state<LyricsLang>(TRANSLATION_DEFAULTS.titleLang);
 	/** Translate Last.fm info (tags) to this language. */
-	lastfmLang = $state<LyricsLang>('off');
+	lastfmLang = $state<LyricsLang>(TRANSLATION_DEFAULTS.lastfmLang);
 	/** Per-part skip whitelists: a text whose detected source ∈ list renders untouched. */
-	artistSkip = $state<SourceLang[]>([]);
-	titleSkip = $state<SourceLang[]>([]);
-	lyricsSkip = $state<SourceLang[]>([]);
-	lastfmSkip = $state<SourceLang[]>([]);
+	artistSkip = $state<SourceLang[]>([...TRANSLATION_DEFAULTS.artistSkip]);
+	titleSkip = $state<SourceLang[]>([...TRANSLATION_DEFAULTS.titleSkip]);
+	lyricsSkip = $state<SourceLang[]>([...TRANSLATION_DEFAULTS.lyricsSkip]);
+	lastfmSkip = $state<SourceLang[]>([...TRANSLATION_DEFAULTS.lastfmSkip]);
 	/** Per-source enable map (ii6). Empty/absent → each adapter falls back to its
 	 *  `enabledByDefault`. Explicit true/false overrides. Lets a user opt INTO 5sing
 	 *  (`enabledByDefault: false`) without changing the adapter contract. */
-	enabledSources = $state<Partial<Record<SourceId, boolean>>>({});
+	enabledSources = $state<Partial<Record<SourceId, boolean>>>({ ...PLAYBACK_DEFAULTS.enabledSources });
 	/** Global up-next sourcing mode (Phase 17, QUEUE-03). Used when a context has no override
 	 *  AND as the fallback for an unknown (`null`) context. Roadmap-locked default 'generated'. */
 	upnextMode = $state<UpnextMode>(UPNEXT_DEFAULTS.mode);
@@ -116,71 +122,71 @@ class Settings {
 	upnextPerContext = $state<Partial<Record<Exclude<QueueContext, null>, UpnextMode>>>({});
 	/** Bio (Last.fm artist bio) target language. `'auto'` = follow appLang (default); `'off'` =
 	 * untranslated; otherwise an explicit language (quick-260607-fnp; supersedes the f4y note). */
-	bioLang = $state<'auto' | LyricsLang>('auto');
-	translateMode = $state<TranslateMode>('below');
+	bioLang = $state<'auto' | LyricsLang>(TRANSLATION_DEFAULTS.bioLang);
+	translateMode = $state<TranslateMode>(TRANSLATION_DEFAULTS.translateMode);
 	/** Hide the auto-generated translation for lyrics lines that came from a `(...)` clause
 	 *  split out of their parent (typically an embedded-translation in the original LRC).
 	 *  Off by default → those lines render + translate like any other line. */
-	lyricsHideParenTranslation = $state<boolean>(false);
+	lyricsHideParenTranslation = $state<boolean>(TRANSLATION_DEFAULTS.lyricsHideParenTranslation);
 	/** Hide the parens-derived lines themselves (the LRC's embedded clause). When ON, only
 	 *  the parent line shows; the parenthesised content is dropped from the rendered list.
 	 *  Independent of lyricsHideParenTranslation — combine for "show plain English-only". */
-	lyricsHideParenLines = $state<boolean>(false);
+	lyricsHideParenLines = $state<boolean>(TRANSLATION_DEFAULTS.lyricsHideParenLines);
 
 	// --- appearance / per-part sizing (quick-260607-fnp) -----------------------------------
 	// Percent scales (100 = today's size). Applied app-wide as CSS custom properties in
 	// applyTheme(); `app.css :root` defaults to 1× so SSR / no-JS / returning users see no change.
 	/** Song/track TITLE font scale, percent (clamped 70–160). */
-	fontScaleTitle = $state<number>(100);
+	fontScaleTitle = $state<number>(APPEARANCE_DEFAULTS.fontScaleTitle);
 	/** ARTIST/subtitle font scale, percent (clamped 70–160). */
-	fontScaleArtist = $state<number>(100);
+	fontScaleArtist = $state<number>(APPEARANCE_DEFAULTS.fontScaleArtist);
 	/** LYRICS line font scale, percent (clamped 70–160). */
-	fontScaleLyrics = $state<number>(100);
+	fontScaleLyrics = $state<number>(APPEARANCE_DEFAULTS.fontScaleLyrics);
 	/** NOW-PLAYING title font scale, percent (clamped 70–160). Separate from fontScaleTitle
 	 *  because NP base size is 1.5rem vs ~14px on list pages — same multiplier looks lopsided. */
-	fontScaleNpTitle = $state<number>(100);
+	fontScaleNpTitle = $state<number>(APPEARANCE_DEFAULTS.fontScaleNpTitle);
 	/** NOW-PLAYING artist font scale, percent (clamped 70–160). Separate from fontScaleArtist
 	 *  for the same reason — NP artist baseline is 1rem vs ~12px on list pages. */
-	fontScaleNpArtist = $state<number>(100);
+	fontScaleNpArtist = $state<number>(APPEARANCE_DEFAULTS.fontScaleNpArtist);
 	/** Home COVER/tile size scale, percent (clamped 70–150). */
-	coverScale = $state<number>(100);
+	coverScale = $state<number>(APPEARANCE_DEFAULTS.coverScale);
 	/** Home fallback-grid COLUMN count (clamped 2–5; default 3 = today). */
-	homeGridCols = $state<number>(3);
+	homeGridCols = $state<number>(APPEARANCE_DEFAULTS.homeGridCols);
 	// D-03: default to the 128–160k band so audio URLs resolve/stream faster. The
 	// source ladders (QQ/JOOX/Kuwo) read this via pickByQualityPref; higher tiers
 	// remain user-selectable.
-	defaultQuality = $state<DefaultQuality>('128');
+	defaultQuality = $state<DefaultQuality>(PLAYBACK_DEFAULTS.defaultQuality);
 	/** Quality used when DOWNLOADING (re-resolved at this tier); favours quality over speed. */
-	downloadQuality = $state<DefaultQuality>('lossless');
-	defaultSource = $state<DefaultSource>('auto');
-	accent = $state(DEFAULT_ACCENT);
-	reduceMotion = $state(false);
+	downloadQuality = $state<DefaultQuality>(PLAYBACK_DEFAULTS.downloadQuality);
+	defaultSource = $state<DefaultSource>(PLAYBACK_DEFAULTS.defaultSource);
+	accent = $state<string>(GENERAL_DEFAULTS.accent);
+	reduceMotion = $state<boolean>(GENERAL_DEFAULTS.reduceMotion);
 	/** Light/dark theme. Default 'dark' (today's design). applyTheme() flips
 	 *  the `data-theme` attribute on <html>. */
-	theme = $state<Theme>('dark');
-	autoExpandOnPlay = $state(false);
+	theme = $state<Theme>(GENERAL_DEFAULTS.theme);
+	autoExpandOnPlay = $state<boolean>(PLAYBACK_DEFAULTS.autoExpandOnPlay);
 
 	// --- home layout (quick-260606-w87) ---------------------------------------------
 	// Every default here reproduces TODAY's home exactly, so a returning user with a v1
 	// blob that has none of these fields loads with no visible change (non-destructive).
 	/** Render order of the four discovery section groups (resolved via resolveSectionOrder). */
-	homeSectionOrder = $state<string[]>([...DEFAULT_SECTION_ORDER]);
+	homeSectionOrder = $state<string[]>([...HOME_DEFAULTS.homeSectionOrder]);
 	/** Section ids the user has hidden (intersected with the known set at render). */
-	homeHidden = $state<string[]>([]);
+	homeHidden = $state<string[]>([...HOME_DEFAULTS.homeHidden]);
 	/** Selected GENRE-tag subset (ordered — drives genre shelf order); default = curated set. */
-	homeTags = $state<string[]>([...DEFAULT_HOME_TAGS]);
+	homeTags = $state<string[]>([...HOME_DEFAULTS.homeTags]);
 	/** Selected COUNTRY subset (ordered — drives country shelf order); default = curated set. */
-	homeCountries = $state<string[]>([...DEFAULT_HOME_COUNTRIES]);
+	homeCountries = $state<string[]>([...HOME_DEFAULTS.homeCountries]);
 	/** Tiles per shelf (clamped to [6,24]; default 18 = today). */
-	homeShelfSize = $state<number>(SHELF_DEFAULT);
+	homeShelfSize = $state<number>(HOME_DEFAULTS.homeShelfSize);
 	/** Which tab the app opens on at `/`. */
-	homeLandingTab = $state<HomeLandingTab>('home');
+	homeLandingTab = $state<HomeLandingTab>(HOME_DEFAULTS.homeLandingTab);
 	/** Home tile density. */
-	homeDensity = $state<HomeDensity>('comfortable');
+	homeDensity = $state<HomeDensity>(HOME_DEFAULTS.homeDensity);
 	/** Show the search pill on home (default TRUE = today). */
-	homeShowSearchPill = $state<boolean>(true);
+	homeShowSearchPill = $state<boolean>(HOME_DEFAULTS.homeShowSearchPill);
 	/** Show the Randomize button on home (default TRUE = today). */
-	homeShowRandomize = $state<boolean>(true);
+	homeShowRandomize = $state<boolean>(HOME_DEFAULTS.homeShowRandomize);
 
 	private loaded = false;
 
@@ -199,13 +205,15 @@ class Settings {
 				// First-visit-only auto-detect: if no appLang was ever saved, infer it from
 				// the browser; otherwise the saved choice always wins. (browser-guarded above.)
 				this.appLang = (v.appLang as AppLang) ?? detectAppLang(navigator.language);
-				this.lyricsLang = (v.lyricsLang as LyricsLang) ?? 'off';
+				// WR-10: every load() fallback reads the SAME defaults.ts consts as the class-field
+				// init and the reset-group methods — never a duplicated literal.
+				this.lyricsLang = (v.lyricsLang as LyricsLang) ?? TRANSLATION_DEFAULTS.lyricsLang;
 				// Names default to NO translation (quick-260607-f4y): the legacy `nameLang`
 				// migration is intentionally dropped so returning users are NOT auto-translated.
 				// Only an explicit per-part `artistLang`/`titleLang` opts back in.
-				this.artistLang = (v.artistLang as LyricsLang) ?? 'off';
-				this.titleLang = (v.titleLang as LyricsLang) ?? 'off';
-				this.lastfmLang = (v.lastfmLang as LyricsLang) ?? 'off';
+				this.artistLang = (v.artistLang as LyricsLang) ?? TRANSLATION_DEFAULTS.artistLang;
+				this.titleLang = (v.titleLang as LyricsLang) ?? TRANSLATION_DEFAULTS.titleLang;
+				this.lastfmLang = (v.lastfmLang as LyricsLang) ?? TRANSLATION_DEFAULTS.lastfmLang;
 				this.artistSkip = Array.isArray(v.artistSkip) ? (v.artistSkip as SourceLang[]) : [];
 				this.titleSkip = Array.isArray(v.titleSkip) ? (v.titleSkip as SourceLang[]) : [];
 				this.lyricsSkip = Array.isArray(v.lyricsSkip) ? (v.lyricsSkip as SourceLang[]) : [];
@@ -225,25 +233,36 @@ class Settings {
 					v.upnextMode === 'same-list' || v.upnextMode === 'generated'
 						? v.upnextMode
 						: UPNEXT_DEFAULTS.mode;
-				this.bioLang = (v.bioLang as 'auto' | LyricsLang) ?? 'auto';
-				// Appearance scales (fnp): clamp to safe bounds; absent → today's 100 / 3 cols.
-				this.fontScaleTitle = clampInt(v.fontScaleTitle, FONT_SCALE_MIN, FONT_SCALE_MAX, 100);
-				this.fontScaleArtist = clampInt(v.fontScaleArtist, FONT_SCALE_MIN, FONT_SCALE_MAX, 100);
-				this.fontScaleLyrics = clampInt(v.fontScaleLyrics, FONT_SCALE_MIN, FONT_SCALE_MAX, 100);
-				this.fontScaleNpTitle = clampInt(v.fontScaleNpTitle, FONT_SCALE_MIN, FONT_SCALE_MAX, 100);
-				this.fontScaleNpArtist = clampInt(v.fontScaleNpArtist, FONT_SCALE_MIN, FONT_SCALE_MAX, 100);
-				this.coverScale = clampInt(v.coverScale, COVER_SCALE_MIN, COVER_SCALE_MAX, 100);
-				this.homeGridCols = clampInt(v.homeGridCols, GRID_COLS_MIN, GRID_COLS_MAX, 3);
-				this.translateMode = (v.translateMode as TranslateMode) ?? 'below';
-				this.lyricsHideParenTranslation = !!v.lyricsHideParenTranslation;
-				this.lyricsHideParenLines = !!v.lyricsHideParenLines;
-				this.defaultQuality = (v.defaultQuality as DefaultQuality) ?? '128';
-				this.downloadQuality = (v.downloadQuality as DefaultQuality) ?? 'lossless';
-				this.defaultSource = (v.defaultSource as DefaultSource) ?? 'auto';
-				this.accent = (v.accent as string) ?? DEFAULT_ACCENT;
-				this.reduceMotion = !!v.reduceMotion;
-				this.theme = v.theme === 'light' ? 'light' : 'dark';
-				this.autoExpandOnPlay = !!v.autoExpandOnPlay;
+				this.bioLang = (v.bioLang as 'auto' | LyricsLang) ?? TRANSLATION_DEFAULTS.bioLang;
+				// Appearance scales (fnp): clamp to safe bounds; absent → the defaults.ts values.
+				this.fontScaleTitle = clampInt(v.fontScaleTitle, FONT_SCALE_MIN, FONT_SCALE_MAX, APPEARANCE_DEFAULTS.fontScaleTitle);
+				this.fontScaleArtist = clampInt(v.fontScaleArtist, FONT_SCALE_MIN, FONT_SCALE_MAX, APPEARANCE_DEFAULTS.fontScaleArtist);
+				this.fontScaleLyrics = clampInt(v.fontScaleLyrics, FONT_SCALE_MIN, FONT_SCALE_MAX, APPEARANCE_DEFAULTS.fontScaleLyrics);
+				this.fontScaleNpTitle = clampInt(v.fontScaleNpTitle, FONT_SCALE_MIN, FONT_SCALE_MAX, APPEARANCE_DEFAULTS.fontScaleNpTitle);
+				this.fontScaleNpArtist = clampInt(v.fontScaleNpArtist, FONT_SCALE_MIN, FONT_SCALE_MAX, APPEARANCE_DEFAULTS.fontScaleNpArtist);
+				this.coverScale = clampInt(v.coverScale, COVER_SCALE_MIN, COVER_SCALE_MAX, APPEARANCE_DEFAULTS.coverScale);
+				this.homeGridCols = clampInt(v.homeGridCols, GRID_COLS_MIN, GRID_COLS_MAX, APPEARANCE_DEFAULTS.homeGridCols);
+				this.translateMode = (v.translateMode as TranslateMode) ?? TRANSLATION_DEFAULTS.translateMode;
+				// Booleans: an explicit persisted boolean wins; anything else (absent/tampered)
+				// falls back to the defaults.ts const (same single-source rule as above).
+				this.lyricsHideParenTranslation =
+					typeof v.lyricsHideParenTranslation === 'boolean'
+						? v.lyricsHideParenTranslation
+						: TRANSLATION_DEFAULTS.lyricsHideParenTranslation;
+				this.lyricsHideParenLines =
+					typeof v.lyricsHideParenLines === 'boolean'
+						? v.lyricsHideParenLines
+						: TRANSLATION_DEFAULTS.lyricsHideParenLines;
+				this.defaultQuality = (v.defaultQuality as DefaultQuality) ?? PLAYBACK_DEFAULTS.defaultQuality;
+				this.downloadQuality = (v.downloadQuality as DefaultQuality) ?? PLAYBACK_DEFAULTS.downloadQuality;
+				this.defaultSource = (v.defaultSource as DefaultSource) ?? PLAYBACK_DEFAULTS.defaultSource;
+				this.accent = (v.accent as string) ?? GENERAL_DEFAULTS.accent;
+				this.reduceMotion =
+					typeof v.reduceMotion === 'boolean' ? v.reduceMotion : GENERAL_DEFAULTS.reduceMotion;
+				// Theme is validated against the 2-value union; anything else → the default.
+				this.theme = v.theme === 'light' || v.theme === 'dark' ? v.theme : GENERAL_DEFAULTS.theme;
+				this.autoExpandOnPlay =
+					typeof v.autoExpandOnPlay === 'boolean' ? v.autoExpandOnPlay : PLAYBACK_DEFAULTS.autoExpandOnPlay;
 				// --- home layout (w87) — every default reproduces today's home -----------
 				// Arrays use an Array.isArray guard → fall back to the today-equivalent
 				// default (full order / nothing hidden / full tag+country pool). The pure
@@ -251,21 +270,25 @@ class Settings {
 				// cleanup at render time; here we only guard the TYPE.
 				this.homeSectionOrder = Array.isArray(v.homeSectionOrder)
 					? (v.homeSectionOrder as string[])
-					: [...DEFAULT_SECTION_ORDER];
-				this.homeHidden = Array.isArray(v.homeHidden) ? (v.homeHidden as string[]) : [];
-				this.homeTags = Array.isArray(v.homeTags) ? (v.homeTags as string[]) : [...DEFAULT_HOME_TAGS];
+					: [...HOME_DEFAULTS.homeSectionOrder];
+				this.homeHidden = Array.isArray(v.homeHidden)
+					? (v.homeHidden as string[])
+					: [...HOME_DEFAULTS.homeHidden];
+				this.homeTags = Array.isArray(v.homeTags)
+					? (v.homeTags as string[])
+					: [...HOME_DEFAULTS.homeTags];
 				this.homeCountries = Array.isArray(v.homeCountries)
 					? (v.homeCountries as string[])
-					: [...DEFAULT_HOME_COUNTRIES];
+					: [...HOME_DEFAULTS.homeCountries];
 				// Shelf size is clamped to [6,24] on load (T-w87-01): a poisoned 999/"x"/
 				// negative becomes a safe value, never breaking the fan-out / page size.
 				this.homeShelfSize = clampShelfSize(v.homeShelfSize);
-				this.homeLandingTab = (v.homeLandingTab as HomeLandingTab) ?? 'home';
-				this.homeDensity = (v.homeDensity as HomeDensity) ?? 'comfortable';
+				this.homeLandingTab = (v.homeLandingTab as HomeLandingTab) ?? HOME_DEFAULTS.homeLandingTab;
+				this.homeDensity = (v.homeDensity as HomeDensity) ?? HOME_DEFAULTS.homeDensity;
 				// Booleans default TRUE via nullish-coalescing — NOT `!!v.x`, which would flip
 				// an ABSENT field to false and HIDE the chrome for a returning user (regression).
-				this.homeShowSearchPill = v.homeShowSearchPill ?? true;
-				this.homeShowRandomize = v.homeShowRandomize ?? true;
+				this.homeShowSearchPill = v.homeShowSearchPill ?? HOME_DEFAULTS.homeShowSearchPill;
+				this.homeShowRandomize = v.homeShowRandomize ?? HOME_DEFAULTS.homeShowRandomize;
 			} else {
 				// Truly first visit (nothing saved yet): auto-detect UI language once.
 				this.appLang = detectAppLang(navigator.language);

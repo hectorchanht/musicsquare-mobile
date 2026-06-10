@@ -52,8 +52,23 @@ export const swipeRemove: Action<HTMLElement, SwipeRemoveOpts> = (node, opts) =>
 		node.style.opacity = '';
 	}
 
+	// WR-01: swallow the trailing click after a COMMITTED horizontal drag. setPointerCapture
+	// retargets the click to this node, and on mouse input a click fires after every
+	// mousedown→mouseup regardless of travel — without this, a committed drag would remove the
+	// row and then immediately fire its tap-to-play onclick. Armed in up() only when the
+	// gesture captured; self-removes after one click; disarmed on the next pointerdown so a
+	// touch release that never produces a click can't swallow a LATER genuine tap.
+	function suppressClick(e: MouseEvent) {
+		e.stopPropagation();
+		e.preventDefault();
+		node.removeEventListener('click', suppressClick, true);
+	}
+
 	function down(e: PointerEvent) {
 		if (!enabled) return;
+		// A new gesture starts clean: drop a stale suppressor from a prior committed drag whose
+		// trailing click never fired (touch input suppresses it natively).
+		node.removeEventListener('click', suppressClick, true);
 		dragging = true;
 		captured = false;
 		startX = e.clientX;
@@ -93,6 +108,10 @@ export const swipeRemove: Action<HTMLElement, SwipeRemoveOpts> = (node, opts) =>
 	function up() {
 		if (!dragging) return;
 		dragging = false;
+		// WR-01: a gesture that committed (captured) must NOT let its trailing click reach the
+		// row's onclick — neither after a remove (remove-then-replay) nor after a spring-back
+		// (the user clearly dragged, not tapped). Capture-phase, one-shot.
+		if (captured) node.addEventListener('click', suppressClick, true);
 		captured = false;
 		// Remove on a far drag OR a fast horizontal flick. The |dx| > SLOP guard keeps the tap
 		// contract intact: a tap (sub-slop, low velocity) never removes.
@@ -124,6 +143,7 @@ export const swipeRemove: Action<HTMLElement, SwipeRemoveOpts> = (node, opts) =>
 			node.removeEventListener('pointermove', move);
 			node.removeEventListener('pointerup', up);
 			node.removeEventListener('pointercancel', up);
+			node.removeEventListener('click', suppressClick, true); // WR-01: drop an armed suppressor
 			resetTransform();
 			node.style.touchAction = '';
 		}

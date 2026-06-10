@@ -139,4 +139,51 @@ describe('swipeRemove — horizontal axis-locked swipe-to-remove (Phase 17 QUEUE
 		expect(onremove).not.toHaveBeenCalled();
 		expect(m.captureCalls).toHaveLength(0);
 	});
+
+	/** A synthetic click with preventDefault/stopPropagation spies (WR-01 suppression). */
+	function clickEvent() {
+		return {
+			preventDefault: vi.fn(),
+			stopPropagation: vi.fn()
+		} as unknown as PointerEvent & { preventDefault: ReturnType<typeof vi.fn>; stopPropagation: ReturnType<typeof vi.fn> };
+	}
+
+	it('a committed drag past threshold SUPPRESSES the trailing click (no remove-then-replay) (WR-01)', () => {
+		const onremove = vi.fn();
+		const m = mount({ onremove, threshold: 96 });
+		m.fire('pointerdown', pe(100, 50, 0));
+		m.fire('pointermove', pe(112, 52, 16)); // horizontal commit (captured)
+		m.fire('pointermove', pe(220, 54, 200)); // dx 120 > threshold
+		m.fire('pointerup', pe(220, 54, 220));
+		expect(onremove).toHaveBeenCalledTimes(1);
+		// The trailing click (mouse input fires one after every mousedown→mouseup) is swallowed.
+		const click = clickEvent();
+		m.fire('click', click);
+		expect(click.preventDefault).toHaveBeenCalledTimes(1);
+		expect(click.stopPropagation).toHaveBeenCalledTimes(1);
+		expect(m.has('click')).toBe(false); // one-shot: suppressor removed itself
+	});
+
+	it('a spring-back partial drag ALSO suppresses the trailing click (a drag is never a tap) (WR-01)', () => {
+		const onremove = vi.fn();
+		const m = mount({ onremove, threshold: 96 });
+		m.fire('pointerdown', pe(100, 50, 0));
+		m.fire('pointermove', pe(112, 50, 100)); // horizontal commit (captured)
+		m.fire('pointermove', pe(140, 50, 400)); // dx 40 < threshold, slow → spring back
+		m.fire('pointerup', pe(140, 50, 700));
+		expect(onremove).not.toHaveBeenCalled();
+		const click = clickEvent();
+		m.fire('click', click);
+		expect(click.preventDefault).toHaveBeenCalledTimes(1);
+		expect(click.stopPropagation).toHaveBeenCalledTimes(1);
+	});
+
+	it('a TAP (sub-slop) arms NO click suppressor — tap-to-play keeps firing (WR-01)', () => {
+		const onremove = vi.fn();
+		const m = mount({ onremove });
+		m.fire('pointerdown', pe(100, 50, 0));
+		m.fire('pointermove', pe(104, 52, 16)); // below slop on both axes — never captured
+		m.fire('pointerup', pe(104, 52, 32));
+		expect(m.has('click')).toBe(false); // the row's own onclick receives the click untouched
+	});
 });

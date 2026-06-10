@@ -23,7 +23,11 @@ import { settings } from '$lib/stores/settings.svelte';
 import { history } from '$lib/stores/history.svelte';
 import { library } from '$lib/stores/library.svelte';
 import { names } from '$lib/stores/names.svelte';
-import type { Track } from '$lib/sources/types';
+import type { SourceId, Track } from '$lib/sources/types';
+// Type-only import (WR-03): lets `notice.msg` / `error` be a real TranslationKey so a host can
+// `t(n.msg)` and the token is guaranteed to exist in every dictionary. No runtime UI dependency —
+// the store still emits raw, host-rendered data (D-03); this just type-checks the token keys.
+import type { TranslationKey } from '$lib/i18n';
 
 /**
  * The minimal display shape the now-bar renders the INSTANT a discovery stub is tapped,
@@ -58,12 +62,17 @@ const PENDING_KEY_SEP = '␟';
  *                        resumes when connectivity + a user gesture return).
  *
  * 16-03 maps (kind, reason, count, title) → a localized string via `t()`; the store stays
- * i18n-free. `msg` holds a stable token key for hosts that prefer a direct lookup.
+ * i18n-free (it emits raw structured data, not localized text). `msg` carries a REAL
+ * TranslationKey (WR-03) so a host preferring a direct lookup can `t(notice.msg)` and the token is
+ * guaranteed to resolve in every dictionary (`toast.skipped`/`toast.skippedMany` for skips,
+ * `toast.playbackStopped` for the loop-guard, `toast.offlineNoDownloads` for the offline pause).
  */
 export interface PlayerNotice {
 	kind: 'skip' | 'stopped';
-	/** Stable token the UI may map directly via t(); the structured fields below are preferred. */
-	msg: string;
+	/** A REAL TranslationKey the UI may render directly via t() (WR-03) — the structured fields
+	 *  below remain the preferred mapping input for hosts that want richer wording. Previously a
+	 *  free `string` carrying phantom `player.notice.*` tokens that existed in no dictionary. */
+	msg: TranslationKey;
 	/** Why a 'stopped' notice fired — distinguishes the loop-guard from the offline pause. */
 	reason?: 'loop-guard' | 'offline';
 	/** 'skip' only: number of consecutive skips collapsed into this one message (D-02). */
@@ -120,11 +129,15 @@ class Player {
 	/** Skip-burst batch counter (D-02): how many skips have collapsed into the current notice. Reset
 	 *  by the debounce window below. Plain field — not reactive. */
 	private skipBurst = 0;
-	/** Debounce timer for the skip-burst collapse window (~1.5s). While it is live, further skips
-	 *  increment skipBurst into ONE notice rather than stacking N notices (D-02). */
+	/** Debounce timer for the skip-burst collapse window. While it is live, further skips
+	 *  increment skipBurst into ONE notice rather than stacking N notices (D-02); when it elapses
+	 *  the burst counter resets AND the skip notice is cleared (WR-04). */
 	private skipBurstTimer: ReturnType<typeof setTimeout> | null = null;
-	/** Skip-burst collapse window in ms (D-02 / CONTEXT D-49). */
-	private static SKIP_BURST_WINDOW_MS = 1500;
+	/** Skip-burst collapse window in ms (D-02 / CONTEXT D-49). Aligned with the layout host's
+	 *  SKIP_DISMISS_MS (WR-04) so the store clears the 'skip' notice at the same moment the host
+	 *  auto-dismisses it — the channel reaches "nothing to show" exactly when the toast leaves,
+	 *  so a later language switch / remount can't resurrect a stale skip toast. */
+	private static SKIP_BURST_WINDOW_MS = 2500;
 
 	/**
 	 * Optimistic now-bar overlay (FIX-A). Set SYNCHRONOUSLY the instant a discovery stub
@@ -156,6 +169,21 @@ class Player {
 	 * fallback can detect a newer play() and abort its in-flight retries. Plain field — no $state
 	 * reactivity (it's an internal supersedence guard, like pendingGen). */
 	private playGen = 0;
+
+	/**
+	 * Per-episode "already-attempted sources" set (CR-03). A fallback EPISODE is one logical song's
+	 * failover run, keyed by its normalized title+artist (`fallbackEpisodeKey`). Within an episode
+	 * each source is tried at most once: runFallback hands this set to tryFallback, which excludes
+	 * every member from fallbackOrder and adds each source it touches. Once the order empties,
+	 * tryFallback returns null and runFallback routes to handleTotalFailure — the counter engages
+	 * and the unbounded A↔B ping-pong (where a resolve-but-unplayable source kept being re-offered)
+	 * is closed. The set + key reset when a NEW logical song starts failing over. Plain fields. */
+	private fallbackAttempted = new Set<SourceId>();
+	private fallbackEpisodeKey: string | null = null;
+	/** In-flight guard for runFallback, keyed to playGen (WR-01): only ONE failover may run per
+	 *  generation, so a stall-watchdog fire and a late `error` event can't run two concurrent
+	 *  fallbacks (double swap onto audio.src / double counter increment). -1 = idle. */
+	private fallbackGen = -1;
 
 	/** kyf: when audio.src is set to a `blob:` Object URL (from the offline cache), track the
 	 * URL here so we can revoke it when a new track starts. Revoking the previous URL on every
@@ -519,6 +547,10 @@ class Player {
 			// playback resumes.
 			this.consecutiveFailures = 0;
 			this.errorBurst = 0;
+			// CR-03: real playback succeeded — end the fallback episode so the next failure for ANY
+			// song (incl. this one later) starts with a fresh attempted set.
+			this.fallbackEpisodeKey = null;
+			this.fallbackAttempted = new Set<SourceId>();
 			if (this.notice?.kind === 'stopped') this.notice = null;
 		});
 		el.addEventListener('pause', () => {
@@ -598,8 +630,31 @@ class Player {
 			this.playing = false;
 			const failed = this.current;
 			if (!failed) {
-				this.error = 'playback failed (source may be region-locked or expired)';
+				this.error = 'toast.playbackStopped';
 				this.clearMedia();
+				return;
+			}
+			// CR-03 absolute cap: the dominant region-lock mode is "URL resolves, the <audio> 403s"
+			// — the `error` event fires while tryFallback keeps 'succeeding' (it resolves SOME url
+			// every cycle), so handleTotalFailure (and consecutiveFailures) never runs and the A↔B
+			// ping-pong is unbounded. Count raw audio errors since the last real `playing`; once
+			// they hit the cap, route into the existing loop-guard / skip policy directly so the
+			// never-stop chain engages even when no source ever yields total failure. Reset to 0 on
+			// a real `playing` event (D-06). This complements the per-episode `attempted` set in
+			// runFallback (which already collapses the 2-source loop); the burst cap is the
+			// generic backstop for 3+ resolve-but-unplayable sources.
+			this.errorBurst++;
+			if (this.errorBurst >= Player.FAILURE_CAP) {
+				// FAILURE_CAP raw audio errors on the current song without ever reaching `playing` —
+				// the resolve-but-unplayable ping-pong. Break a failing repeat-one loop first (D-12),
+				// then trip the loop-guard STOP directly so the never-stop chain engages even though
+				// tryFallback kept 'succeeding' and handleTotalFailure never ran.
+				this.errorBurst = 0;
+				if (this.repeatMode === 'one') {
+					this.repeatMode = 'off';
+					this.persist();
+				}
+				this.tripLoopGuard();
 				return;
 			}
 			void this.runFallback(failed);
@@ -904,7 +959,7 @@ class Player {
 					void this.runFallback(resolved);
 					return;
 				}
-				this.error = 'no playable audio for this track';
+				this.error = 'toast.playbackStopped'; // WR-07: i18n key, rendered via t()
 				this.clearMedia(); // nothing playable — clear the OS media UI (MS-05)
 				return;
 			}
@@ -1055,6 +1110,13 @@ class Player {
 	 * NOT re-record history and does NOT bump the generation. On exhaustion, surface the
 	 * existing error. Never throws — tryFallback() is defensively wrapped.
 	 */
+	/** Normalized title+artist key identifying a logical song for the per-episode attempted set
+	 *  (CR-03). Lowercased/trimmed; the exact normalization grain doesn't matter as long as the
+	 *  same song hashes the same across its cross-source variants (which share title+artist). */
+	private episodeKey(t: Track): string {
+		return `${t.artist}${PENDING_KEY_SEP}${t.title}`.toLowerCase().trim();
+	}
+
 	private async runFallback(failed: Track) {
 		// D-08 offline gate (Pitfall 1): if the device is offline, do NOT enter the failure chain.
 		// Network failover would just 0-for-N against unreachable proxies and — critically — must
@@ -1066,6 +1128,22 @@ class Player {
 			return;
 		}
 		const gen = this.playGen;
+		// WR-01 re-entrancy guard: only ONE failover per generation. Both the stall watchdog and the
+		// `error` listener route here, and a fallback's play(swap, fromFallback) deliberately does
+		// NOT bump the gen — so a watchdog fire at 15s and a slow error at 16s could otherwise run
+		// two concurrent fallbacks at the SAME gen (double swap onto audio.src, or double counter
+		// increment + two skipped tracks for one failure). Bail if one is already in flight here.
+		if (this.fallbackGen === gen) return;
+		this.fallbackGen = gen;
+		// CR-03 per-episode attempted set: a NEW logical song failing over starts a fresh set
+		// (seeded with the source that just failed). A continuation of the SAME song (the A↔B
+		// ping-pong) keeps accumulating into the existing set so each source is tried at most once.
+		const key = this.episodeKey(failed);
+		if (this.fallbackEpisodeKey !== key) {
+			this.fallbackEpisodeKey = key;
+			this.fallbackAttempted = new Set<SourceId>();
+		}
+		this.fallbackAttempted.add(failed.source);
 		this.loading = true;
 		this.error = null;
 		const ac = new AbortController();
@@ -1076,7 +1154,12 @@ class Player {
 			if (this.playGen !== gen) ac.abort();
 		}, 200);
 		try {
-			const swap = await tryFallback(failed, settings.preferredSource, ac.signal);
+			const swap = await tryFallback(
+				failed,
+				settings.preferredSource,
+				ac.signal,
+				this.fallbackAttempted
+			);
 			if (this.playGen !== gen) return; // a newer play() supersedes — discard silently
 			if (swap) {
 				// Sync the queue slot too so next()/prev() walk the resolved track.
@@ -1094,6 +1177,9 @@ class Player {
 			this.handleTotalFailure(failed);
 		} finally {
 			clearInterval(watchdog);
+			// Release the re-entrancy guard only if it still belongs to THIS generation (a newer
+			// play()/fallback may have already claimed a fresh gen).
+			if (this.fallbackGen === gen) this.fallbackGen = -1;
 			if (this.playGen === gen) this.loading = false;
 		}
 	}
@@ -1121,25 +1207,36 @@ class Player {
 			this.persist();
 		}
 		this.consecutiveFailures++;
-		// Keep the inline now-bar error string as before (the toast host renders `notice`; the
-		// now-bar still reads `error`).
-		this.error = 'playback failed (source may be region-locked or expired)';
+		// WR-07: store an i18n KEY (the now-bar/NowPlaying render it via t()) so the inline error
+		// matches the localized toast for the same event instead of raw English.
+		this.error = 'toast.playbackStopped';
 		if (this.consecutiveFailures >= Player.FAILURE_CAP) {
-			// D-04 loop-guard: stop auto-advancing. Pause, clear the OS media UI, surface ONE sticky
-			// notice with a Retry action. recoverFromStop skips ahead + resets + re-arms (D-05).
-			this.audio?.pause();
-			this.clearMedia();
-			this.notice = {
-				kind: 'stopped',
-				reason: 'loop-guard',
-				msg: 'player.notice.loopGuard',
-				action: () => this.recoverFromStop()
-			};
+			this.tripLoopGuard();
 			return;
 		}
 		// D-02 below the cap: emit a batched skip notice and auto-skip to the next track.
 		this.emitSkipNotice(failed.title);
 		this.next();
+	}
+
+	/**
+	 * D-04 loop-guard STOP: stop auto-advancing, pause, clear the OS media UI, and surface ONE
+	 * sticky Retry notice (recoverFromStop skips ahead + resets + re-arms, D-05). Extracted so both
+	 * the consecutive-failure cap (handleTotalFailure) and the raw audio-error burst cap (CR-03, the
+	 * resolve-but-unplayable ping-pong backstop) can trip the guard directly. Always sets the inline
+	 * error key too (WR-07).
+	 */
+	private tripLoopGuard() {
+		this.consecutiveFailures = Player.FAILURE_CAP; // pin at the cap (idempotent across callers)
+		this.error = 'toast.playbackStopped';
+		this.audio?.pause();
+		this.clearMedia();
+		this.notice = {
+			kind: 'stopped',
+			reason: 'loop-guard',
+			msg: 'toast.playbackStopped',
+			action: () => this.recoverFromStop()
+		};
 	}
 
 	/**
@@ -1150,6 +1247,11 @@ class Player {
 	 */
 	private recoverFromStop() {
 		this.consecutiveFailures = 0;
+		this.errorBurst = 0;
+		// CR-03: re-arm — drop the per-episode attempted set so the skipped-ahead track gets a full
+		// fresh set of sources to try.
+		this.fallbackEpisodeKey = null;
+		this.fallbackAttempted = new Set<SourceId>();
 		if (this.notice?.kind === 'stopped') this.notice = null;
 		this.next();
 	}
@@ -1164,7 +1266,9 @@ class Player {
 		this.skipBurst++;
 		this.notice = {
 			kind: 'skip',
-			msg: 'player.notice.skip',
+			// WR-03: emit the REAL toast key the host renders (singular vs the batched plural),
+			// not a phantom `player.notice.skip` token that exists in no dictionary.
+			msg: this.skipBurst > 1 ? 'toast.skippedMany' : 'toast.skipped',
 			count: this.skipBurst,
 			title
 		};
@@ -1172,6 +1276,11 @@ class Player {
 		this.skipBurstTimer = setTimeout(() => {
 			this.skipBurst = 0;
 			this.skipBurstTimer = null;
+			// WR-04: clear the channel when the burst window closes so `player.notice` reflects
+			// "nothing to show". Previously only 'stopped' notices were ever cleared, leaving a
+			// stale 'skip' object that the layout effect (which tracks t()/appLang) would re-toast
+			// out of nowhere on a later language switch or remount.
+			if (this.notice?.kind === 'skip') this.notice = null;
 		}, Player.SKIP_BURST_WINDOW_MS);
 	}
 
@@ -1206,8 +1315,9 @@ class Player {
 		// D-08: nothing downloaded to play — pause and show a sticky offline notice (no Retry action;
 		// playback resumes naturally when connectivity returns and the user taps play).
 		this.audio?.pause();
-		this.error = 'offline — no downloaded tracks available';
-		this.notice = { kind: 'stopped', reason: 'offline', msg: 'player.notice.offline' };
+		// WR-07: i18n key (rendered via t()); WR-03: msg is the real toast key, not a phantom token.
+		this.error = 'toast.offlineNoDownloads';
+		this.notice = { kind: 'stopped', reason: 'offline', msg: 'toast.offlineNoDownloads' };
 	}
 
 	/**

@@ -612,6 +612,39 @@ describe('player resilience — loop-guard + skip-on-failure (PLAY-07/08)', () =
 		expect(player.notice?.reason).toBe('loop-guard');
 	});
 
+	it('CR-03: a resolve-but-unplayable ping-pong (tryFallback keeps succeeding) trips the cap via errorBurst', async () => {
+		// The audio `error` listener routes into runFallback; tryFallback keeps "succeeding"
+		// (resolving a swap whose URL also 403s), so handleTotalFailure NEVER runs and
+		// consecutiveFailures stays 0 — the classic unbounded loop. The errorBurst backstop counts
+		// raw error events and trips the loop-guard at the cap regardless. play() is the global
+		// mock, so the swap never fires a real `playing` (errorBurst is never reset).
+		const a = mk('netease', 'a', 'A', 'Pingpong');
+		const swap = mk('qq', 'a2', 'A', 'Pingpong'); // same song, different (also-dead) source
+		mockTryFallback.mockResolvedValue(swap); // ALWAYS finds a resolvable-but-unplayable source
+		player.queue = [a];
+		player.current = a;
+		const el = makeFakeAudio();
+		player.attach(el as unknown as HTMLAudioElement);
+		// lastSeekAt defaults to 0, so Date.now()-lastSeekAt ≫ SEEK_ERROR_WINDOW_MS → the error
+		// takes the non-seek cross-source branch (not reresolveCurrent).
+
+		const errorBurst = () => (player as unknown as { errorBurst: number })['errorBurst'];
+
+		// Fire FAILURE_CAP error events outside the seek window. Each increments errorBurst; the
+		// Nth (== cap) routes straight into handleTotalFailure (the loop-guard) instead of yet
+		// another fallback.
+		for (let i = 0; i < Player_FAILURE_CAP; i++) {
+			el.fire('error');
+			await flush();
+		}
+
+		expect(player.notice?.kind).toBe('stopped');
+		expect(player.notice?.reason).toBe('loop-guard');
+		expect(errorBurst()).toBe(0); // reset after tripping the guard
+
+		mockTryFallback.mockResolvedValue(null); // restore the suite default
+	});
+
 	it('repeat-one breaks to off on a failing loop before skipping (D-12)', async () => {
 		const a = mk('netease', 'a', 'A', 'Looping Dead');
 		const b = mk('qq', 'b', 'B', 'Next');

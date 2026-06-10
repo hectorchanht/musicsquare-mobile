@@ -109,11 +109,11 @@ Milestone v1.2. Music never stops + offline downloads + broad UX polish. Researc
 
 ### Queue / Up-Next
 
-- [ ] **QUEUE-01**: Playing a song from search builds up-next from genre-similar generation by default (search results are NOT appended), and the nowbar does not auto-expand to now-playing on track change
-- [ ] **QUEUE-02**: When the up-next list is exhausted, more tracks are auto-generated based on the last played song — playback flows on without user action
-- [ ] **QUEUE-03**: User can configure up-next sourcing per playback context (liked / search / downloads / etc.): "same list" vs "genre-generated"; global default = generated; defaults live in the config file
+- [x] **QUEUE-01**: Playing a song from search builds up-next from genre-similar generation by default (search results are NOT appended), and the nowbar does not auto-expand to now-playing on track change
+- [x] **QUEUE-02**: When the up-next list is exhausted, more tracks are auto-generated based on the last played song — playback flows on without user action
+- [x] **QUEUE-03**: User can configure up-next sourcing per playback context (liked / search / downloads / etc.): "same list" vs "genre-generated"; global default = generated; defaults live in the config file
 - [ ] **QUEUE-04**: "Remix" action in the track menu plays the triggering track first and seeds a genre-generated up-next from it
-- [ ] **QUEUE-05**: User can swipe-to-remove a track from up-next and clear the whole queue (AUD-02)
+- [x] **QUEUE-05**: User can swipe-to-remove a track from up-next and clear the whole queue (AUD-02)
 
 ### Sleep Timer
 
@@ -176,17 +176,17 @@ Milestone v1.2. Music never stops + offline downloads + broad UX polish. Researc
 
 ### Enrichment
 
-- [ ] **ENRICH-04**: Artist and album pages are enriched with Deezer info (parallel to Last.fm getInfo), degrading gracefully when unavailable (carryover from v1.1)
+- [x] **ENRICH-04**: Artist and album pages are enriched with Deezer info (parallel to Last.fm getInfo), degrading gracefully when unavailable (carryover from v1.1)
 
 ### UX Polish
 
 - [ ] **UX-01**: Every loading text is replaced by a skeleton that matches the shape/count/size of the loaded data (like the related list in now-playing)
 - [ ] **UX-02**: Action buttons show a toast on click and are guarded against double-clicking
-- [ ] **UX-03**: Text-size setting range widened to 50%–200%, with the demo text showing "example {artist or song name}" based on the type being sized
+- [x] **UX-03**: Text-size setting range widened to 50%–200%, with the demo text showing "example {artist or song name}" based on the type being sized
 - [ ] **UX-04**: Track rows support swipe-actions (swipe to queue / like) on main list surfaces (AUD-01)
 - [ ] **UX-05**: Key actions give haptic feedback where the platform supports it (AUD-04; Android — iOS Safari ignores)
 - [ ] **UX-06**: Accessibility pass: `aria-pressed` on toggle buttons, focus-trap in sheets/menus, labels on all icon-only buttons (AUD-11)
-- [ ] **UX-07**: The accent color setting visibly applies to the UI (verify wiring; fix if dead)
+- [x] **UX-07**: The accent color setting visibly applies to the UI (verify wiring; fix if dead)
 
 ## v2 Requirements
 
@@ -315,13 +315,13 @@ Each v1.2 requirement maps to exactly one phase (16–24). See `.planning/ROADMA
 | PLAY-08 | Phase 16 | Complete |
 | PLAY-09 | Phase 16 | Complete |
 | PLAY-10 | Phase 16 | Complete |
-| QUEUE-01 | Phase 17 | Pending |
-| QUEUE-02 | Phase 17 | Pending |
-| QUEUE-03 | Phase 17 | Pending |
-| QUEUE-05 | Phase 17 | Pending |
-| UX-03 | Phase 17 | Pending |
-| UX-07 | Phase 17 | Pending |
-| ENRICH-04 | Phase 17 | Pending |
+| QUEUE-01 | Phase 17 | Complete |
+| QUEUE-02 | Phase 17 | Complete |
+| QUEUE-03 | Phase 17 | Complete |
+| QUEUE-05 | Phase 17 | Complete |
+| UX-03 | Phase 17 | Complete |
+| UX-07 | Phase 17 | Complete |
+| ENRICH-04 | Phase 17 | Complete |
 | TIMER-01 | Phase 18 | Pending |
 | MENU-01 | Phase 19 | Pending |
 | MENU-02 | Phase 19 | Pending |

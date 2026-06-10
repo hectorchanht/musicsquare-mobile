@@ -4,13 +4,13 @@ milestone: v1.2
 milestone_name: Resilient Playback & UX Polish
 status: executing
 stopped_at: Phase 18 context gathered
-last_updated: "2026-06-10T18:43:12.001Z"
+last_updated: "2026-06-10T18:53:25.944Z"
 last_activity: 2026-06-10
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 10
-  completed_plans: 8
+  completed_plans: 9
   percent: 22
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-10)
 ## Current Position
 
 Phase: 18 (sleep-timer) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-10
 Next: `/gsd:plan-phase 16`
@@ -61,6 +61,7 @@ Next: `/gsd:plan-phase 16`
 | Phase 14 P01 | 8min | 4 tasks | 18 files |
 | Phase 14 P02 | 4 | 2 tasks | 6 files |
 | Phase 18 P01 | 6 min | 2 tasks | 4 files |
+| Phase 18 P02 | 10 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 14-02]: D-01 one {#snippet skeletonRows} shared by first-load (loading && results.length===0) + load-more; D-06 onPartial re-runs dedupeBest per partial with two-layer abort guard (myAc.signal.aborted || kw!==q.trim()), results cleared at run() start so skeleton yields to first partial; loadMore stays blocking
 - [Phase ?]: [Phase 14-02]: D-05 suggestions on inputFocused && q.trim()==='' && !searched; 150ms blur-delay + onmousedown-preventDefault so tap registers; recorded on submit (zero-result queries listed); +search.recent/search.clear i18n in 3 dicts
 - [Phase ?]: [Phase 18-01]: Sleep-timer deadline is ABSOLUTE wall-clock (Date.now()+ms, D-14), survives bg-tab throttling; 1s UI tick recomputes remaining, never accumulates. Store in-memory only (D-13). decideEndedAction pure-tested locks D-03 (sleep beats repeat-one beats advance). canFadeVolume typed structural {volume} so iOS read-only path is node-testable.
+- [Phase ?]: [Phase 18-02]: Sleep-timer expiry wired into player at four seams; blocker proven in code (expiry never calls next()/runFallback, never bumps playGen, never touches failure counters); wake-timer backstop armed via public player.onSleepTimerSet().
 
 ### Pending Todos
 
@@ -189,6 +191,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-10T18:43:04.739Z
+Last session: 2026-06-10T18:53:07.836Z
 Stopped at: Phase 18 context gathered
 Resume: plan Phase 16 (`/gsd:plan-phase 16`). Phase 16 is the resilience-core dependency root; everything else builds on its `queueContext` / 2-state repeat / skip-loop guard.

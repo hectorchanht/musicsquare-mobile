@@ -3,6 +3,8 @@
 // SSR-guarded. This is a demo-scoped slice of the planned Phase-3 Library.
 import { browser } from '$app/environment';
 import { blobStore } from '$lib/services/blob-store';
+import { setCachedCover } from '$lib/services/cover-cache';
+import { matchKey } from '$lib/services/match-key';
 import type { Track } from '$lib/sources/types';
 
 const KEY = 'openmusic:library:v1';
@@ -71,6 +73,38 @@ class Library {
 	toggleLike(t: Track) {
 		this.liked = this.isLiked(t.uid) ? this.liked.filter((x) => x.uid !== t.uid) : [t, ...this.liked];
 		this.save();
+	}
+
+	/**
+	 * Cover-chain: share a freshly-fetched cover with every same-song entry.
+	 * The player calls this after a resolve lands a cover. Fills the cover on all
+	 * liked / playlist / download entries matching the track's uid OR its normalized
+	 * {artist,title} identity (matchKey — same song stored under another source uid),
+	 * then stows it in the cover-cache so cover-less tiles on other surfaces can read
+	 * it back synchronously. Only EMPTY covers are filled — an entry already showing
+	 * art is never churned (no way to tell a "better" URL from a different one).
+	 */
+	adoptCover(src: Track) {
+		const cover = src.cover;
+		if (!cover) return;
+		const key = matchKey(src.artist, src.title);
+		const same = (t: Track) => t.uid === src.uid || matchKey(t.artist, t.title) === key;
+		// Mutate the $state proxies IN PLACE (not {...t, cover} rebuilds): home shelves
+		// (likedShelf/downloadsShelf) hold snapshot copies of these references, so an
+		// immutable rebuild would update the store but leave already-rendered tiles
+		// stale until reload. Fine-grained proxy mutation reaches every copy live.
+		let changed = false;
+		const fill = (t: Track) => {
+			if (!t.cover && same(t)) {
+				t.cover = cover;
+				changed = true;
+			}
+		};
+		this.liked.forEach(fill);
+		this.downloads.forEach(fill);
+		this.playlists.forEach((p) => p.tracks.forEach(fill));
+		if (changed) this.save();
+		setCachedCover(src.artist, src.title, cover);
 	}
 
 	createPlaylist(name: string): Playlist {

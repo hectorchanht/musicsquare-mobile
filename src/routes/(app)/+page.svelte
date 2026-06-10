@@ -730,9 +730,10 @@
 {/snippet}
 
 {#snippet librarySongRow(track: Track)}
+	{@const rowCover = track.cover ?? getCachedCover(track.artist, track.title)}
 	<button class="album" use:longpress onlongpress={() => { menuTrack = track; menuOpen = true; }} onclick={() => player.play(track, { fresh: true })}>
-		<span class="al-cover" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track.uid)}>
-			{#if track.cover}<img class="al-cover-img" src={track.cover} loading="lazy" alt="" onerror={hideOnError} />{/if}
+		<span class="al-cover" style:background-image={rowCover ? `url(${rowCover})` : fallbackCover(track.uid)}>
+			{#if rowCover}<img class="al-cover-img" src={rowCover} loading="lazy" alt="" onerror={hideOnError} />{/if}
 		</span>
 		<span class="al-name" use:marquee><span class="marquee-inner">{names.dnTitle(track.title)}</span></span>
 		<span class="al-count" use:marquee><span class="marquee-inner">{names.dnArtist(track.artist)}</span></span>

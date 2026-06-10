@@ -957,6 +957,10 @@ class Player {
 			// Persist the new current+queue immediately so a reload mid-resolve still has the
 			// right track to restore (the throttled timeupdate write covers progress alone).
 			this.persist();
+			// Cover-chain: a resolve that landed a cover shares it with every same-song
+			// library entry + the cover-cache, so home/library tiles stop rendering
+			// gradients for songs whose art the player has already fetched.
+			if (resolved.cover) library.adoptCover(resolved);
 			if (!resolved.audioUrl) {
 				// Cross-source fallback (gte): try other enabled sources before surfacing the
 				// error. On success, runFallback() calls play() again with fromFallback:true.

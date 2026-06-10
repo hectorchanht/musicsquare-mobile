@@ -402,7 +402,11 @@ Plans:
   4. The user can swipe a track out of up-next and clear the whole queue
   5. The text-size setting spans 50%–200% with demo text reading "example {artist or song name}" per the type being sized, the accent-color setting visibly applies to the UI (dead wiring fixed), and artist/album pages show Deezer info, degrading gracefully when unavailable
 
-**Plans**: TBD
+**Plans**: 4 plans (2 waves)
+- [ ] 17-01-PLAN.md — Per-context up-next sourcing engine + auto-expand fix + all Phase-17 i18n keys (QUEUE-01/02/03)
+- [ ] 17-02-PLAN.md — Queue management: horizontal swipe-remove + clear-all + removedUids exclusion (QUEUE-05)
+- [ ] 17-03-PLAN.md — Settings polish: text-size 50–200% + dynamic demo text + accent-hover derivation (UX-03/07)
+- [ ] 17-04-PLAN.md — Deezer artist/album enrichment routes + merge + page sections (ENRICH-04)
 **UI hint**: yes
 **Research flag**: LOW — config/`defaults.ts` + `settings.svelte.ts` changes batched; recommendation-loop (recently-played ring buffer) and queue-mutation race (`manualUids`) are documented pitfalls.
 

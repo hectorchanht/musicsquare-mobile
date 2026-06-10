@@ -14,6 +14,7 @@ import { ensureTrackDetails } from '$lib/services/catalog';
 import { tryFallback } from '$lib/services/fallback';
 import { buildDiversePicks } from '$lib/services/picks';
 import { buildSimilarQueue } from '$lib/services/similar';
+import { buildOfflineQueue } from '$lib/services/downloads-queue';
 import { dedupeBest } from '$lib/services/dedupe';
 import { buildArtwork, safePositionState, playbackStateFor } from '$lib/services/media-session';
 import { resolveStub } from '$lib/services/discovery';
@@ -38,6 +39,42 @@ export interface PendingTrack {
 /** U+241F SYMBOL FOR UNIT SEPARATOR — a separator that cannot appear in a real title/artist. */
 const PENDING_KEY_SEP = '␟';
 
+/**
+ * Store→UI notice channel (PLAY-08 / D-02, D-04, D-05). The never-stop chain ORIGINATES inside
+ * the player store (runFallback total-failure, the stall watchdog, the offline gate) but stores
+ * never import UI — so it surfaces resilience messages on a reactive `player.notice` field that a
+ * layout-level toast host (16-03) reads one-way, mirroring the existing `player.error → Nowbar`
+ * read. The store carries RAW, i18n-free data (D-03: 16-03 owns the wording):
+ *
+ *  - `kind: 'skip'`    → an auto-skip after a track failed all sources. `count` is how many songs
+ *                        were skipped in the current burst (D-02 batching: N consecutive skips
+ *                        within ~1.5s collapse into one "{count} songs skipped" message). `title`
+ *                        is the last-skipped track's title (the host may show it). Auto-dismissing,
+ *                        no action.
+ *  - `kind: 'stopped'` → a STICKY notice with no auto-dismiss. Either the loop-guard tripped
+ *                        (~5 consecutive failures, `reason: 'loop-guard'`, carries a Retry `action`
+ *                        that skips ahead + re-arms per D-05) OR the player went offline with no
+ *                        downloads to fall back to (`reason: 'offline'`, no action — playback
+ *                        resumes when connectivity + a user gesture return).
+ *
+ * 16-03 maps (kind, reason, count, title) → a localized string via `t()`; the store stays
+ * i18n-free. `msg` holds a stable token key for hosts that prefer a direct lookup.
+ */
+export interface PlayerNotice {
+	kind: 'skip' | 'stopped';
+	/** Stable token the UI may map directly via t(); the structured fields below are preferred. */
+	msg: string;
+	/** Why a 'stopped' notice fired — distinguishes the loop-guard from the offline pause. */
+	reason?: 'loop-guard' | 'offline';
+	/** 'skip' only: number of consecutive skips collapsed into this one message (D-02). */
+	count?: number;
+	/** 'skip' only: the title of the most recently skipped track. */
+	title?: string;
+	/** 'stopped'/loop-guard only: Retry — skips ahead to the next track, resets the counter,
+	 *  re-arms the never-stop chain (D-05). Absent on the offline-pause notice. */
+	action?: () => void;
+}
+
 /** mm:ss, NaN/Infinity-safe (avoids the "NaN:NaN" bug before metadata loads). */
 export function fmtTime(s: number): string {
 	if (!Number.isFinite(s) || s < 0) return '0:00';
@@ -51,6 +88,33 @@ class Player {
 	playing = $state(false);
 	loading = $state(false);
 	error = $state<string | null>(null);
+
+	/**
+	 * Resilience notice channel (PLAY-08 / D-02, D-04, D-05). One-way reactive read by the
+	 * layout toast host (16-03). See PlayerNotice for the shape + token contract. null = nothing
+	 * to show. The store sets this from runFallback (skip / loop-guard) and handleOffline (offline
+	 * pause); a real `playing` event clears any 'stopped' notice (the success reset).
+	 */
+	notice = $state<PlayerNotice | null>(null);
+
+	/**
+	 * Consecutive-failure counter (PLAY-08 / D-04, Pitfall 1). Incremented on every auto-skip that
+	 * did NOT reach a real `playing` event; reset to 0 by the `play` listener (D-06 success reset)
+	 * and by recoverFromStop. PLAIN field (not $state) — an internal loop-guard budget, never read
+	 * reactively by the UI (the UI reads `notice` instead). Offline does NOT burn it (D-08).
+	 */
+	private consecutiveFailures = 0;
+	/** Loop-guard cap: after this many consecutive failures with zero successful plays, STOP and
+	 *  surface a sticky Retry notice instead of auto-advancing again (D-04). */
+	private static FAILURE_CAP = 5;
+	/** Skip-burst batch counter (D-02): how many skips have collapsed into the current notice. Reset
+	 *  by the debounce window below. Plain field — not reactive. */
+	private skipBurst = 0;
+	/** Debounce timer for the skip-burst collapse window (~1.5s). While it is live, further skips
+	 *  increment skipBurst into ONE notice rather than stacking N notices (D-02). */
+	private skipBurstTimer: ReturnType<typeof setTimeout> | null = null;
+	/** Skip-burst collapse window in ms (D-02 / CONTEXT D-49). */
+	private static SKIP_BURST_WINDOW_MS = 1500;
 
 	/**
 	 * Optimistic now-bar overlay (FIX-A). Set SYNCHRONOUSLY the instant a discovery stub
@@ -289,6 +353,9 @@ class Player {
 				}
 			}
 			this.pendingSeek = desiredSeek;
+			// NOT an initial-load arming point (D-14): reresolveCurrent is a seek-recovery re-attach
+			// of the SAME track after a stale-URL error, not a fresh play. Arming the stall watchdog
+			// here would double-count a seek recovery as a load failure, so we deliberately do not.
 			audio.src = src;
 			// Attempt synchronous seek if duration already loaded; else loadedmetadata listener
 			// will pick up pendingSeek when it lands.
@@ -297,7 +364,7 @@ class Player {
 				this.pendingSeek = null;
 			}
 			void audio.play().catch(() => {
-				/* autoplay restriction — user can tap play */
+				/* autoplay restriction — user can tap play (seek-recovery, not a load stall) */
 			});
 		} catch {
 			/* re-resolve failed — leave audio in current state */
@@ -311,6 +378,25 @@ class Player {
 	 *  which reset currentTime to 0 (visible to user as "seek restarted the song"). */
 	private lastSeekAt = 0;
 	private static SEEK_ERROR_WINDOW_MS = 1500;
+
+	/**
+	 * Initial-load stall watchdog (PLAY-07 / D-13, D-14). A freshly started track whose src was
+	 * just set but that produces NO `playing`/`timeupdate` within STALL_TIMEOUT_MS is treated as a
+	 * failure and routed into runFallback (D-13). This is the detector for the iOS "play() rejected
+	 * after an async src swap, no audio, no error event" case (Pitfall 3) — the rejection itself is
+	 * swallowed by .catch, so the watchdog is what actually notices the silent stop.
+	 *
+	 * D-14 mid-track distinction: `hasPlayedSinceSrc` is set false the instant a NEW src is
+	 * assigned for initial load and flipped true on the first `playing`/`timeupdate`. The watchdog
+	 * only fails over when it is still false — a buffer-dry stall AFTER playback started (timeupdate
+	 * already fired) is buffering, not a load failure, and must NOT fail over.
+	 */
+	private static STALL_TIMEOUT_MS = 15000;
+	private stallTimer: ReturnType<typeof setTimeout> | null = null;
+	/** True once the current src has produced audio (a `playing`/`timeupdate`); false from the
+	 *  moment a new initial-load src is set. Distinguishes initial-load stall (D-13) from a
+	 *  mid-track buffer-dry (D-14). Plain field — internal watchdog state, not reactive. */
+	private hasPlayedSinceSrc = false;
 
 	currentTime = $state(0);
 	/** 0 until loadedmetadata; never NaN. */
@@ -369,6 +455,33 @@ class Player {
 		ms.setPositionState(); // clears any stale position
 	}
 
+	/**
+	 * Arm the initial-load stall watchdog (D-13). Snapshot playGen so a newer play() supersedes
+	 * this timer (the gen-check inside the callback discards a stale arm). When STALL_TIMEOUT_MS
+	 * elapses with no audio (hasPlayedSinceSrc still false) for the still-current track, route into
+	 * runFallback — runFallback owns its OWN gen-guard + AbortController, so the watchdog just fires
+	 * the failover and lets it decide supersedence. Always clears any prior timer first.
+	 */
+	private armStall() {
+		const gen = this.playGen;
+		this.disarmStall();
+		this.stallTimer = setTimeout(() => {
+			this.stallTimer = null;
+			if (this.playGen !== gen) return; // a newer play() superseded this arm
+			if (this.hasPlayedSinceSrc) return; // audio actually started — not a load stall (D-14)
+			if (!this.current) return;
+			void this.runFallback(this.current);
+		}, Player.STALL_TIMEOUT_MS);
+	}
+
+	/** Disarm the stall watchdog (a real playing/timeupdate, an error, or end-of-track). */
+	private disarmStall() {
+		if (this.stallTimer) {
+			clearTimeout(this.stallTimer);
+			this.stallTimer = null;
+		}
+	}
+
 	/** Bind the single long-lived <audio> element (called once from the layout). */
 	attach(el: HTMLAudioElement) {
 		this.audio = el;
@@ -376,6 +489,16 @@ class Player {
 		el.addEventListener('play', () => {
 			this.playing = true;
 			this.syncPlaybackState();
+			// D-13/D-14: a real `play` event means audio started — mark the src as having played and
+			// disarm the initial-load stall watchdog so it can't fire a false failover.
+			this.hasPlayedSinceSrc = true;
+			this.disarmStall();
+			// D-06 success reset: a real `playing` event is the natural counter reset — the track
+			// is actually producing audio, so the never-stop chain has recovered. Clear the
+			// consecutive-failure budget and drop any sticky 'stopped' (loop-guard / offline) notice
+			// so the UI stops showing "playback stopped" the instant playback resumes.
+			this.consecutiveFailures = 0;
+			if (this.notice?.kind === 'stopped') this.notice = null;
 		});
 		el.addEventListener('pause', () => {
 			this.playing = false;
@@ -384,6 +507,12 @@ class Player {
 		el.addEventListener('timeupdate', () => {
 			this.currentTime = el.currentTime || 0;
 			this.syncPosition(el);
+			// D-13/D-14: the first timeupdate since src-set is the "we are actually playing" signal —
+			// flip the flag + disarm the stall watchdog. This is what makes a mid-track buffer-dry
+			// (timeupdate already fired) NOT fail over, while an initial-load that never produced a
+			// timeupdate still does.
+			this.hasPlayedSinceSrc = true;
+			this.disarmStall();
 			// Coalesce currentTime writes to localStorage so a refresh resumes near where the
 			// user left off (within ~2s). Throttled to avoid the 4×/sec timeupdate firehose.
 			this.persistThrottled();
@@ -410,11 +539,15 @@ class Player {
 		el.addEventListener('ended', () => {
 			this.playing = false;
 			this.syncPlaybackState();
+			this.disarmStall(); // track finished — no initial-load stall to watch for
 			// Repeat-one (D-10): loop the current track without advancing. The `ended` event
 			// already paused the element; rewind + play(). 'off' is the straight advance into
 			// next() (which grows auto up-next at the end of the queue — no repeat-all wrap).
 			if (this.repeatMode === 'one' && this.audio) {
 				this.audio.currentTime = 0;
+				// Not an initial-load arming point (D-14): repeat-one rewinds an already-playing
+				// src, so a rejection here is a paused-loop, not a load failure — the watchdog
+				// stays disarmed and we rely on the user to tap play.
 				void this.audio.play().catch(() => {
 					/* autoplay may require gesture — controls still work */
 				});
@@ -423,6 +556,7 @@ class Player {
 			this.next();
 		});
 		el.addEventListener('error', () => {
+			this.disarmStall(); // an error event is the failure signal — the watchdog is redundant now
 			// lw9-followup: if the error fires WITHIN the seek window, the user just clicked the
 			// progress bar — but the audio element may not be able to honor the seek because the
 			// audio.src is a stale CDN URL (typical after a page-reload restore: the resolved URL
@@ -703,11 +837,25 @@ class Player {
 						});
 						ms.playbackState = 'playing';
 					}
+					// Initial-load arming point (D-13): a NEW src for this track. Reset the played
+					// flag + arm the stall watchdog so a silent no-audio start routes into failover.
+					this.hasPlayedSinceSrc = false;
 					this.audio.src = this.cachedBlobUrl;
+					this.armStall();
+					// D-06: a rejected play() is intentionally surfaced to the stall/failure path,
+					// not swallowed — if play() rejects (iOS gesture loss) and no `play` event
+					// follows, the armed watchdog above routes into runFallback. .catch only prevents
+					// an unhandled rejection.
 					await this.audio.play().catch(() => {
-						/* autoplay may require a gesture — controls still work */
+						/* rejection owned by the stall watchdog — see comment above */
 					});
 					this.loading = false;
+					// PLAY-09 / D-15: keep up-next topped up + pre-resolve the next track even on the
+					// offline-blob path so the ended→next auto-advance into a downloaded queue still
+					// prefetches (a no-op resolve for an already-downloaded next track; a real resolve
+					// when the next entry is a network track). Best-effort, non-blocking.
+					void this.ensureAhead();
+					void this.prefetchNext();
 					return;
 				}
 			}
@@ -760,9 +908,18 @@ class Player {
 						src = this.cachedBlobUrl;
 					}
 				}
+				// Initial-load arming point (D-13): a NEW src for this track. Reset the played flag +
+				// arm the stall watchdog so a silent no-audio start (no `playing`/`timeupdate`
+				// within ~15s) routes into failover.
+				this.hasPlayedSinceSrc = false;
 				this.audio.src = src;
+				this.armStall();
+				// D-06: a rejected play() is intentionally surfaced to the stall/failure path, not
+				// swallowed — if play() rejects (iOS gesture loss after the async resolve) and no
+				// `play` event follows, the armed watchdog above routes into runFallback. The .catch
+				// only prevents an unhandled rejection; it is NOT a silent no-op.
 				await this.audio.play().catch(() => {
-					/* autoplay may require a gesture — the controls still work */
+					/* rejection owned by the stall watchdog — see comment above */
 				});
 			}
 			// Fresh play -> regenerate the auto portion (best-effort, never blocks
@@ -869,6 +1026,15 @@ class Player {
 	 * existing error. Never throws — tryFallback() is defensively wrapped.
 	 */
 	private async runFallback(failed: Track) {
+		// D-08 offline gate (Pitfall 1): if the device is offline, do NOT enter the failure chain.
+		// Network failover would just 0-for-N against unreachable proxies and — critically — must
+		// NOT burn the loop-guard counter (offline ≠ a track that failed all sources). Hand off to
+		// the offline path (switch up-next to downloads, or pause with an offline notice) and return
+		// BEFORE the consecutive-failure increment in handleTotalFailure ever runs.
+		if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+			this.handleOffline();
+			return;
+		}
 		const gen = this.playGen;
 		this.loading = true;
 		this.error = null;
@@ -889,13 +1055,129 @@ class Player {
 				await this.play(swap, { fromFallback: true });
 				return;
 			}
-			// Every remaining source exhausted — surface the error as before.
-			this.error = 'playback failed (source may be region-locked or expired)';
-			this.clearMedia();
+			// Every remaining source exhausted for THIS song. Instead of just surfacing the error
+			// and stopping (the old behavior), run the never-stop policy (PLAY-07 / D-02, D-04,
+			// D-05, D-12): break a failing repeat-one loop, count the failure, then either auto-skip
+			// to the next track (below the cap) or trip the loop-guard and STOP with a sticky Retry
+			// notice (at the cap). The finally below clears loading for the loop-guard stop; the
+			// skip path's next()→play() bumps playGen and owns loading from there.
+			this.handleTotalFailure(failed);
 		} finally {
 			clearInterval(watchdog);
 			if (this.playGen === gen) this.loading = false;
 		}
+	}
+
+	/**
+	 * Never-stop total-failure policy (PLAY-07/08 / D-02, D-04, D-05, D-12). Called from
+	 * runFallback when EVERY source is exhausted for the current song. NOT called when offline —
+	 * the offline gate short-circuits before any failure is counted (D-08), so an offline dry spell
+	 * never burns the loop-guard budget.
+	 *
+	 *  - D-12: a failing repeat-one loop breaks repeat first (never-stop wins over explicit repeat),
+	 *    so we don't loop a dead track forever.
+	 *  - The failure is counted. At/over the cap (D-04) we STOP: pause, set a sticky loop-guard
+	 *    notice carrying a Retry action (recoverFromStop), keep `error` for the inline now-bar, and
+	 *    do NOT advance. Below the cap (D-02) we emit a batched skip notice and auto-skip via next().
+	 *
+	 * The skip path goes through the existing next() → play() which bumps playGen, so a user manual
+	 * skip mid-failover supersedes correctly (Pitfall 2) — there is NO parallel fast-skip path.
+	 */
+	private handleTotalFailure(failed: Track) {
+		// D-12: never-stop wins over explicit repeat — break a repeat-one loop on a failing track so
+		// it doesn't loop a dead song forever, then continue with the skip/up-next path.
+		if (this.repeatMode === 'one') {
+			this.repeatMode = 'off';
+			this.persist();
+		}
+		this.consecutiveFailures++;
+		// Keep the inline now-bar error string as before (the toast host renders `notice`; the
+		// now-bar still reads `error`).
+		this.error = 'playback failed (source may be region-locked or expired)';
+		if (this.consecutiveFailures >= Player.FAILURE_CAP) {
+			// D-04 loop-guard: stop auto-advancing. Pause, clear the OS media UI, surface ONE sticky
+			// notice with a Retry action. recoverFromStop skips ahead + resets + re-arms (D-05).
+			this.audio?.pause();
+			this.clearMedia();
+			this.notice = {
+				kind: 'stopped',
+				reason: 'loop-guard',
+				msg: 'player.notice.loopGuard',
+				action: () => this.recoverFromStop()
+			};
+			return;
+		}
+		// D-02 below the cap: emit a batched skip notice and auto-skip to the next track.
+		this.emitSkipNotice(failed.title);
+		this.next();
+	}
+
+	/**
+	 * Recovery from the loop-guard stopped state (D-05). Bound to the sticky notice's Retry action
+	 * and reused by a user "tap play" recovery: skip AHEAD to the next track (NOT retry-current, NOT
+	 * regenerate), reset the consecutive-failure counter, and re-arm the never-stop chain. next()
+	 * bumps playGen via play(), so this correctly supersedes any stale in-flight fallback.
+	 */
+	private recoverFromStop() {
+		this.consecutiveFailures = 0;
+		if (this.notice?.kind === 'stopped') this.notice = null;
+		this.next();
+	}
+
+	/**
+	 * Emit a batched auto-skip notice (D-02). N consecutive skips within SKIP_BURST_WINDOW_MS
+	 * collapse into ONE notice carrying the running `count` (so the UI shows "{count} songs
+	 * skipped" rather than N stacked toasts). Each skip (re)starts the debounce; when it elapses
+	 * with no further skip the burst counter resets so the NEXT isolated failure starts at 1.
+	 */
+	private emitSkipNotice(title: string) {
+		this.skipBurst++;
+		this.notice = {
+			kind: 'skip',
+			msg: 'player.notice.skip',
+			count: this.skipBurst,
+			title
+		};
+		if (this.skipBurstTimer) clearTimeout(this.skipBurstTimer);
+		this.skipBurstTimer = setTimeout(() => {
+			this.skipBurst = 0;
+			this.skipBurstTimer = null;
+		}, Player.SKIP_BURST_WINDOW_MS);
+	}
+
+	/**
+	 * Offline path (PLAY-09 / D-07, D-08, D-09). Reached only from the runFallback offline gate, so
+	 * the consecutive-failure counter is NEVER touched here (offline ≠ failure, D-08). Scope note
+	 * (D-09): this is the PLAYER's offline switch only — app-shell / service-worker / offline route
+	 * guards are Phase 24, not here.
+	 *
+	 *  - D-07: if the user has downloaded tracks not already in the current queue, switch up-next to
+	 *    them (most-recent-download-first, deduped) and continue playing from the first one. play()'s
+	 *    existing offline-blob branch streams it from the IndexedDB blob with no network, reusing the
+	 *    single cachedBlobUrl revoke discipline (Pitfall 13) — no new object URL is minted here.
+	 *  - D-08: if there are NO downloads to fall back to, pause and surface a sticky offline notice;
+	 *    do not auto-advance into a dead network.
+	 */
+	private handleOffline() {
+		this.loading = false;
+		const have = new Set<string>([
+			...this.queue.map((t) => t.uid),
+			...(this.current ? [this.current.uid] : [])
+		]);
+		const offline = buildOfflineQueue(library.downloads, have);
+		if (offline.length > 0) {
+			// D-07: switch up-next to the downloaded tracks and continue. dedupeBest gives a fresh
+			// array reference (reactivity) and collapses any cross-source duplicates. play() bumps
+			// playGen, so a user gesture mid-switch still supersedes correctly.
+			this.queue = dedupeBest([...(this.current ? [this.current] : []), ...offline], settings.preferredSource);
+			void this.play(offline[0]);
+			return;
+		}
+		// D-08: nothing downloaded to play — pause and show a sticky offline notice (no Retry action;
+		// playback resumes naturally when connectivity returns and the user taps play).
+		this.audio?.pause();
+		this.error = 'offline — no downloaded tracks available';
+		this.notice = { kind: 'stopped', reason: 'offline', msg: 'player.notice.offline' };
 	}
 
 	/**

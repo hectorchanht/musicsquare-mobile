@@ -46,6 +46,7 @@ const localStorageMock: Storage = {
 vi.stubGlobal('localStorage', localStorageMock);
 
 import { player } from './player.svelte';
+import { sleepTimer } from '$lib/stores/sleepTimer.svelte';
 import { settings } from './settings.svelte';
 import { library } from '$lib/stores/library.svelte';
 import { resolveStub } from '$lib/services/discovery';
@@ -1219,5 +1220,72 @@ describe('player.removeFromQueue / clearQueue / removedUids (Phase 17 QUEUE-05 /
 		expect(raw).toBeTruthy();
 		expect(raw as string).not.toContain('removedUids');
 		expect(raw as string).not.toContain('GONE');
+	});
+});
+
+/**
+ * Sleep-timer expiry (TIMER-01, Phase-18 blocker proven in code). The hard constraint:
+ * the expiry stop is an INTENTIONAL pause and must be invisible to the Phase-16 never-stop
+ * failure machinery — it must NEVER call next(), bump playGen, increment the failure
+ * counters, or route into runFallback (which would spuriously trip the sticky loop-guard).
+ *
+ * Drives the real player listeners via the makeFakeAudio().fire() harness. The fake gains a
+ * writable `volume` so canFadeVolume()'s write-then-readback honours the probe (the fade path
+ * is exercised, not the iOS instant-pause path) unless a test forces it read-only.
+ */
+function makeSleepAudio() {
+	const base = makeFakeAudio();
+	return Object.assign(base, { volume: 1, paused: false });
+}
+
+describe('sleep timer expiry — Phase-18 blocker (never enters the failure machinery)', () => {
+	beforeEach(() => {
+		sleepTimer.cancel(); // no leaked live tick / fade interval between tests
+		vi.spyOn(player, 'next').mockImplementation(() => {});
+		player.repeatMode = 'off';
+		player.notice = null;
+	});
+	afterEach(() => sleepTimer.cancel());
+
+	it('minutes-mode timeupdate at the deadline pauses once, deactivates the timer, and does NOT call next()', () => {
+		const audio = makeSleepAudio();
+		player.attach(audio as unknown as HTMLAudioElement);
+		sleepTimer.set('minutes', 5);
+		sleepTimer.deadline = Date.now() - 1; // force the absolute deadline into the past
+
+		audio.fire('timeupdate');
+
+		expect(audio.pause).toHaveBeenCalledTimes(1);
+		expect(sleepTimer.active).toBe(false);
+		expect(player.next).not.toHaveBeenCalled();
+	});
+
+	it('the timeupdate expiry does NOT route into runFallback and emits NO notice (failure-counter proxy)', () => {
+		mockTryFallback.mockReset();
+		const audio = makeSleepAudio();
+		player.attach(audio as unknown as HTMLAudioElement);
+		sleepTimer.set('minutes', 10);
+		sleepTimer.deadline = Date.now() - 1;
+
+		audio.fire('timeupdate');
+
+		// consecutiveFailures/errorBurst are private — assert the observable proxies instead:
+		// an expiry never tries a cross-source fallback and never surfaces a skip/loop notice.
+		expect(mockTryFallback).not.toHaveBeenCalled();
+		expect(player.notice).toBeNull();
+		expect(player.next).not.toHaveBeenCalled();
+	});
+
+	it('a non-expired minutes timeupdate runs the existing body (currentTime sync) unchanged', () => {
+		const audio = makeSleepAudio();
+		player.attach(audio as unknown as HTMLAudioElement);
+		sleepTimer.set('minutes', 30); // deadline far in the future — NOT expired
+		audio.currentTime = 42;
+
+		audio.fire('timeupdate');
+
+		expect(audio.pause).not.toHaveBeenCalled();
+		expect(player.currentTime).toBe(42); // existing timeupdate body ran
+		expect(sleepTimer.active).toBe(true);
 	});
 });

@@ -103,6 +103,12 @@
 		if (n && loadedFor !== key) {
 			loadedFor = key;
 			tracks = [];
+			// WR-08: SvelteKit reuses this component instance across same-route param navigation
+			// (history back/forward between two albums). Without these resets, resolveAllCached()
+			// short-circuits on the PREVIOUS album's resolved tracks — Like/Download/Add-to-playlist
+			// would act on the wrong album and albumLiked would render the stale heart state.
+			resolvedCache = null;
+			busyAction = null;
 			if (!artist) {
 				// Deep link with no ?artist= — cannot query album.getInfo. Render the
 				// graceful "open from an artist" empty state, not a spinner.

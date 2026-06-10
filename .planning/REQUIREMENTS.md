@@ -57,6 +57,8 @@ Initial release. Reuses the existing data layer; replaces the desktop UI with a 
 
 Milestone v1.1 (Last.fm Integration). Optional/additive — local-first still works signed-out. All Last.fm key + shared-secret use stays server-side only (JOOX_TOKEN parity). Phases continue at 8.
 
+> **v1.1 closure note (2026-06-10):** v1.1 shipped read-only (ENRICH/DISCO/LFSRC). The write-side groups — **LFAUTH-01..04, SCROB-01..03, LOVE-01..02** — were deferred at milestone close and are now re-deferred to **v1.3** (decision 2026-06-10). They remain listed below for history; do not build in v1.2.
+
 ### Last.fm Metadata Enrichment
 
 - [x] **ENRICH-01**: Playing or viewing a track enriches it with Last.fm metadata (track/artist/album.getInfo) — top tags, artist bio snippet, and higher-resolution cover art — layered on without overwriting good per-source data
@@ -94,9 +96,103 @@ Milestone v1.1 (Last.fm Integration). Optional/additive — local-first still wo
 - [ ] **LOVE-01**: When signed in, favoriting / unfavoriting a track also loves / unloves it on Last.fm (track.love / track.unlove), best-effort and non-blocking
 - [ ] **LOVE-02**: On sign-in, the user's Last.fm loved tracks are merged into local favorites (additive union via normalized artist+title match) — never destructive (no auto-unlove of local favorites)
 
+## v1.2 Requirements — Resilient Playback & UX Polish
+
+Milestone v1.2. Music never stops + offline downloads + broad UX polish. Research: `.planning/research/SUMMARY.md` (key finding: failover/prefetch/similar-queue engine already exists in `player.svelte.ts` — most PLAY/QUEUE work is policy + wiring). Phases continue at 16.
+
+### Playback Resilience
+
+- [ ] **PLAY-07**: When a track fails to play, the app automatically retries it across all other sources; if every source fails, a toast explains and the player auto-skips to the next track
+- [ ] **PLAY-08**: Playback never stops by itself except: sleep timer expiry, sudden offline, or the consecutive-failure loop-guard tripping (~5 failed skips → stop with one actionable sticky toast; rejected `play()` counts as a failure, never a silent no-op)
+- [ ] **PLAY-09**: Whenever the current track changes, the next track is prefetched (URL resolved ahead) so it starts immediately when the current one ends
+- [ ] **PLAY-10**: Repeat control has exactly 2 states — off / repeat-one; repeat-all is removed (continuation is handled by auto-generated up-next)
+
+### Queue / Up-Next
+
+- [ ] **QUEUE-01**: Playing a song from search builds up-next from genre-similar generation by default (search results are NOT appended), and the nowbar does not auto-expand to now-playing on track change
+- [ ] **QUEUE-02**: When the up-next list is exhausted, more tracks are auto-generated based on the last played song — playback flows on without user action
+- [ ] **QUEUE-03**: User can configure up-next sourcing per playback context (liked / search / downloads / etc.): "same list" vs "genre-generated"; global default = generated; defaults live in the config file
+- [ ] **QUEUE-04**: "Remix" action in the track menu plays the triggering track first and seeds a genre-generated up-next from it
+- [ ] **QUEUE-05**: User can swipe-to-remove a track from up-next and clear the whole queue (AUD-02)
+
+### Sleep Timer
+
+- [ ] **TIMER-01**: User can set a sleep timer (5/10/15/30/45/60 min or end-of-track) from the track menu; playback stops at expiry; an active-timer indicator is visible and the timer can be cancelled/changed (promoted from v2)
+
+### Lyrics
+
+- [ ] **LYR-01**: Tapping a lyric line seeks playback to that timestamp (promoted from v2, AUD-12)
+- [ ] **LYR-02**: While the user is touching/holding/scrolling the lyrics panel, auto-scroll to the current line is suspended; it resumes after an idle delay (currently broken — verify live)
+- [ ] **LYR-03**: The current line can always be centered — lyrics get an end spacer so lines near the end still center in the viewport
+- [ ] **LYR-04**: On CN LRCs where translation lines precede originals, the ORIGINAL line is highlighted as current (ordering bug fixed)
+- [ ] **LYR-05**: "Hide parenthesised translations" handles a wider set of bracket types AND never drops a line containing original lyrics — only the bracketed translation content is hidden
+
+### Track Menu Modal
+
+- [ ] **MENU-01**: The menu opens instantly with all action buttons visible while song data resolves in the background; actions that need resolved data are gated resolve-then-act (`detailsLoaded && uid`) and complete gracefully once data arrives
+- [ ] **MENU-02**: Header is 2 rows (song name / artist name) with marquee handling; like button sits top-right beside a close button; the skeleton matches the new shape
+- [ ] **MENU-03**: Opening the menu by long-press leaves NO focus/active state on the menu item under the finger
+
+### Now Playing
+
+- [ ] **NP-01**: Swiping the cover left→right plays previous, right→left plays next — axis-locked so the sheet's vertical collapse and plain taps keep working
+- [ ] **NP-02**: In the half-open state, scrolling the panel never scrolls the page behind — scroll always applies to the front layer
+- [ ] **NP-03**: In the half-open state, tapping the cover closes the subnav panel
+- [ ] **NP-04**: A loading "running line" indicator (like the nowbar's) shows at the very top of the now-playing view while a track is loading
+- [ ] **NP-05**: Horizontal swipe on the nowbar mini-player changes track (AUD-05)
+
+### Search
+
+- [ ] **SRCH-01**: Result scoring boosts shorter titles (less likely covers) and artists appearing repeatedly across results, and heavily penalizes tracks under ~60s (試聽 preview clips) — without falsely penalizing sources that don't report duration
+- [ ] **SRCH-02**: Search results with empty covers resolve them via the cover fallback chain
+- [ ] **SRCH-03**: When the search page shows nothing because the query is empty, the search input is auto-focused — without breaking cross-nav search-state restoration
+
+### Covers
+
+- [ ] **COVER-01**: The playing track's cover always renders — a fallback resolver guarantees artwork in now-playing, nowbar, and MediaSession even when the source returns none
+- [ ] **COVER-02**: Covers resolve lazily when scrolled into view and are cached (uid-first, then name key) so the same song never refetches
+
+### Homepage
+
+- [ ] **HOME-02**: User can set any homepage section to a compact mode — rows of 4 with smaller covers, still horizontally scrollable — per section in settings
+- [ ] **HOME-03**: An option icon at the end of a compact list row opens the track menu; long-press on a row opens it too
+- [ ] **HOME-04**: Each section title has a right-arrow that navigates to a dedicated grid page for that chart; sections that mirror library content redirect to the matching library tab
+
+### Artist Page
+
+- [ ] **ART-01**: Albums with no tracks are hidden from the artist page
+
+### Sharing / SEO
+
+- [ ] **SHARE-01**: Sharing a song/album/artist produces a link whose OG metadata (title, description, image) describes THAT entity — server-rendered so crawlers and chat apps unfurl it
+- [ ] **SHARE-02**: Share links are short and recognizable (readable slug + stable id), replacing the opaque token
+- [ ] **SHARE-03**: Every page carries proper SEO meta (title / description / canonical)
+
+### Offline
+
+- [ ] **OFFL-01**: The app shell loads offline via a service worker (which never caches `/api/*` or audio CDN responses, and evicts stale shells on deploy)
+- [ ] **OFFL-02**: Downloaded songs are playable end-to-end while offline (find in library → tap → plays from local blob)
+- [ ] **OFFL-03**: Online-only surfaces degrade gracefully offline — a clear offline state with downloads promoted, not dead screens or stuck loaders (simplest implementation; don't bloat)
+
+### Enrichment
+
+- [ ] **ENRICH-04**: Artist and album pages are enriched with Deezer info (parallel to Last.fm getInfo), degrading gracefully when unavailable (carryover from v1.1)
+
+### UX Polish
+
+- [ ] **UX-01**: Every loading text is replaced by a skeleton that matches the shape/count/size of the loaded data (like the related list in now-playing)
+- [ ] **UX-02**: Action buttons show a toast on click and are guarded against double-clicking
+- [ ] **UX-03**: Text-size setting range widened to 50%–200%, with the demo text showing "example {artist or song name}" based on the type being sized
+- [ ] **UX-04**: Track rows support swipe-actions (swipe to queue / like) on main list surfaces (AUD-01)
+- [ ] **UX-05**: Key actions give haptic feedback where the platform supports it (AUD-04; Android — iOS Safari ignores)
+- [ ] **UX-06**: Accessibility pass: `aria-pressed` on toggle buttons, focus-trap in sheets/menus, labels on all icon-only buttons (AUD-11)
+- [ ] **UX-07**: The accent color setting visibly applies to the UI (verify wiring; fix if dead)
+
 ## v2 Requirements
 
 Acknowledged, deferred — not in the current roadmap.
+
+> Promoted into v1.2 (2026-06-10): **TIMER-01** (sleep timer), **LYR-01** (tap-lyric-to-seek), **SRC-FB-01** (source fallback on play failure → PLAY-07). Removed from the deferred lists below.
 
 ### Last.fm (deferred from v1.1)
 
@@ -107,16 +203,16 @@ Acknowledged, deferred — not in the current roadmap.
 - **LIBIMP-01**: Full Last.fm library import (library.getArtists)
 - **TAG-01**: Personal track tagging UI (track.getTags + write)
 
-### Resilience
-
-- **SRC-FB-01**: Source fallback on play failure (cross-source song matching — "couldn't play from QQ → trying Netease")
-
 ### Delight
 
-- **LYR-01**: Tap a lyric line to seek to that timestamp
-- **TIMER-01**: Sleep timer
 - **HOME-01**: Recently played / search history on the Home tab
 - **COACH-01**: Custom PWA install coachmark (Android prompt + iOS Share instructions)
+
+### v1.3 (planned next)
+
+- **LFAUTH-01..04, SCROB-01..03, LOVE-01..02** — Last.fm auth + scrobbling + loved-sync (see v1.1 section; re-deferred 2026-06-10)
+- True gapless / crossfade exploration (second `<audio>` byte-warming)
+- Haptics-everywhere expansion
 
 ## Out of Scope
 
@@ -124,10 +220,11 @@ Explicitly excluded. Documented to prevent scope creep.
 
 | Feature | Reason |
 |---------|--------|
-| Offline audio download / track caching | Source URLs are short-lived expiring CDN links (technically near-impossible) + legal exposure + storage cost. Stream-only; cache app shell only. |
-| First-party account system (own email/password + user DB) | Backend/auth/PII/server cost. NOTE (v1.1): optional **Last.fm** sign-in IS now in scope — accounts/cloud-sync are delegated to Last.fm, not built in-house; local-first remains the signed-out default. |
+| ~~Offline audio download / track caching~~ | **REVERSED** (v1.1 follow-ups shipped downloads to IndexedDB blob-store; v1.2 makes offline usability first-class — OFFL-01..03). Original concern (expiring CDN links) solved by downloading at resolve time. |
+| Like/shuffle buttons on the OS media card | Web MediaSession API has a fixed action set — custom buttons impossible for PWAs on Chrome/Android/macOS/iOS (decision 2026-06-10). Standard prev/play/next/seek only; like + shuffle stay in-app. |
+| First-party account system (own email/password + user DB) | Backend/auth/PII/server cost. NOTE (v1.1): optional **Last.fm** sign-in IS now in scope — accounts/cloud-sync are delegated to Last.fm, not built in-house; local-first remains the signed-out default. Deferred to v1.3. |
 | Native iOS / Android apps | App-store ToS exposure for an unofficial aggregator + double maintenance. PWA delivers app-like UX. |
-| Crossfade / gapless playback | A single `<audio>` element can't crossfade; dual-element + Web Audio against expiring/flaky URLs not worth it. |
+| Crossfade / true gapless playback | A single `<audio>` element can't crossfade; dual-element + Web Audio against expiring/flaky URLs not worth it. NOTE (v1.2): prefetch-resolve-ahead (PLAY-09) IS in scope — it shrinks the gap but is not true gapless. |
 | Official *paid streaming* APIs (Spotify / Apple Music) | Licensing + auth complexity. NOTE (v1.1): a YouTube-style source for resolving audio of Last.fm-discovered tracks IS in scope (GD Studio `ytmusic` deferred to a spike); Last.fm itself is metadata/social only, not a stream provider. |
 | Audio-reactive visualizer / EQ | Cross-origin non-CORS media blocks Web Audio analysis (existing app already fakes it). |
 
@@ -208,6 +305,10 @@ Each v1.1 requirement maps to exactly one phase (8–13). See `.planning/ROADMAP
 
 [†] **Phase 10 rescope (CONTEXT 10-CONTEXT.md D-01):** Phase 10 was narrowed to LFSRC-03 (best-match scoring) only. **LFSRC-02** shipped early in Phase 9 as `resolveStub` (`src/lib/services/discovery.ts`) — the existing CN-source `searchAll` + `dedupeBest` resolver with graceful-miss → no new work in Phase 10. **LFSRC-01** (a formal `'lastfm'` SourceId registered in both registries) is **dropped to backlog / satisfied-by-pattern**: `resolveStub` is the de-facto Last.fm resolver, so a registered `'lastfm'` source in the unified search bar adds little for the cost of widening `SourceId`/`SOURCES` — adapter-pattern parity is no longer required for v1.1 (revisit only if "search the Last.fm catalog in the unified search bar" is later wanted). **LFSRC-03**'s original wording included a duration-sanity check; that clause is **explicitly dropped (D-04)** — it would require plumbing Last.fm track duration through the discovery shape for low marginal value. LFSRC-03 as shipped = normalized artist+title scoring (`scoreMatch`) with a cover/karaoke/live/instrumental + CJK variant-keyword penalty, dedupeBest preferredSource/quality as the final tie-break.
 
+### Traceability (v1.2 — Resilient Playback & UX Polish)
+
+To be filled during roadmap creation. 41 v1.2 requirements total (PLAY-07..10, QUEUE-01..05, TIMER-01, LYR-01..05, MENU-01..03, NP-01..05, SRCH-01..03, COVER-01..02, HOME-02..04, ART-01, SHARE-01..03, OFFL-01..03, ENRICH-04, UX-01..07).
+
 ---
 *Requirements defined: 2026-06-05*
-*Last updated: 2026-06-06 after defining milestone v1.1 (Last.fm Integration) requirements*
+*Last updated: 2026-06-10 after defining milestone v1.2 (Resilient Playback & UX Polish) requirements*

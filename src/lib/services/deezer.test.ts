@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { buildDeezerSearchUrl, deezerSongCover, deezerArtistCover } from './deezer';
+import { buildDeezerSearchUrl, deezerSongCover, deezerArtistCover, deezerArtist, deezerAlbum } from './deezer';
+import { __clearSearchCache } from './ttl-cache';
 
 // deezer.ts (quick-260606-wv8) is the thin, never-throws client that fetches the
 // OWN-ORIGIN /api/deezer/search proxy (NOT api.deezer.com directly — the browser fetch to
@@ -12,6 +13,9 @@ import { buildDeezerSearchUrl, deezerSongCover, deezerArtistCover } from './deez
 afterEach(() => {
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
+	// deezerArtist/deezerAlbum memoize via cached(); clear between cases so a prior
+	// (possibly null) result for the same name does not leak into the next test.
+	__clearSearchCache();
 });
 
 /** A minimal `Response`-like ok JSON stub. */
@@ -157,5 +161,152 @@ describe('deezerArtistCover — resolve artist picture via the proxy', () => {
 			})
 		);
 		await expect(deezerArtistCover('X')).resolves.toBeNull();
+	});
+});
+
+// ---- Phase 17, ENRICH-04 — deezerArtist / deezerAlbum info enrichment client fns ----------
+// These mirror the cover-client never-throws + own-origin contract: a miss → null → the
+// page's Deezer section is silently absent (D-14). Pin the own-origin /api/deezer/* path +
+// encoded params, the empty-arg + already-aborted short-circuits, and the non-ok / fetch-throws
+// → null paths — all node-runnable via vi.stubGlobal('fetch', ...) (NO live network).
+
+const ARTIST_INFO = { picture: 'https://cdn-images.dzcdn.net/images/artist/x/1000x1000.jpg', fans: 5160298, albums: 36 };
+const ALBUM_INFO = {
+	cover: 'https://cdn-images.dzcdn.net/images/cover/y/1000x1000.jpg',
+	releaseDate: '2001-03-07',
+	tracks: 14,
+	fans: 333926,
+	label: 'Virgin',
+	genres: ['Electro'],
+	duration: 3662
+};
+
+describe('deezerArtist — resolve artist info via the own-origin proxy', () => {
+	it('fetches /api/deezer/artist?name=<encoded> and returns the reshape', async () => {
+		const fetchMock = vi.fn(async (_url: string) => jsonResponse(ARTIST_INFO));
+		vi.stubGlobal('fetch', fetchMock);
+
+		const out = await deezerArtist('Daft Punk');
+		expect(out).toEqual(ARTIST_INFO);
+		const called = String(fetchMock.mock.calls[0][0]);
+		expect(called.startsWith('/api/deezer/artist?')).toBe(true);
+		// Never api.deezer.com directly (CORS / no-key posture).
+		expect(called).not.toContain('api.deezer.com');
+		const params = new URLSearchParams(called.split('?')[1]);
+		expect(params.get('name')).toBe('Daft Punk');
+	});
+
+	it('encodes special chars in name (no raw spaces / & leak)', async () => {
+		const fetchMock = vi.fn(async (_url: string) => jsonResponse(ARTIST_INFO));
+		vi.stubGlobal('fetch', fetchMock);
+		await deezerArtist('A&B Band');
+		const called = String(fetchMock.mock.calls[0][0]);
+		expect(called).not.toContain(' ');
+		const params = new URLSearchParams(called.split('?')[1]);
+		expect(params.get('name')).toBe('A&B Band');
+	});
+
+	it('returns null on an empty name (no fetch)', async () => {
+		const fetchMock = vi.fn(async () => jsonResponse(ARTIST_INFO));
+		vi.stubGlobal('fetch', fetchMock);
+		await expect(deezerArtist('   ')).resolves.toBeNull();
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('returns null immediately on an already-aborted signal (no fetch)', async () => {
+		const fetchMock = vi.fn(async () => jsonResponse(ARTIST_INFO));
+		vi.stubGlobal('fetch', fetchMock);
+		const ac = new AbortController();
+		ac.abort();
+		await expect(deezerArtist('Aborted Artist', ac.signal)).resolves.toBeNull();
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('returns null on a non-ok response (never throws)', async () => {
+		vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(ARTIST_INFO, false)));
+		await expect(deezerArtist('NonOk Artist')).resolves.toBeNull();
+	});
+
+	it('returns null (never throws) when fetch itself throws', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => {
+				throw new Error('network down');
+			})
+		);
+		await expect(deezerArtist('Throwing Artist')).resolves.toBeNull();
+	});
+
+	it('returns null on malformed JSON (json() throws — never throws)', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					({
+						ok: true,
+						json: async () => {
+							throw new Error('bad json');
+						}
+					}) as unknown as Response
+			)
+		);
+		await expect(deezerArtist('Malformed Artist')).resolves.toBeNull();
+	});
+});
+
+describe('deezerAlbum — resolve album info via the own-origin proxy', () => {
+	it('fetches /api/deezer/album?title=&artist= and returns the reshape', async () => {
+		const fetchMock = vi.fn(async (_url: string) => jsonResponse(ALBUM_INFO));
+		vi.stubGlobal('fetch', fetchMock);
+
+		const out = await deezerAlbum('Discovery', 'Daft Punk');
+		expect(out).toEqual(ALBUM_INFO);
+		const called = String(fetchMock.mock.calls[0][0]);
+		expect(called.startsWith('/api/deezer/album?')).toBe(true);
+		expect(called).not.toContain('api.deezer.com');
+		const params = new URLSearchParams(called.split('?')[1]);
+		expect(params.get('title')).toBe('Discovery');
+		expect(params.get('artist')).toBe('Daft Punk');
+	});
+
+	it('omits the artist param when no artist is given', async () => {
+		const fetchMock = vi.fn(async (_url: string) => jsonResponse(ALBUM_INFO));
+		vi.stubGlobal('fetch', fetchMock);
+		await deezerAlbum('LonelyAlbum');
+		const called = String(fetchMock.mock.calls[0][0]);
+		const params = new URLSearchParams(called.split('?')[1]);
+		expect(params.get('title')).toBe('LonelyAlbum');
+		expect(params.has('artist')).toBe(false);
+	});
+
+	it('returns null on an empty title (no fetch)', async () => {
+		const fetchMock = vi.fn(async () => jsonResponse(ALBUM_INFO));
+		vi.stubGlobal('fetch', fetchMock);
+		await expect(deezerAlbum('   ', 'Someone')).resolves.toBeNull();
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('returns null immediately on an already-aborted signal (no fetch)', async () => {
+		const fetchMock = vi.fn(async () => jsonResponse(ALBUM_INFO));
+		vi.stubGlobal('fetch', fetchMock);
+		const ac = new AbortController();
+		ac.abort();
+		await expect(deezerAlbum('Aborted Album', 'X', ac.signal)).resolves.toBeNull();
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('returns null on a non-ok response (never throws)', async () => {
+		vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(ALBUM_INFO, false)));
+		await expect(deezerAlbum('NonOk Album', 'X')).resolves.toBeNull();
+	});
+
+	it('returns null (never throws) when fetch itself throws', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => {
+				throw new Error('network down');
+			})
+		);
+		await expect(deezerAlbum('Throwing Album', 'X')).resolves.toBeNull();
 	});
 });

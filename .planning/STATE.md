@@ -4,13 +4,13 @@ milestone: v1.2
 milestone_name: Resilient Playback & UX Polish
 status: executing
 stopped_at: Phase 18 context gathered
-last_updated: "2026-06-10T18:33:42.337Z"
-last_activity: 2026-06-10 -- Phase 18 planning complete
+last_updated: "2026-06-10T18:43:12.001Z"
+last_activity: 2026-06-10
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 10
-  completed_plans: 7
+  completed_plans: 8
   percent: 22
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-10)
 
 **Core value:** A user on their phone can search a song, tap it, and have it play instantly with a smooth, native-app-like experience — and keep playing when the screen locks.
-**Current focus:** Phase 18 — sleep timer
+**Current focus:** Phase 18 — sleep-timer
 
 ## Current Position
 
-Phase: 18
-Plan: Not started
+Phase: 18 (sleep-timer) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-06-10 -- Phase 18 planning complete
+Last activity: 2026-06-10
 Next: `/gsd:plan-phase 16`
 
 ## Performance Metrics
@@ -60,6 +60,7 @@ Next: `/gsd:plan-phase 16`
 | Phase 09 P03 | 7min | 3 tasks | 5 files |
 | Phase 14 P01 | 8min | 4 tasks | 18 files |
 | Phase 14 P02 | 4 | 2 tasks | 6 files |
+| Phase 18 P01 | 6 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 14-02]: D-02 searchSession is IN-MEMORY runes singleton (q/results/page/hasMore/scrollY/searched); SSR-leak (T-14-05) mitigated by browser-side-write discipline + HAS_WINDOW backstop, NOT persistence; onMount restores instantly (no refetch) + scroll after tick, new query overwrites via save()
 - [Phase ?]: [Phase 14-02]: D-01 one {#snippet skeletonRows} shared by first-load (loading && results.length===0) + load-more; D-06 onPartial re-runs dedupeBest per partial with two-layer abort guard (myAc.signal.aborted || kw!==q.trim()), results cleared at run() start so skeleton yields to first partial; loadMore stays blocking
 - [Phase ?]: [Phase 14-02]: D-05 suggestions on inputFocused && q.trim()==='' && !searched; 150ms blur-delay + onmousedown-preventDefault so tap registers; recorded on submit (zero-result queries listed); +search.recent/search.clear i18n in 3 dicts
+- [Phase ?]: [Phase 18-01]: Sleep-timer deadline is ABSOLUTE wall-clock (Date.now()+ms, D-14), survives bg-tab throttling; 1s UI tick recomputes remaining, never accumulates. Store in-memory only (D-13). decideEndedAction pure-tested locks D-03 (sleep beats repeat-one beats advance). canFadeVolume typed structural {volume} so iOS read-only path is node-testable.
 
 ### Pending Todos
 
@@ -187,6 +189,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-10T18:08:21.923Z
+Last session: 2026-06-10T18:43:04.739Z
 Stopped at: Phase 18 context gathered
 Resume: plan Phase 16 (`/gsd:plan-phase 16`). Phase 16 is the resilience-core dependency root; everything else builds on its `queueContext` / 2-state repeat / skip-loop guard.

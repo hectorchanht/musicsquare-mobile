@@ -117,7 +117,7 @@ Milestone v1.2. Music never stops + offline downloads + broad UX polish. Researc
 
 ### Sleep Timer
 
-- [ ] **TIMER-01**: User can set a sleep timer (5/10/15/30/45/60 min or end-of-track) from the track menu; playback stops at expiry; an active-timer indicator is visible and the timer can be cancelled/changed (promoted from v2)
+- [x] **TIMER-01**: User can set a sleep timer (5/10/15/30/45/60 min or end-of-track) from the track menu; playback stops at expiry; an active-timer indicator is visible and the timer can be cancelled/changed (promoted from v2)
 
 ### Lyrics
 
@@ -322,7 +322,7 @@ Each v1.2 requirement maps to exactly one phase (16–24). See `.planning/ROADMA
 | UX-03 | Phase 17 | Complete |
 | UX-07 | Phase 17 | Complete |
 | ENRICH-04 | Phase 17 | Complete |
-| TIMER-01 | Phase 18 | Pending |
+| TIMER-01 | Phase 18 | Complete |
 | MENU-01 | Phase 19 | Pending |
 | MENU-02 | Phase 19 | Pending |
 | MENU-03 | Phase 19 | Pending |

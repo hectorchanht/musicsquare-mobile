@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, type Component } from 'svelte';
+	import { onMount, untrack, type Component } from 'svelte';
 	import { fly } from 'svelte/transition';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -47,32 +47,41 @@
 	$effect(() => {
 		const n = player.notice;
 		if (!n) {
-			// Store cleared the channel (success reset / recovery) — dismiss any sticky toast.
+			// Store cleared the channel (success reset / recovery / skip-window close) — dismiss any
+			// toast still on screen.
 			clearSkipTimer();
 			host = null;
 			return;
 		}
-		if (n.kind === 'skip') {
-			// D-02: count is always ≥ 1; >1 collapses into the batched "{n} songs skipped" wording.
-			const text =
-				(n.count ?? 1) > 1
-					? t('toast.skippedMany', { count: n.count ?? 1 })
-					: t('toast.skipped', { title: n.title ?? '' });
-			host = { kind: 'skip', text };
-			// Auto-dismiss; restart the timer on every new skip so a burst replaces, not stacks.
-			clearSkipTimer();
-			skipTimer = setTimeout(() => {
-				host = null;
-				skipTimer = null;
-			}, SKIP_DISMISS_MS);
-		} else {
-			// kind 'stopped' — PERSISTENT (no auto-dismiss timer). offline vs loop-guard wording.
-			clearSkipTimer();
-			const text =
-				n.reason === 'offline' ? t('toast.offlineNoDownloads') : t('toast.playbackStopped');
-			// Retry only when the store provides a recovery action (loop-guard); offline has none.
-			host = { kind: 'stopped', text, action: n.action };
-		}
+		// WR-04: compute the localized text inside untrack() so the ONLY reactive dependency of this
+		// effect is `player.notice` (read above, tracked). t() reads settings.appLang ($state); if it
+		// were tracked here, a later language switch would re-run this effect against a stale notice
+		// and re-show a dismissed toast (with a fresh timer) out of nowhere. untrack() severs that
+		// hidden dependency — the store now also clears 'skip' notices when its window closes, so the
+		// two together close the resurrection bug at the source and in the host.
+		untrack(() => {
+			if (n.kind === 'skip') {
+				// D-02: count is always ≥ 1; >1 collapses into the batched "{n} songs skipped" wording.
+				const text =
+					(n.count ?? 1) > 1
+						? t('toast.skippedMany', { count: n.count ?? 1 })
+						: t('toast.skipped', { title: n.title ?? '' });
+				host = { kind: 'skip', text };
+				// Auto-dismiss; restart the timer on every new skip so a burst replaces, not stacks.
+				clearSkipTimer();
+				skipTimer = setTimeout(() => {
+					host = null;
+					skipTimer = null;
+				}, SKIP_DISMISS_MS);
+			} else {
+				// kind 'stopped' — PERSISTENT (no auto-dismiss timer). offline vs loop-guard wording.
+				clearSkipTimer();
+				const text =
+					n.reason === 'offline' ? t('toast.offlineNoDownloads') : t('toast.playbackStopped');
+				// Retry only when the store provides a recovery action (loop-guard); offline has none.
+				host = { kind: 'stopped', text, action: n.action };
+			}
+		});
 	});
 
 	function onRetry() {

@@ -9,7 +9,7 @@
 	import { library } from '$lib/stores/library.svelte';
 	import { names } from '$lib/stores/names.svelte';
 	import { overlays } from '$lib/stores/overlays.svelte';
-	import { t } from '$lib/i18n';
+	import { t, tMaybeKey } from '$lib/i18n';
 	import { searchAll } from '$lib/services/catalog';
 	import { dedupeBest } from '$lib/services/dedupe';
 	import { translateLines } from '$lib/services/translate';
@@ -682,7 +682,7 @@
 	</div>
 
 	{#if player.error}
-		<p class="np-error" role="alert">{player.error}</p>
+		<p class="np-error" role="alert">{tMaybeKey(player.error)}</p>
 	{/if}
 
 	<div class="prog">

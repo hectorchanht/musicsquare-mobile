@@ -10,7 +10,7 @@
 	import { Play, Pause, Loader } from '@lucide/svelte';
 	import { player } from '$lib/stores/player.svelte';
 	import { names } from '$lib/stores/names.svelte';
-	import { t } from '$lib/i18n';
+	import { t, tMaybeKey } from '$lib/i18n';
 
 	type Variant = 'docked' | 'embed';
 
@@ -49,7 +49,7 @@
 				<span class="np-title">{names.dnTitle(np?.title ?? '')}</span>
 				<span class="np-artist">
 					{names.dnArtist(np?.artist ?? '')}
-					{#if player.error}· <span class="err">{player.error}</span>{/if}
+					{#if player.error}· <span class="err">{tMaybeKey(player.error)}</span>{/if}
 				</span>
 			</span>
 		</button>

@@ -106,3 +106,15 @@ export function detectAppLang(navLang?: string): AppLang {
 export function t(key: TranslationKey, params?: Record<string, string | number>): string {
 	return interpolate(lookupKey(key, settings.appLang), params);
 }
+
+/**
+ * Tolerant reactive translate for store-emitted strings that MAY be a TranslationKey or MAY be an
+ * arbitrary runtime message (WR-07). `player.error` is usually an i18n key (e.g.
+ * 'toast.playbackStopped') but the catch-all in play() can also store a raw exception message.
+ * lookupKey already falls back to the raw string for an unknown key, so a known key is localized
+ * and anything else renders verbatim. Reads settings.appLang ($state) so callers re-render on a
+ * language switch, exactly like t().
+ */
+export function tMaybeKey(s: string, params?: Record<string, string | number>): string {
+	return interpolate(lookupKey(s, settings.appLang), params);
+}

@@ -349,7 +349,7 @@ Music never stops + offline downloads + a broad UX polish pass. This is a polish
 ### Phases (v1.2)
 
 - [x] **Phase 16: Playback Resilience Core** - Never-stop player: all-source failover → toast + auto-skip, ~5-skip loop-guard, prefetch-next, auto-generate-on-exhaust, offline short-circuit, 2-state repeat (completed 2026-06-10)
-- [ ] **Phase 17: Up-Next Sourcing + Settings Plumbing** - Per-context up-next setting (same-list vs genre-generated, default generated), search-doesn't-append + no auto-expand, queue swipe-remove + clear, widened text-size demo, accent-wiring verify, Deezer artist/album enrichment
+- [x] **Phase 17: Up-Next Sourcing + Settings Plumbing** - Per-context up-next setting (same-list vs genre-generated, default generated), search-doesn't-append + no auto-expand, queue swipe-remove + clear, widened text-size demo, accent-wiring verify, Deezer artist/album enrichment (completed 2026-06-10)
 - [ ] **Phase 18: Sleep Timer** - Sleep timer (5/10/15/30/45/60 min or end-of-track) from the track menu with active indicator + cancel/change
 - [ ] **Phase 19: Track Menu Rework** - Instant buttons + background resolve-then-act, 2-row marquee header, top-right like/close, Remix (seed genre queue), long-press focus-state fix
 - [ ] **Phase 20: Now-Playing Surface & Gestures** - Cover swipe prev/next (axis-locked), half-open scroll containment, tap-cover-closes-subnav, top running-line loader, nowbar horizontal swipe
@@ -404,9 +404,9 @@ Plans:
 
 **Plans**: 4 plans (2 waves)
 - [x] 17-01-PLAN.md — Per-context up-next sourcing engine + auto-expand fix + all Phase-17 i18n keys (QUEUE-01/02/03)
-- [ ] 17-02-PLAN.md — Queue management: horizontal swipe-remove + clear-all + removedUids exclusion (QUEUE-05)
-- [ ] 17-03-PLAN.md — Settings polish: text-size 50–200% + dynamic demo text + accent-hover derivation (UX-03/07)
-- [ ] 17-04-PLAN.md — Deezer artist/album enrichment routes + merge + page sections (ENRICH-04)
+- [x] 17-02-PLAN.md — Queue management: horizontal swipe-remove + clear-all + removedUids exclusion (QUEUE-05)
+- [x] 17-03-PLAN.md — Settings polish: text-size 50–200% + dynamic demo text + accent-hover derivation (UX-03/07)
+- [x] 17-04-PLAN.md — Deezer artist/album enrichment routes + merge + page sections (ENRICH-04)
 **UI hint**: yes
 **Research flag**: LOW — config/`defaults.ts` + `settings.svelte.ts` changes batched; recommendation-loop (recently-played ring buffer) and queue-mutation race (`manualUids`) are documented pitfalls.
 
@@ -552,7 +552,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 | 13. Loved-Tracks Sync | 0/TBD | Deferred → v1.3 | - |
 | 14. Search & Data Responsiveness | 2/2 | Complete    | 2026-06-06 |
 | 16. Playback Resilience Core | 3/3 | Complete    | 2026-06-10 |
-| 17. Up-Next Sourcing + Settings Plumbing | 1/4 | In Progress|  |
+| 17. Up-Next Sourcing + Settings Plumbing | 4/4 | Complete   | 2026-06-10 |
 | 18. Sleep Timer | 0/TBD | Not started | - |
 | 19. Track Menu Rework | 0/TBD | Not started | - |
 | 20. Now-Playing Surface & Gestures | 0/TBD | Not started | - |

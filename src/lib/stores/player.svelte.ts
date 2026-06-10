@@ -14,6 +14,7 @@ import { ensureTrackDetails } from '$lib/services/catalog';
 import { tryFallback } from '$lib/services/fallback';
 import { buildDiversePicks } from '$lib/services/picks';
 import { buildSimilarQueue } from '$lib/services/similar';
+import { buildOfflineQueue } from '$lib/services/downloads-queue';
 import { dedupeBest } from '$lib/services/dedupe';
 import { buildArtwork, safePositionState, playbackStateFor } from '$lib/services/media-session';
 import { resolveStub } from '$lib/services/discovery';
@@ -849,6 +850,12 @@ class Player {
 						/* rejection owned by the stall watchdog — see comment above */
 					});
 					this.loading = false;
+					// PLAY-09 / D-15: keep up-next topped up + pre-resolve the next track even on the
+					// offline-blob path so the ended→next auto-advance into a downloaded queue still
+					// prefetches (a no-op resolve for an already-downloaded next track; a real resolve
+					// when the next entry is a network track). Best-effort, non-blocking.
+					void this.ensureAhead();
+					void this.prefetchNext();
 					return;
 				}
 			}
@@ -1019,6 +1026,15 @@ class Player {
 	 * existing error. Never throws — tryFallback() is defensively wrapped.
 	 */
 	private async runFallback(failed: Track) {
+		// D-08 offline gate (Pitfall 1): if the device is offline, do NOT enter the failure chain.
+		// Network failover would just 0-for-N against unreachable proxies and — critically — must
+		// NOT burn the loop-guard counter (offline ≠ a track that failed all sources). Hand off to
+		// the offline path (switch up-next to downloads, or pause with an offline notice) and return
+		// BEFORE the consecutive-failure increment in handleTotalFailure ever runs.
+		if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+			this.handleOffline();
+			return;
+		}
 		const gen = this.playGen;
 		this.loading = true;
 		this.error = null;
@@ -1127,6 +1143,41 @@ class Player {
 			this.skipBurst = 0;
 			this.skipBurstTimer = null;
 		}, Player.SKIP_BURST_WINDOW_MS);
+	}
+
+	/**
+	 * Offline path (PLAY-09 / D-07, D-08, D-09). Reached only from the runFallback offline gate, so
+	 * the consecutive-failure counter is NEVER touched here (offline ≠ failure, D-08). Scope note
+	 * (D-09): this is the PLAYER's offline switch only — app-shell / service-worker / offline route
+	 * guards are Phase 24, not here.
+	 *
+	 *  - D-07: if the user has downloaded tracks not already in the current queue, switch up-next to
+	 *    them (most-recent-download-first, deduped) and continue playing from the first one. play()'s
+	 *    existing offline-blob branch streams it from the IndexedDB blob with no network, reusing the
+	 *    single cachedBlobUrl revoke discipline (Pitfall 13) — no new object URL is minted here.
+	 *  - D-08: if there are NO downloads to fall back to, pause and surface a sticky offline notice;
+	 *    do not auto-advance into a dead network.
+	 */
+	private handleOffline() {
+		this.loading = false;
+		const have = new Set<string>([
+			...this.queue.map((t) => t.uid),
+			...(this.current ? [this.current.uid] : [])
+		]);
+		const offline = buildOfflineQueue(library.downloads, have);
+		if (offline.length > 0) {
+			// D-07: switch up-next to the downloaded tracks and continue. dedupeBest gives a fresh
+			// array reference (reactivity) and collapses any cross-source duplicates. play() bumps
+			// playGen, so a user gesture mid-switch still supersedes correctly.
+			this.queue = dedupeBest([...(this.current ? [this.current] : []), ...offline], settings.preferredSource);
+			void this.play(offline[0]);
+			return;
+		}
+		// D-08: nothing downloaded to play — pause and show a sticky offline notice (no Retry action;
+		// playback resumes naturally when connectivity returns and the user taps play).
+		this.audio?.pause();
+		this.error = 'offline — no downloaded tracks available';
+		this.notice = { kind: 'stopped', reason: 'offline', msg: 'player.notice.offline' };
 	}
 
 	/**

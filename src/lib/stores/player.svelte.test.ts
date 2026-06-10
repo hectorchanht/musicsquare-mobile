@@ -35,6 +35,7 @@ const localStorageMock: Storage = {
 vi.stubGlobal('localStorage', localStorageMock);
 
 import { player } from './player.svelte';
+import { library } from '$lib/stores/library.svelte';
 import { resolveStub } from '$lib/services/discovery';
 import { ensureTrackDetails } from '$lib/services/catalog';
 import { tryFallback } from '$lib/services/fallback';
@@ -334,6 +335,27 @@ describe('player.prefetchNext — pre-resolve next track for gapless-ish play', 
 		expect(player.queue[1]).toBe(next);
 		expect(player.queue[1].audioUrl).toBeNull();
 	});
+
+	it('ended → next() auto-advance reaches play() (which fires prefetchNext) — PLAY-09/D-15', () => {
+		// The ended listener (repeatMode 'off') calls next(); next() → play(queue[i+1]); play()'s
+		// tail fires `void this.prefetchNext()`. play() is stubbed here so we assert the advance
+		// hand-off: ended drives next() which calls play() with the next queue entry. That play()
+		// in production is the unconditional prefetchNext trigger on the auto-advance path.
+		const cur = mk('netease', '0', 'A', 'Now');
+		const next = mk('qq', '1', 'B', 'Next');
+		player.queue = [cur, next];
+		player.current = cur;
+		player.repeatMode = 'off';
+
+		const el = makeFakeAudio();
+		player.attach(el as unknown as HTMLAudioElement);
+		const playSpy = player.play as unknown as ReturnType<typeof vi.fn>;
+		playSpy.mockClear();
+
+		el.fire('ended');
+
+		expect(playSpy).toHaveBeenCalledWith(next);
+	});
 });
 
 describe('player repeat — 2-state (PLAY-10)', () => {
@@ -623,5 +645,83 @@ describe('player resilience — stall watchdog (PLAY-07 / D-13/D-14)', () => {
 		setPlayed(true); // audio already played — a later buffer stall is NOT a load failure
 		vi.advanceTimersByTime(Player_STALL_TIMEOUT_MS);
 		expect(runFallbackSpy).not.toHaveBeenCalled();
+	});
+});
+
+describe('player resilience — offline gate + downloads switch (PLAY-09 / D-07/D-08)', () => {
+	const runFallback = (failed: Track) =>
+		(player as unknown as { runFallback(f: Track): Promise<void> })['runFallback'](failed);
+	const failures = () => (player as unknown as { consecutiveFailures: number })['consecutiveFailures'];
+	const setFailures = (n: number) => {
+		(player as unknown as { consecutiveFailures: number })['consecutiveFailures'] = n;
+	};
+
+	beforeEach(() => {
+		mockTryFallback.mockReset();
+		mockTryFallback.mockResolvedValue(null);
+		setFailures(0);
+		player.notice = null;
+		player.error = null;
+		player.current = null;
+		player.queue = [];
+		library.downloads = [];
+		// Offline for this block.
+		vi.stubGlobal('navigator', { onLine: false });
+	});
+
+	afterEach(() => {
+		library.downloads = [];
+		vi.stubGlobal('navigator', { onLine: true });
+	});
+
+	it('offline: does NOT call tryFallback and does NOT increment the counter (D-08)', async () => {
+		const a = mk('netease', 'a', 'A', 'Song');
+		player.queue = [a];
+		player.current = a;
+
+		await runFallback(a);
+		await flush();
+
+		expect(mockTryFallback).not.toHaveBeenCalled();
+		expect(failures()).toBe(0); // offline ≠ failure — the loop-guard budget is untouched
+	});
+
+	it('offline WITH downloads: switches up-next to downloads and continues playing (D-07)', async () => {
+		const a = mk('netease', 'a', 'A', 'Failed');
+		const dl1 = mk('qq', 'd1', 'D1', 'Downloaded One');
+		const dl2 = mk('kuwo', 'd2', 'D2', 'Downloaded Two');
+		player.queue = [a];
+		player.current = a;
+		library.downloads = [dl1, dl2];
+
+		const playSpy = player.play as unknown as ReturnType<typeof vi.fn>;
+		playSpy.mockClear();
+
+		await runFallback(a);
+		await flush();
+
+		// First downloaded track is played; the queue now holds the downloads.
+		expect(playSpy).toHaveBeenCalledWith(dl1);
+		expect(player.queue.some((t) => t.uid === dl1.uid)).toBe(true);
+		expect(failures()).toBe(0); // still no counter burn
+	});
+
+	it('offline with NO downloads: pauses + sets a sticky offline notice (D-08)', async () => {
+		const a = mk('netease', 'a', 'A', 'Failed');
+		player.queue = [a];
+		player.current = a;
+		library.downloads = [];
+
+		const playSpy = player.play as unknown as ReturnType<typeof vi.fn>;
+		playSpy.mockClear();
+
+		await runFallback(a);
+		await flush();
+
+		expect(playSpy).not.toHaveBeenCalled();
+		expect(player.notice?.kind).toBe('stopped');
+		expect(player.notice?.reason).toBe('offline');
+		expect(player.error).toBeTruthy();
+		expect(failures()).toBe(0);
 	});
 });

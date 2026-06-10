@@ -421,7 +421,21 @@ Plans:
   2. Playback stops at expiry (and at track end for end-of-track mode), surviving background-tab timer throttling via an absolute-timestamp deadline
   3. While a timer is active, a visible indicator shows it, and the user can cancel it or change the duration
 
-**Plans**: TBD
+**Plans**: 3 plans (3 waves)
+Plans:
+
+**Wave 1**
+
+- [ ] 18-01-PLAN.md — Pure deadline/fade/arbitration helpers (`sleep-timer.ts`) + leaf runes store (`sleepTimer.svelte.ts`) + Wave 0 tests (TIMER-01)
+
+**Wave 2** *(blocked on 18-01)*
+
+- [ ] 18-02-PLAN.md — Player engine integration: `expireSleepTimer()` + ~10s fade + `timeupdate` backstop + end-of-track-beats-repeat-one branch + gesture-abort + the STATE.md Phase-18 blocker proven in a test (TIMER-01)
+
+**Wave 3** *(blocked on 18-01 + 18-02)*
+
+- [ ] 18-03-PLAN.md — UI: global timer sub-sheet (3rd pickerOpen instance) + TrackMenu item + nowbar moon badge + now-playing countdown readout + 15-locale i18n (checkpoint: human-verify) (TIMER-01)
+
 **Research flag**: LOW — `setTimeout`/absolute-deadline pattern; durations verified against Spotify. Background-tab throttle drift is the one documented pitfall.
 
 ### Phase 19: Track Menu Rework
@@ -553,7 +567,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 | 14. Search & Data Responsiveness | 2/2 | Complete    | 2026-06-06 |
 | 16. Playback Resilience Core | 3/3 | Complete    | 2026-06-10 |
 | 17. Up-Next Sourcing + Settings Plumbing | 4/4 | Complete    | 2026-06-10 |
-| 18. Sleep Timer | 0/TBD | Not started | - |
+| 18. Sleep Timer | 0/3 | Planned | - |
 | 19. Track Menu Rework | 0/TBD | Not started | - |
 | 20. Now-Playing Surface & Gestures | 0/TBD | Not started | - |
 | 21. Search & Cover Pipeline Polish | 0/TBD | Not started | - |

@@ -71,20 +71,17 @@
 		if (!track) return;
 		onclose();
 		toast(t('toast.preparingDownload'));
-		// Re-resolve at the user's DOWNLOAD quality (separate from the streaming default). The
-		// source resolvers read settings.defaultQuality at resolve time, so temporarily swap it
-		// and force a fresh resolve (clear cached details on a COPY — the queue track is left
-		// untouched), then restore. settings is not persisted here, so the swap is transient.
-		const prevQuality = settings.defaultQuality;
-		let r: Track = track;
-		try {
-			settings.defaultQuality = settings.downloadQuality;
-			r = await ensureTrackDetails({ ...track, detailsLoaded: false, audioUrl: null, lrc: null }).catch(
-				() => track
-			);
-		} finally {
-			settings.defaultQuality = prevQuality;
-		}
+		// Re-resolve at the user's DOWNLOAD quality (separate from the streaming default).
+		// WR-07: the tier is threaded through ensureTrackDetails as an explicit per-call
+		// parameter — never the old temporary settings.defaultQuality swap, which raced
+		// concurrent playback resolves and could be persisted by a mid-window save().
+		// Force a fresh resolve (clear cached details on a COPY — the queue track is left
+		// untouched).
+		const r: Track = await ensureTrackDetails(
+			{ ...track, detailsLoaded: false, audioUrl: null, lrc: null },
+			undefined,
+			settings.downloadQuality
+		).catch(() => track);
 		library.addDownload(r);
 		if (!r.audioUrl) return toast(t('toast.noAudio'));
 		try {

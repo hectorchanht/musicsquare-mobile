@@ -294,4 +294,16 @@ describe('ensureTrackDetails (registry dispatch + readiness guard)', () => {
 		expect(spy).not.toHaveBeenCalled();
 		expect(out).toBe(t);
 	});
+
+	it('forwards an explicit per-call quality to the adapter resolve (WR-07 download path)', async () => {
+		const t = mk('qq', 'q1');
+		const resolved = { ...t, detailsLoaded: true, audioUrl: 'https://cdn/x.flac' };
+		const spy = vi.spyOn(SOURCES.qq, 'resolve').mockResolvedValue(resolved);
+
+		await ensureTrackDetails(t, undefined, 'lossless');
+		expect(spy).toHaveBeenCalledOnce();
+		// (track, signal, quality) — the download tier reaches the adapter WITHOUT touching
+		// the global settings.defaultQuality (the old temporary-swap shared-state race).
+		expect(spy.mock.calls[0][2]).toBe('lossless');
+	});
 });

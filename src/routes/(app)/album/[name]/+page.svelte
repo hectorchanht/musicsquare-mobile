@@ -269,45 +269,45 @@
 		toast(t('toast.preparingDownload'));
 		try {
 			const resolved = await resolveAllCached();
-			const prevQuality = settings.defaultQuality;
-			settings.defaultQuality = settings.downloadQuality;
 			let saved = 0;
-			try {
-				for (const tr of resolved) {
-					const full = await ensureTrackDetails({ ...tr, detailsLoaded: false, audioUrl: null, lrc: null }).catch(
-						() => tr
-					);
-					library.addDownload(full);
-					if (!full.audioUrl) continue;
-					// Try fetch+blob+anchor.click first; on CORS / network failure fall back to
-					// window.open which lets the BROWSER handle the download (ii6 #1 — the user
-					// reported no files were saving; the CN-source audio CDNs don't always send
-					// Access-Control-Allow-Origin, so the blob path silently fails without this).
-					let didSave = false;
+			for (const tr of resolved) {
+				// WR-07: pass the DOWNLOAD tier explicitly through ensureTrackDetails instead of
+				// temporarily mutating settings.defaultQuality — the old swap raced concurrent
+				// playback resolves (they resolved at the download tier for the whole loop) and
+				// any mid-window settings.save() persisted the wrong streaming default.
+				const full = await ensureTrackDetails(
+					{ ...tr, detailsLoaded: false, audioUrl: null, lrc: null },
+					undefined,
+					settings.downloadQuality
+				).catch(() => tr);
+				library.addDownload(full);
+				if (!full.audioUrl) continue;
+				// Try fetch+blob+anchor.click first; on CORS / network failure fall back to
+				// window.open which lets the BROWSER handle the download (ii6 #1 — the user
+				// reported no files were saving; the CN-source audio CDNs don't always send
+				// Access-Control-Allow-Origin, so the blob path silently fails without this).
+				let didSave = false;
+				try {
+					const resp = await fetch(full.audioUrl);
+					const blob = await resp.blob();
+					const ext = (full.audioUrl.split('?')[0].match(/\.(mp3|flac|m4a|aac|ogg|wav)$/i)?.[1] ?? 'mp3').toLowerCase();
+					const a = document.createElement('a');
+					a.href = URL.createObjectURL(blob);
+					a.download = `${full.artist} - ${full.title}.${ext}`.replace(/[/\\?%*:|"<>]/g, '_');
+					a.click();
+					URL.revokeObjectURL(a.href);
+					didSave = true;
+				} catch {
 					try {
-						const resp = await fetch(full.audioUrl);
-						const blob = await resp.blob();
-						const ext = (full.audioUrl.split('?')[0].match(/\.(mp3|flac|m4a|aac|ogg|wav)$/i)?.[1] ?? 'mp3').toLowerCase();
-						const a = document.createElement('a');
-						a.href = URL.createObjectURL(blob);
-						a.download = `${full.artist} - ${full.title}.${ext}`.replace(/[/\\?%*:|"<>]/g, '_');
-						a.click();
-						URL.revokeObjectURL(a.href);
-						didSave = true;
+						window.open(full.audioUrl, '_blank');
+						didSave = true; // delegated to the browser — count as "initiated"
 					} catch {
-						try {
-							window.open(full.audioUrl, '_blank');
-							didSave = true; // delegated to the browser — count as "initiated"
-						} catch {
-							/* both paths failed — track stays in library Downloads list */
-						}
+						/* both paths failed — track stays in library Downloads list */
 					}
-					if (didSave) saved++;
-					// Stagger so browser doesn't squash concurrent downloads / hit per-origin caps.
-					await new Promise((r) => setTimeout(r, 250));
 				}
-			} finally {
-				settings.defaultQuality = prevQuality;
+				if (didSave) saved++;
+				// Stagger so browser doesn't squash concurrent downloads / hit per-origin caps.
+				await new Promise((r) => setTimeout(r, 250));
 			}
 			toast(saved > 0 ? t('toast.downloaded') : resolved.length ? t('toast.noAudio') : t('album.unplayable'));
 		} finally {

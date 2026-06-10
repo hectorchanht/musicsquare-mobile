@@ -22,7 +22,7 @@
 import type { SourceAdapter, Track } from './types';
 import { makeUid } from './types';
 import { inferQualityFromUrl } from '../services/lrc';
-import { settings } from '$lib/stores/settings.svelte';
+import { settings, type DefaultQuality } from '$lib/stores/settings.svelte';
 import { pickByQualityPref } from './quality';
 
 // JOOX search row shape from the apicx proxy (Chinese field names we read).
@@ -137,9 +137,11 @@ const JOOX_QUALITY_ORDER = [
  */
 async function pickJooxPlayUrl(
 	links: Record<string, string>,
-	outerSignal: AbortSignal
+	outerSignal: AbortSignal,
+	quality?: DefaultQuality
 ): Promise<PickedPlayUrl> {
-	const order = pickByQualityPref(JOOX_QUALITY_ORDER, settings.defaultQuality);
+	// WR-07: an explicit per-call quality (download path) wins over the streaming pref.
+	const order = pickByQualityPref(JOOX_QUALITY_ORDER, quality ?? settings.defaultQuality);
 	for (const name of order) {
 		const u = links[name];
 		if (!u) continue;
@@ -205,7 +207,7 @@ export const joox: SourceAdapter = {
 		});
 	},
 
-	async resolve(track: Track, signal: AbortSignal): Promise<Track> {
+	async resolve(track: Track, signal: AbortSignal, quality?: DefaultQuality): Promise<Track> {
 		// THE TRAP (legacy:2425): the upstream detail is keyed by positional `n`. We keep
 		// sending it because the upstream requires it, but we re-validate the response
 		// against the track's stable identity below before trusting it.
@@ -244,7 +246,7 @@ export const joox: SourceAdapter = {
 		}
 
 		const playLinks = d['播放链接'] || {};
-		const best = await pickJooxPlayUrl(playLinks, signal);
+		const best = await pickJooxPlayUrl(playLinks, signal, quality); // WR-07: per-call quality wins
 
 		// Identity validated — enrich the track in place (ports legacy:2483-2503).
 		track.title = d['歌曲名称'] || track.title;

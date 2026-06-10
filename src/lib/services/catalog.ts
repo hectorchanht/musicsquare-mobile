@@ -5,6 +5,7 @@
 // renderMiniSearchList, playFromList) are dropped — those are Phase 4.
 import { SOURCES, getEnabledAdapters } from '$lib/sources/registry';
 import type { SourceId, Track, SettledSourceResult } from '$lib/sources/types';
+import type { DefaultQuality } from '$lib/stores/settings.svelte';
 import { cached, __clearSearchCache } from './ttl-cache';
 
 // Re-exported so tests (and any future cache-busting caller) can reset the search
@@ -177,10 +178,16 @@ function interleave(perSource: SettledSourceResult[]): Track[] {
  * already complete. Netease resolves `lrc` from a separate `lrcUrl`, so a track
  * with an unresolved `lrcUrl` still re-resolves.
  */
-export async function ensureTrackDetails(track: Track, signal?: AbortSignal): Promise<Track> {
+export async function ensureTrackDetails(
+	track: Track,
+	signal?: AbortSignal,
+	quality?: DefaultQuality
+): Promise<Track> {
 	if (track.detailsLoaded && track.audioUrl && (track.lrc || !track.lrcUrl)) {
 		return track;
 	}
 	const sig = signal ?? new AbortController().signal;
-	return SOURCES[track.source].resolve(track, sig);
+	// WR-07: `quality` threads an explicit per-call tier to the adapter (download path passes
+	// settings.downloadQuality) so download resolves never mutate the global streaming default.
+	return SOURCES[track.source].resolve(track, sig, quality);
 }

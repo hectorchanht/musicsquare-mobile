@@ -10,6 +10,10 @@
 // whitelist (legacy/index.html:1764-1768) so QQ/JOOX detail calls keep the extra
 // fields they read.
 
+// Type-only import (erased at compile time — no runtime cycle; settings.svelte.ts imports
+// SourceId from here, mirroring the existing defaults.ts ↔ settings type-cycle pattern).
+import type { DefaultQuality } from '$lib/stores/settings.svelte';
+
 export type SourceId = 'netease' | 'qq' | 'kuwo' | 'joox' | 'fivesing' | 'jamendo';
 
 export interface Track {
@@ -64,8 +68,12 @@ export interface SourceAdapter {
 	label: string;
 	enabledByDefault: boolean;
 	search(keyword: string, page: number, signal: AbortSignal): Promise<Track[]>;
-	/** Lazy resolution: audioUrl + lrc + quality + detailsLoaded. */
-	resolve(track: Track, signal: AbortSignal): Promise<Track>;
+	/** Lazy resolution: audioUrl + lrc + quality + detailsLoaded.
+	 *  `quality` (WR-07): an explicit per-call quality tier — used by the download path to
+	 *  request settings.downloadQuality WITHOUT mutating the global streaming default (the old
+	 *  temporary-swap pattern raced concurrent playback resolves and could be persisted by any
+	 *  mid-window save()). Absent → the adapter reads settings.defaultQuality as before. */
+	resolve(track: Track, signal: AbortSignal, quality?: DefaultQuality): Promise<Track>;
 }
 
 export interface SettledSourceResult {

@@ -13,7 +13,7 @@
 import type { SourceAdapter, Track } from './types';
 import { makeUid } from './types';
 import { inferQualityFromUrl } from '../services/lrc';
-import { settings } from '$lib/stores/settings.svelte';
+import { settings, type DefaultQuality } from '$lib/stores/settings.svelte';
 
 // QQ search row shape from the tang endpoint (fields we read).
 interface QQSearchItem {
@@ -69,10 +69,12 @@ interface BestPlayUrl {
  * verbatim lossless-first order is kept. QQ has no request-side bitrate param (the tang
  * endpoint returns all tiers in one detail body), so the ladder order IS the lever.
  */
-function pickBestPlayUrl(d: QQDetailItem): BestPlayUrl {
-	// D-03: read the user pref directly (lower blast radius than threading a param
-	// through the SourceAdapter.resolve contract — mirrors picks.ts/similar.ts).
-	if (settings.defaultQuality === '128' && d.song_play_url_standard) {
+function pickBestPlayUrl(d: QQDetailItem, quality?: DefaultQuality): BestPlayUrl {
+	// D-03: absent an explicit per-call tier, read the user's streaming pref. WR-07: the
+	// download path now passes settings.downloadQuality explicitly instead of temporarily
+	// mutating settings.defaultQuality (which raced concurrent playback resolves).
+	const pref = quality ?? settings.defaultQuality;
+	if (pref === '128' && d.song_play_url_standard) {
 		return {
 			url: d.song_play_url_standard,
 			tag: 'standard',
@@ -82,7 +84,7 @@ function pickBestPlayUrl(d: QQDetailItem): BestPlayUrl {
 	}
 	// WR-03: '320' pref → promote HQ (~320k) ahead of the lossless-first ladder, mirroring
 	// the '128'→STD promotion above and JOOX's pickByQualityPref 320 handling.
-	if (settings.defaultQuality === '320' && d.song_play_url_hq) {
+	if (pref === '320' && d.song_play_url_hq) {
 		return {
 			url: d.song_play_url_hq,
 			tag: 'hq',
@@ -176,7 +178,7 @@ export const qq: SourceAdapter = {
 		return tracks;
 	},
 
-	async resolve(track: Track, signal: AbortSignal): Promise<Track> {
+	async resolve(track: Track, signal: AbortSignal, quality?: DefaultQuality): Promise<Track> {
 		// 优先用搜索时用过的关键词，保证和原始排序一致 (legacy:2312-2315).
 		const msg =
 			(track.qqSearchKey || track.keyword || '').trim() ||
@@ -207,8 +209,8 @@ export const qq: SourceAdapter = {
 			track.cover = d.album_pic || d.singer_pic || track.cover;
 			track.pageUrl = d.song_h5_url || track.pageUrl;
 
-			// 播放链接（按优先级挑一个）(legacy:2364-2366).
-			const best = pickBestPlayUrl(d);
+			// 播放链接（按优先级挑一个）(legacy:2364-2366). WR-07: per-call quality wins.
+			const best = pickBestPlayUrl(d, quality);
 			track.audioUrl = best.url || track.audioUrl;
 
 			// 歌词 — inline from the detail body (legacy:2369).

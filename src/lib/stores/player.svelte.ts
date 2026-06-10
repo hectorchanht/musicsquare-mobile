@@ -99,7 +99,7 @@ class Player {
 
 	/**
 	 * Consecutive-failure counter (PLAY-08 / D-04, Pitfall 1). Incremented on every auto-skip that
-	 * did NOT reach a real `playing` event; reset to 0 by the `play` listener (D-06 success reset)
+	 * did NOT reach a real `playing` event; reset to 0 by the `playing` listener (D-06 success reset)
 	 * and by recoverFromStop. PLAIN field (not $state) — an internal loop-guard budget, never read
 	 * reactively by the UI (the UI reads `notice` instead). Offline does NOT burn it (D-08).
 	 */
@@ -107,6 +107,16 @@ class Player {
 	/** Loop-guard cap: after this many consecutive failures with zero successful plays, STOP and
 	 *  surface a sticky Retry notice instead of auto-advancing again (D-04). */
 	private static FAILURE_CAP = 5;
+	/**
+	 * Audio-element error burst counter (CR-03). The dominant region-lock failure mode is "detail
+	 * fetch resolves a URL fine, the <audio> byte fetch 403s" — i.e. the `error` event fires while
+	 * tryFallback keeps 'succeeding' (it resolves SOME url every time), so handleTotalFailure (and
+	 * therefore consecutiveFailures) never runs and the A↔B ping-pong is unbounded. This counts
+	 * raw audio `error` events since the last real `playing` and trips the loop-guard once it hits
+	 * FAILURE_CAP even when tryFallback keeps finding resolvable-but-unplayable sources. Reset to 0
+	 * by the `playing` listener (D-06 success reset) and by recoverFromStop. Plain field — internal.
+	 */
+	private errorBurst = 0;
 	/** Skip-burst batch counter (D-02): how many skips have collapsed into the current notice. Reset
 	 *  by the debounce window below. Plain field — not reactive. */
 	private skipBurst = 0;
@@ -487,17 +497,28 @@ class Player {
 		this.audio = el;
 		el.setAttribute('referrerpolicy', 'no-referrer');
 		el.addEventListener('play', () => {
+			// `play` fires the instant `paused` flips false (inside audio.play(), at
+			// readyState HAVE_NOTHING — before a single byte loads). It is a UI-STATE signal
+			// only ("the user/transport intends to play"), NOT proof that audio started. The
+			// D-06 success reset and the D-13/D-14 watchdog disarm must NOT hang off this event
+			// (CR-01): doing so reset the failure counter on every auto-skip before the dead
+			// URL's `error` even arrived, so the loop-guard cap was unreachable. Those moved to
+			// the `playing` listener below.
 			this.playing = true;
 			this.syncPlaybackState();
-			// D-13/D-14: a real `play` event means audio started — mark the src as having played and
-			// disarm the initial-load stall watchdog so it can't fire a false failover.
+		});
+		el.addEventListener('playing', () => {
+			// `playing` is the event that means audio is ACTUALLY producing output (CR-01).
+			// D-13/D-14: mark the src as having played + disarm the initial-load stall watchdog.
 			this.hasPlayedSinceSrc = true;
 			this.disarmStall();
 			// D-06 success reset: a real `playing` event is the natural counter reset — the track
 			// is actually producing audio, so the never-stop chain has recovered. Clear the
-			// consecutive-failure budget and drop any sticky 'stopped' (loop-guard / offline) notice
-			// so the UI stops showing "playback stopped" the instant playback resumes.
+			// consecutive-failure budget + the audio-error burst, and drop any sticky 'stopped'
+			// (loop-guard / offline) notice so the UI stops showing "playback stopped" the instant
+			// playback resumes.
 			this.consecutiveFailures = 0;
+			this.errorBurst = 0;
 			if (this.notice?.kind === 'stopped') this.notice = null;
 		});
 		el.addEventListener('pause', () => {

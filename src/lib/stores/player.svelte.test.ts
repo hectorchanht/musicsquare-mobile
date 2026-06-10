@@ -565,14 +565,51 @@ describe('player resilience — loop-guard + skip-on-failure (PLAY-07/08)', () =
 
 	it('a real `playing` event resets the counter and clears a stopped notice (D-06)', () => {
 		setFailures(3);
-		player.notice = { kind: 'stopped', reason: 'loop-guard', msg: 'x' };
-		// Simulate the audio element firing `play` by invoking the bound listener via a fake element.
+		player.notice = { kind: 'stopped', reason: 'loop-guard', msg: 'toast.playbackStopped' };
+		// Simulate the audio element firing `playing` by invoking the bound listener via a fake element.
 		const el = makeFakeAudio();
 		player.attach(el as unknown as HTMLAudioElement);
-		el.fire('play');
+		el.fire('playing');
 
 		expect(failures()).toBe(0);
 		expect(player.notice).toBeNull();
+	});
+
+	it('CR-01: the `play` event alone does NOT reset the counter (it fires before audio loads)', () => {
+		setFailures(3);
+		player.notice = { kind: 'stopped', reason: 'loop-guard', msg: 'toast.playbackStopped' };
+		const el = makeFakeAudio();
+		player.attach(el as unknown as HTMLAudioElement);
+		// `play` fires the instant audio.play() is called, before any byte loads — it must NOT be
+		// treated as a success. Only `playing` (real output) resets the loop-guard budget.
+		el.fire('play');
+
+		expect(failures()).toBe(3); // untouched by `play`
+		expect(player.notice?.kind).toBe('stopped'); // sticky notice survives a bare `play`
+	});
+
+	it('CR-01: error-event failures still reach the cap even when each play fires a `play` event', async () => {
+		// Regression for the dominant failure mode: a URL resolves but the <audio> errors. Each
+		// auto-skip's play() fires `play` instantly; before the fix that reset consecutiveFailures
+		// 0↔1 forever and the cap of 5 was unreachable. With the fix, `play` no longer resets, so a
+		// run of total failures (tryFallback → null) climbs to the cap and trips the loop-guard.
+		const dead = mk('netease', 'dead', 'A', 'Region Locked');
+		player.queue = [dead];
+		player.current = dead;
+		const el = makeFakeAudio();
+		player.attach(el as unknown as HTMLAudioElement);
+
+		// Simulate FAILURE_CAP consecutive failures, each preceded by a bare `play` event (the
+		// transport flipped to playing) but NO `playing` event (audio never actually started).
+		for (let i = 0; i < Player_FAILURE_CAP; i++) {
+			el.fire('play'); // transport intent — must not reset the counter
+			await runFallback(dead); // tryFallback → null → handleTotalFailure increments
+			await flush();
+		}
+
+		expect(failures()).toBe(Player_FAILURE_CAP);
+		expect(player.notice?.kind).toBe('stopped');
+		expect(player.notice?.reason).toBe('loop-guard');
 	});
 
 	it('repeat-one breaks to off on a failing loop before skipping (D-12)', async () => {
@@ -631,13 +668,24 @@ describe('player resilience — stall watchdog (PLAY-07 / D-13/D-14)', () => {
 		expect(runFallbackSpy).not.toHaveBeenCalled();
 	});
 
-	it('a play event before the timeout disarms the watchdog (no failover)', () => {
+	it('a playing event before the timeout disarms the watchdog (no failover)', () => {
 		const el = makeFakeAudio();
 		player.attach(el as unknown as HTMLAudioElement);
 		armStall();
-		el.fire('play');
+		el.fire('playing');
 		vi.advanceTimersByTime(Player_STALL_TIMEOUT_MS);
 		expect(runFallbackSpy).not.toHaveBeenCalled();
+	});
+
+	it('CR-01: a bare `play` event does NOT disarm the watchdog (it precedes real audio)', () => {
+		const el = makeFakeAudio();
+		player.attach(el as unknown as HTMLAudioElement);
+		armStall();
+		// `play` is transport intent, not real output — the watchdog must still fire if no audio
+		// (`playing`/`timeupdate`) follows within the timeout.
+		el.fire('play');
+		vi.advanceTimersByTime(Player_STALL_TIMEOUT_MS);
+		expect(runFallbackSpy).toHaveBeenCalledTimes(1);
 	});
 
 	it('does NOT fail over when hasPlayedSinceSrc is true at fire time (mid-track buffer-dry, D-14)', () => {

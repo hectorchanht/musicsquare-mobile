@@ -11,6 +11,10 @@
 //  - Every network path NEVER throws: a non-ok response / { cover:null } / malformed JSON /
 //    abort / any throw all return null. A null → the caller leaves the gradient (never a broken
 //    image, never blocks first paint — callers fire this post-paint, capped + cached).
+//  - WR-03 / T-17-13 cache posture: only SUCCESSFUL responses are cached. Failures (non-ok,
+//    timeout, caller abort, malformed JSON) REJECT inside the cached() factory — never stored —
+//    and are mapped to the null/[] sentinel OUTSIDE the cache, so the next call retries instead
+//    of pinning "no result" for the 7d/6h TTL.
 //  - The resolved value is a plain URL string consumed ONLY as an `<img src>` ATTRIBUTE
 //    downstream (never a CSS url()); the proxy already host-allow-listed it to https *.dzcdn.net.
 //  - NO secret/key/PII crosses the boundary (Deezer search is public); NO new env var, NO new
@@ -80,20 +84,20 @@ const EMPTY_CHART: DeezerChartResult = { tracks: [], artists: [] };
  * carries its cover/picture NATIVELY (no per-tile backfill), so this is the PRIMARY home
  * top-hits + top-artists source. Never throws: any non-ok / abort / timeout / malformed JSON
  * returns { tracks: [], artists: [] } so the caller falls back to the Last.fm chart.
+ *
+ * WR-03 / T-17-13: the failure→sentinel mapping lives OUTSIDE cached() — a transient failure
+ * REJECTS inside the factory (so it is never cached; the next call retries) and only the
+ * `.catch` maps it to the empty sentinel for the caller.
  */
 export async function deezerChart(limit = 18, signal?: AbortSignal): Promise<DeezerChartResult> {
 	if (signal?.aborted) return EMPTY_CHART;
 	return cached(`dz:chart:${limit}`, TTL_RELATED, async () => {
-		try {
-			const url = `${CHART_PATH}?${new URLSearchParams({ limit: String(limit) }).toString()}`;
-			const res = await fetch(url, { signal: combinedSignal(signal) });
-			if (!res.ok) return EMPTY_CHART;
-			const data = (await res.json()) as Partial<DeezerChartResult>;
-			return { tracks: data.tracks ?? [], artists: data.artists ?? [] };
-		} catch {
-			return EMPTY_CHART;
-		}
-	});
+		const url = `${CHART_PATH}?${new URLSearchParams({ limit: String(limit) }).toString()}`;
+		const res = await fetch(url, { signal: combinedSignal(signal) }); // abort/timeout REJECT
+		if (!res.ok) throw new Error(String(res.status));
+		const data = (await res.json()) as Partial<DeezerChartResult>;
+		return { tracks: data.tracks ?? [], artists: data.artists ?? [] };
+	}).catch(() => EMPTY_CHART);
 }
 
 /**
@@ -118,27 +122,22 @@ function combinedSignal(caller?: AbortSignal): AbortSignal {
 }
 
 /**
- * Bounded, never-throws GET of the proxy → the parsed { cover, artistPicture } reshape, or
- * null on: already-aborted caller signal (no fetch), empty term (no fetch), non-ok response,
- * malformed JSON, abort/timeout, or any thrown error.
+ * Bounded GET of the proxy → the parsed { cover, artistPicture } reshape. THROWS on a non-ok
+ * response, malformed JSON, abort/timeout, or network failure (WR-03 / T-17-13): a transient
+ * failure must REJECT inside cached() so the sentinel is never pinned for the TTL — the
+ * exported callers map the rejection to null OUTSIDE the cache.
  */
-async function fetchDeezer(term: string, signal?: AbortSignal): Promise<DeezerCover | null> {
-	if (signal?.aborted) return null;
-	const clean = (term ?? '').trim();
-	if (!clean) return null;
-	try {
-		const res = await fetch(buildDeezerSearchUrl(clean), { signal: combinedSignal(signal) });
-		if (!res.ok) return null;
-		return (await res.json()) as DeezerCover;
-	} catch {
-		// Non-ok / abort / timeout / malformed JSON / network failure → miss → gradient.
-		return null;
-	}
+async function fetchDeezerOrThrow(term: string, signal?: AbortSignal): Promise<DeezerCover> {
+	const res = await fetch(buildDeezerSearchUrl(term), { signal: combinedSignal(signal) });
+	if (!res.ok) throw new Error(String(res.status));
+	return (await res.json()) as DeezerCover;
 }
 
 /**
  * Resolve a song album cover via the Deezer proxy for `${artist} ${title}`. Returns the cover
- * URL or null on any miss/abort/throw (never throws).
+ * URL or null on any miss/abort/throw (never throws). Only a SUCCESSFUL response is cached
+ * (a genuine `{ cover: null }` answer included); a transient failure rejects inside cached()
+ * and is mapped to null outside, so the next call retries (WR-03 / T-17-13).
  */
 export async function deezerSongCover(
 	artist: string,
@@ -150,15 +149,16 @@ export async function deezerSongCover(
 	if (!term) return null;
 	// k3y client cache: memo the resolved cover so repeat lookups skip the edge round-trip.
 	return cached(`dz:cover:song:${term}`, TTL_COVER, async () => {
-		const result = await fetchDeezer(term, signal);
+		const result = await fetchDeezerOrThrow(term, signal);
 		return result?.cover ?? null;
-	});
+	}).catch(() => null);
 }
 
 /**
  * Resolve an artist picture via the Deezer proxy for the artist name. Returns the artist
  * picture URL or null on any miss/abort/throw (never throws). Deezer (unlike Last.fm)
- * carries a real artist picture, so this is the artist-tile cover source.
+ * carries a real artist picture, so this is the artist-tile cover source. Transient
+ * failures are never cached (WR-03 / T-17-13).
  */
 export async function deezerArtistCover(
 	artist: string,
@@ -168,9 +168,9 @@ export async function deezerArtistCover(
 	const term = (artist ?? '').trim();
 	if (!term) return null;
 	return cached(`dz:cover:artist:${term}`, TTL_COVER, async () => {
-		const result = await fetchDeezer(term, signal);
+		const result = await fetchDeezerOrThrow(term, signal);
 		return result?.artistPicture ?? null;
-	});
+	}).catch(() => null);
 }
 
 /**
@@ -187,18 +187,15 @@ export async function deezerSearchTopN(
 	const clean = (term ?? '').trim();
 	if (!clean) return [];
 	// k3y client cache: key by (term, limit). Repeat callers (dedupe-deezer hot path) skip
-	// the network entirely for an hour.
+	// the network entirely for an hour. WR-03: a transient failure rejects inside cached()
+	// (never pinned for the TTL) and maps to [] outside, so the next call retries.
 	return cached(`dz:search:${clean}|${limit}`, TTL_SEARCH, async () => {
 		const url = `${PROXY_PATH}?${new URLSearchParams({ q: clean, limit: String(limit) }).toString()}`;
-		try {
-			const res = await fetch(url, { signal: combinedSignal(signal) });
-			if (!res.ok) return [] as DeezerHit[];
-			const data = (await res.json()) as DeezerCover;
-			return data.results ?? [];
-		} catch {
-			return [] as DeezerHit[];
-		}
-	});
+		const res = await fetch(url, { signal: combinedSignal(signal) }); // abort/timeout REJECT
+		if (!res.ok) throw new Error(String(res.status));
+		const data = (await res.json()) as DeezerCover;
+		return data.results ?? [];
+	}).catch(() => [] as DeezerHit[]);
 }
 
 /**
@@ -215,17 +212,14 @@ export async function deezerRelatedArtists(
 	if (signal?.aborted) return [];
 	const clean = (artist ?? '').trim();
 	if (!clean) return [];
+	// WR-03: failure rejects inside cached() (never pinned) → [] outside (retry next call).
 	return cached(`dz:related:${clean}|${limit}`, TTL_RELATED, async () => {
 		const url = `${RELATED_PATH}?${new URLSearchParams({ artist: clean, limit: String(limit) }).toString()}`;
-		try {
-			const res = await fetch(url, { signal: combinedSignal(signal) });
-			if (!res.ok) return [] as string[];
-			const data = (await res.json()) as { artists?: string[] };
-			return Array.isArray(data?.artists) ? data!.artists! : [];
-		} catch {
-			return [] as string[];
-		}
-	});
+		const res = await fetch(url, { signal: combinedSignal(signal) }); // abort/timeout REJECT
+		if (!res.ok) throw new Error(String(res.status));
+		const data = (await res.json()) as { artists?: string[] };
+		return Array.isArray(data?.artists) ? data!.artists! : [];
+	}).catch(() => [] as string[]);
 }
 
 // ---- Phase 17, ENRICH-04 — Deezer artist/album info enrichment client fns -----------------
@@ -264,16 +258,15 @@ export async function deezerArtist(
 	if (signal?.aborted) return null;
 	const clean = (name ?? '').trim();
 	if (!clean) return null;
+	// WR-03 / T-17-13: a timeout/abort/non-ok must NOT pin "no artist info" for 7 days —
+	// the failure rejects inside cached() (never stored) and maps to null OUTSIDE the cache,
+	// so the next visit retries instead of hiding the Deezer section all session.
 	return cached(`dz:artist:${clean}`, TTL_ARTIST, async () => {
 		const url = `${ARTIST_PATH}?${new URLSearchParams({ name: clean }).toString()}`;
-		try {
-			const res = await fetch(url, { signal: combinedSignal(signal) });
-			if (!res.ok) return null;
-			return (await res.json()) as DeezerArtistInfo;
-		} catch {
-			return null; // never throws → caller leaves section absent (D-14)
-		}
-	});
+		const res = await fetch(url, { signal: combinedSignal(signal) }); // abort/timeout REJECT
+		if (!res.ok) throw new Error(String(res.status));
+		return (await res.json()) as DeezerArtistInfo;
+	}).catch(() => null); // never throws → caller leaves section absent (D-14)
 }
 
 /**
@@ -291,16 +284,14 @@ export async function deezerAlbum(
 	const cleanTitle = (title ?? '').trim();
 	if (!cleanTitle) return null;
 	const cleanArtist = (artist ?? '').trim();
+	// WR-03 / T-17-13: same posture as deezerArtist — transient failures reject inside
+	// cached() (never pinned for 7d) and map to null outside, so the next visit retries.
 	return cached(`dz:album:${cleanTitle}|${cleanArtist}`, TTL_ARTIST, async () => {
 		const params = new URLSearchParams({ title: cleanTitle });
 		if (cleanArtist) params.set('artist', cleanArtist);
 		const url = `${ALBUM_PATH}?${params.toString()}`;
-		try {
-			const res = await fetch(url, { signal: combinedSignal(signal) });
-			if (!res.ok) return null;
-			return (await res.json()) as DeezerAlbumInfo;
-		} catch {
-			return null; // never throws → caller leaves section absent (D-14)
-		}
-	});
+		const res = await fetch(url, { signal: combinedSignal(signal) }); // abort/timeout REJECT
+		if (!res.ok) throw new Error(String(res.status));
+		return (await res.json()) as DeezerAlbumInfo;
+	}).catch(() => null); // never throws → caller leaves section absent (D-14)
 }

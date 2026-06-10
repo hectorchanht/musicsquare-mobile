@@ -310,3 +310,40 @@ describe('deezerAlbum — resolve album info via the own-origin proxy', () => {
 		await expect(deezerAlbum('Throwing Album', 'X')).resolves.toBeNull();
 	});
 });
+
+// ---- WR-03 / T-17-13 — transient failures are NEVER negative-cached -----------------------
+// The failure→null/[] sentinel mapping lives OUTSIDE cached(): a timeout/non-ok/abort REJECTS
+// inside the factory (nothing stored), so the very next call re-fetches instead of serving a
+// pinned "no result" for the 7-day TTL. A SUCCESSFUL response (even with null fields) IS cached.
+
+describe('WR-03 — failed Deezer lookups retry on the next call (no negative caching)', () => {
+	it('deezerArtist: a non-ok response is not cached — the next call refetches and succeeds', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(jsonResponse({}, false)) // first call: upstream 500 → null
+			.mockResolvedValueOnce(jsonResponse(ARTIST_INFO)); // second call: healthy again
+		vi.stubGlobal('fetch', fetchMock);
+		await expect(deezerArtist('Flaky Artist')).resolves.toBeNull();
+		await expect(deezerArtist('Flaky Artist')).resolves.toEqual(ARTIST_INFO);
+		expect(fetchMock).toHaveBeenCalledTimes(2); // second call hit the network (no pinned null)
+	});
+
+	it('deezerAlbum: a thrown fetch (timeout/abort) is not cached — the next call refetches', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockRejectedValueOnce(new Error('aborted'))
+			.mockResolvedValueOnce(jsonResponse(ALBUM_INFO));
+		vi.stubGlobal('fetch', fetchMock);
+		await expect(deezerAlbum('Flaky Album', 'X')).resolves.toBeNull();
+		await expect(deezerAlbum('Flaky Album', 'X')).resolves.toEqual(ALBUM_INFO);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it('deezerSongCover: a SUCCESSFUL { cover: null } answer IS cached (genuine miss, no refetch)', async () => {
+		const fetchMock = vi.fn(async () => jsonResponse({ cover: null, artistPicture: null }));
+		vi.stubGlobal('fetch', fetchMock);
+		await expect(deezerSongCover('A', 'T')).resolves.toBeNull();
+		await expect(deezerSongCover('A', 'T')).resolves.toBeNull();
+		expect(fetchMock).toHaveBeenCalledTimes(1); // a real answer is memoized; only failures retry
+	});
+});

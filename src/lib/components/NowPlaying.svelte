@@ -206,6 +206,11 @@
 		const key = `${t.uid}:${lang}:${n}:${skip.slice().sort().join(',')}`;
 		if (trKey === key) return;
 		trKey = key;
+		// WR-09: invalidate the PREVIOUS track's output immediately. The render gate is a pure
+		// length comparison (translated.length === lines.length) — when the new track happens to
+		// have the same line count, the old song's translations would otherwise render under the
+		// new lyrics for the whole translate round-trip (and fully REPLACE them in replace mode).
+		translated = [];
 		translating = true;
 		const sendIdx: number[] = [];
 		const sendText: string[] = [];

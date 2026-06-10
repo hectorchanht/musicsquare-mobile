@@ -24,6 +24,9 @@ import { cached } from './ttl-cache';
 const PROXY_PATH = '/api/deezer/search';
 const CHART_PATH = '/api/deezer/chart';
 const RELATED_PATH = '/api/deezer/related';
+// Phase 17, ENRICH-04 — artist/album info enrichment proxy paths.
+const ARTIST_PATH = '/api/deezer/artist';
+const ALBUM_PATH = '/api/deezer/album';
 const FETCH_TIMEOUT_MS = 6000;
 // k3y client-side TTLs (longer per lry-followup: a music app's catalogue + cover data is
 // stable for days, and the same-session repeat hit pattern dominates the network surface).
@@ -32,6 +35,8 @@ const FETCH_TIMEOUT_MS = 6000;
 const TTL_COVER = 7 * 24 * 60 * 60 * 1000; // 7d — covers are effectively immutable for an existing release
 const TTL_SEARCH = 6 * 60 * 60 * 1000;     // 6h — search/related rankings drift slowly
 const TTL_RELATED = 6 * 60 * 60 * 1000;
+// Phase 17 — artist/album info is stable (mirror TTL_COVER's 7d posture).
+const TTL_ARTIST = 7 * 24 * 60 * 60 * 1000;
 
 /** The proxy's client-facing reshape (mirrors the +server.ts DeezerCover interface). */
 interface DeezerCover {
@@ -219,6 +224,83 @@ export async function deezerRelatedArtists(
 			return Array.isArray(data?.artists) ? data!.artists! : [];
 		} catch {
 			return [] as string[];
+		}
+	});
+}
+
+// ---- Phase 17, ENRICH-04 — Deezer artist/album info enrichment client fns -----------------
+// Mirror deezerRelatedArtists exactly: signal-aborted guard → trim → empty→null → cached() →
+// own-origin /api/deezer/* fetch with combinedSignal → non-ok/throw → null (never throws). A
+// null → the page's Deezer section is silently absent (D-14). The reshape interfaces are
+// exported so the page-level field-precedence merge (D-15, enrich-merge.ts) can type them.
+
+/** Client-facing artist reshape (mirrors the /api/deezer/artist +server.ts ArtistResult). */
+export interface DeezerArtistInfo {
+	picture: string | null;
+	fans: number | null;
+	albums: number | null;
+}
+
+/** Client-facing album reshape (mirrors the /api/deezer/album +server.ts AlbumResult). */
+export interface DeezerAlbumInfo {
+	cover: string | null;
+	releaseDate: string | null;
+	tracks: number | null;
+	fans: number | null;
+	label: string | null;
+	genres: string[];
+	duration: number | null;
+}
+
+/**
+ * Resolve Deezer artist info (hi-res picture, fan count, album count) via the OWN-ORIGIN proxy.
+ * Returns null on already-aborted signal / empty name / non-ok / abort / throw (never throws) —
+ * a null leaves the artist-page Deezer section silently absent (D-14).
+ */
+export async function deezerArtist(
+	name: string,
+	signal?: AbortSignal
+): Promise<DeezerArtistInfo | null> {
+	if (signal?.aborted) return null;
+	const clean = (name ?? '').trim();
+	if (!clean) return null;
+	return cached(`dz:artist:${clean}`, TTL_ARTIST, async () => {
+		const url = `${ARTIST_PATH}?${new URLSearchParams({ name: clean }).toString()}`;
+		try {
+			const res = await fetch(url, { signal: combinedSignal(signal) });
+			if (!res.ok) return null;
+			return (await res.json()) as DeezerArtistInfo;
+		} catch {
+			return null; // never throws → caller leaves section absent (D-14)
+		}
+	});
+}
+
+/**
+ * Resolve Deezer album info (hi-res cover, release date, label, genres, track count, fans,
+ * duration) via the OWN-ORIGIN proxy. The title + artist combine into the search query for a
+ * better hit. Returns null on already-aborted signal / empty title / non-ok / abort / throw
+ * (never throws) — a null leaves the album-page Deezer section silently absent (D-14).
+ */
+export async function deezerAlbum(
+	title: string,
+	artist?: string,
+	signal?: AbortSignal
+): Promise<DeezerAlbumInfo | null> {
+	if (signal?.aborted) return null;
+	const cleanTitle = (title ?? '').trim();
+	if (!cleanTitle) return null;
+	const cleanArtist = (artist ?? '').trim();
+	return cached(`dz:album:${cleanTitle}|${cleanArtist}`, TTL_ARTIST, async () => {
+		const params = new URLSearchParams({ title: cleanTitle });
+		if (cleanArtist) params.set('artist', cleanArtist);
+		const url = `${ALBUM_PATH}?${params.toString()}`;
+		try {
+			const res = await fetch(url, { signal: combinedSignal(signal) });
+			if (!res.ok) return null;
+			return (await res.json()) as DeezerAlbumInfo;
+		} catch {
+			return null; // never throws → caller leaves section absent (D-14)
 		}
 	});
 }

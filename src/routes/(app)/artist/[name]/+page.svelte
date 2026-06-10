@@ -21,7 +21,8 @@
 	import TagChips from '$lib/components/TagChips.svelte';
 	import { enrichArtist, getArtistTopAlbums, type EnrichResult, type DiscoveryAlbum } from '$lib/services/lastfm';
 	import { getSimilarArtists } from '$lib/services/similar';
-	import { deezerArtistCover } from '$lib/services/deezer';
+	import { deezerArtistCover, deezerArtist, type DeezerArtistInfo } from '$lib/services/deezer';
+	import { mergeEnrichArtist } from '$lib/services/enrich-merge';
 	import { mapWithConcurrency } from '$lib/services/discovery';
 	import type { Track } from '$lib/sources/types';
 
@@ -66,6 +67,19 @@
 	let relatedFor = '';
 	let relatedLoading = $state(true);
 
+	// ---- Deezer artist info (Phase 17, ENRICH-04 / D-14·D-16) ----
+	// PARALLEL race-guarded effect cloning the enrichedFor idiom with its own `dzFor` guard.
+	// deezerArtist never throws (own-origin /api/deezer/artist proxy) — a miss settles `dz` to
+	// null → the Deezer info section is silently absent (D-14). Best-quality image + counts are
+	// merged with the Last.fm enrich via the pure mergeEnrichArtist helper (D-15).
+	let dz = $state<DeezerArtistInfo | null>(null);
+	let dzFor = '';
+	let dzLoading = $state(true);
+	// Field-precedence merge of the Last.fm EnrichResult + Deezer info (D-15). Recomputes
+	// reactively as either source settles. The merged image generalizes the old
+	// `enrich?.lastfmArt ?? hero` precedent (Deezer hi-res wins, never downgrades to null).
+	const merged = $derived(mergeEnrichArtist(enrich, dz));
+
 	function fallbackCover(t: Track): string {
 		const h = (t.uid.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 47) % 360;
 		return `linear-gradient(145deg, hsl(${h} 55% 32%), hsl(${(h + 40) % 360} 55% 18%))`;
@@ -106,7 +120,7 @@
 			const j = Math.floor(Math.random() * (i + 1));
 			[rest[i], rest[j]] = [rest[j], rest[i]];
 		}
-		player.setQueue([picked, ...rest]);
+		player.setQueue([picked, ...rest], 'artist');
 		void player.play(picked, { fresh: true });
 	}
 
@@ -123,10 +137,10 @@
 	}
 
 	const hero = $derived(songs.find((t) => t.cover)?.cover ?? null);
-	// Prefer the Last.fm artist image for the hero ONLY when present (the service
-	// already placeholder-filtered it); otherwise keep the derived cover so a real
-	// hero NEVER regresses to a placeholder (ENRICH-02 overrides D-03).
-	const heroImg = $derived(enrich?.lastfmArt ?? hero);
+	// Prefer the best-quality enrichment image (Deezer hi-res > Last.fm art, via the merge)
+	// ONLY when present; otherwise keep the derived cover so a real hero NEVER regresses to a
+	// placeholder (ENRICH-02/D-15 override D-03).
+	const heroImg = $derived(merged.image ?? hero);
 
 	$effect(() => {
 		const n = name;
@@ -208,6 +222,27 @@
 			})();
 		}
 	});
+
+	// SEPARATE Deezer-info effect (ENRICH-04, D-14). Clones the enrichedFor race guard with its
+	// own `dzFor` key. Never blocks the searchAll load / enrich; a null settle → section absent.
+	$effect(() => {
+		const n = name;
+		if (n && dzFor !== n) {
+			dzFor = n;
+			dz = null;
+			dzLoading = true;
+			void deezerArtist(n)
+				.then((r) => {
+					if (dzFor === n) dz = r; // race guard — discard if name changed
+				})
+				.finally(() => {
+					if (dzFor === n) dzLoading = false;
+				});
+		}
+	});
+
+	// Deezer numbers display (fans / albums). Intl-formatted; only rendered when present (D-14).
+	const numFmt = new Intl.NumberFormat();
 </script>
 
 <svelte:head><title>{name} · openmusic</title></svelte:head>
@@ -240,6 +275,21 @@
 			<span>{t('artist.share')}</span>
 		</button>
 	</div>
+
+	<!-- Deezer info (ENRICH-04, D-14): fan count + album/discography count, beside the Last.fm
+	     enrichment. Shape-matched skeleton while resolving (D-17); silently absent on a miss
+	     (`dz` settles to null → neither stat renders). Counts sit side-by-side, source-labeled. -->
+	{#if dzLoading}
+		<div class="dzstats" aria-hidden="true">
+			<span class="sk sk-stat"></span>
+			<span class="sk sk-stat"></span>
+		</div>
+	{:else if merged.deezerFans != null || merged.albums != null}
+		<div class="dzstats">
+			{#if merged.deezerFans != null}<span class="dzstat"><strong>{numFmt.format(merged.deezerFans)}</strong> {t('deezer.fans')}</span>{/if}
+			{#if merged.albums != null}<span class="dzstat"><strong>{numFmt.format(merged.albums)}</strong> {t('deezer.albums')}</span>{/if}
+		</div>
+	{/if}
 
 	{#if enrich?.tags?.length}
 		<div class="herotags"><TagChips tags={enrich.tags} /></div>
@@ -314,7 +364,7 @@
 			<ul class="list">
 				{#each songs.slice(0, 30) as track, i (track.uid)}
 					<li>
-						<button class="row" use:longpress onlongpress={() => { menuTrack = track; menuOpen = true; }} onclick={() => { player.setQueue(songs); player.play(track); }}>
+						<button class="row" use:longpress onlongpress={() => { menuTrack = track; menuOpen = true; }} onclick={() => { player.setQueue(songs, 'artist'); player.play(track); }}>
 							<span class="rank">{i + 1}</span>
 							<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
 							<span class="meta">
@@ -368,6 +418,11 @@
 	.hero h1 { font-size: calc(1.7rem * var(--fs-title, 1)); margin: 0; }
 	.note { color: var(--color-text-muted); font-size: 12px; margin-top: 4px; }
 	.herotags { display: flex; justify-content: center; margin-top: 8px; }
+	/* Deezer info stats (ENRICH-04) — fan/album counts under the hero, source-labeled. */
+	.dzstats { display: flex; justify-content: center; gap: 18px; margin-top: 10px; flex-wrap: wrap; }
+	.dzstat { color: var(--color-text-muted); font-size: 12px; }
+	.dzstat strong { color: var(--color-text); font-weight: 600; }
+	.dzstats .sk-stat { display: inline-block; width: 64px; height: 13px; }
 	/* kmn: action bar — three pill buttons centered under the hero title/note. Mirrors the
 	   album-page action-bar visual language. */
 	.actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin: 14px 0 6px; }

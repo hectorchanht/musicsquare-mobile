@@ -20,6 +20,9 @@
 	import { resolveStub } from '$lib/services/discovery';
 	import { ensureTrackDetails } from '$lib/services/catalog';
 	import { enrichAlbum, getAlbumTracklist, type EnrichResult } from '$lib/services/lastfm';
+	import { deezerAlbum, type DeezerAlbumInfo } from '$lib/services/deezer';
+	import { mergeEnrichAlbum } from '$lib/services/enrich-merge';
+	import { marquee } from '$lib/actions/marquee';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import type { Track } from '$lib/sources/types';
 
@@ -55,10 +58,29 @@
 		const h = (seed.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 47) % 360;
 		return `linear-gradient(145deg, hsl(${h} 55% 32%), hsl(${(h + 40) % 360} 55% 18%))`;
 	}
-	// Prefer the Last.fm album art when present (the service already placeholder-filtered
-	// it). The stub tracklist carries no source cover, so this is the only hero art source.
-	const heroImg = $derived(enrich?.lastfmArt ?? null);
+	// ---- Deezer album info (Phase 17, ENRICH-04 / D-14·D-16) ----
+	// PARALLEL race-guarded effect cloning the enrichedFor idiom with its own `dzFor` guard.
+	// deezerAlbum never throws (own-origin /api/deezer/album proxy) — a miss settles `dz` to
+	// null → the Deezer info section is silently absent (D-14). Best-quality cover + counts +
+	// release/label/genres/tracks/duration are merged with the Last.fm enrich via mergeEnrichAlbum.
+	let dz = $state<DeezerAlbumInfo | null>(null);
+	let dzFor = '';
+	let dzLoading = $state(false);
+	const merged = $derived(mergeEnrichAlbum(enrich, dz));
+
+	// Prefer the best-quality enrichment cover (Deezer hi-res > Last.fm art, via the merge).
+	// The stub tracklist carries no source cover, so this is the only hero art source.
+	const heroImg = $derived(merged.cover ?? null);
 	const numFmt = new Intl.NumberFormat();
+	// Format Deezer total duration (seconds) → "M:SS" or "H:MM:SS" for the album info row.
+	function fmtDuration(sec: number): string {
+		const h = Math.floor(sec / 3600);
+		const m = Math.floor((sec % 3600) / 60);
+		const s = sec % 60;
+		const mm = h > 0 ? String(m).padStart(2, '0') : String(m);
+		const ss = String(s).padStart(2, '0');
+		return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+	}
 
 	// Component-local toast (same lightweight pattern as the home page) for the unplayable
 	// case when a stub resolves to no CN-source match.
@@ -121,13 +143,34 @@
 		}
 	});
 
+	// SEPARATE Deezer-info effect (ENRICH-04, D-14). Clones the enrichedFor race guard with its
+	// own `dzFor` key. Fires even on a deep link with no ?artist= (deezerAlbum searches on title
+	// alone). A null settle → the Deezer info section is silently absent.
+	$effect(() => {
+		const n = name;
+		const artist = albumArtist;
+		const key = `${n}|${artist}`;
+		if (n && dzFor !== key) {
+			dzFor = key;
+			dz = null;
+			dzLoading = true;
+			void deezerAlbum(n, artist)
+				.then((r) => {
+					if (dzFor === key) dz = r; // race guard — discard if key changed
+				})
+				.finally(() => {
+					if (dzFor === key) dzLoading = false;
+				});
+		}
+	});
+
 	// Resolve-on-tap (D-05/D-03) — now OPTIMISTIC (FIX-A). Delegate to player.playStub so the
 	// now-bar locks the tapped {artist,title} with a loading indicator instantly (album stubs
 	// carry no cover), dedupes a same-song double-tap, and supersedes an in-flight resolve.
 	// playStub returns null for BOTH a miss AND a supersede; toast only on a genuine miss
 	// (pendingTrack cleared) — a supersede leaves pendingTrack on the newer song (no toast).
 	async function playStub(stub: AlbumStub) {
-		const tr = await player.playStub(stub.artist, stub.title);
+		const tr = await player.playStub(stub.artist, stub.title, null, 'album');
 		if (tr === null && player.pendingTrack == null) toast(t('album.unplayable'));
 	}
 
@@ -203,13 +246,13 @@
 		if (!tracks.length || busyAction === 'play') return;
 		busyAction = 'play';
 		try {
-			const first = await player.playStub(tracks[0].artist, tracks[0].title);
+			const first = await player.playStub(tracks[0].artist, tracks[0].title, null, 'album');
 			if (!first) {
 				if (player.pendingTrack == null) toast(t('album.unplayable'));
 				return;
 			}
 			const all = await resolveAllCached();
-			player.setQueue(all.length ? all : [first]);
+			player.setQueue(all.length ? all : [first], 'album');
 		} finally {
 			busyAction = null;
 		}
@@ -376,6 +419,25 @@
 			{#if enrich?.playcount != null}<span>{t('lastfm.playcount')}: {numFmt.format(enrich.playcount)}</span>{/if}
 		</p>
 	{/if}
+
+	<!-- Deezer album info (ENRICH-04, D-14): release date / label / genres / track count /
+	     duration / fans, beside the Last.fm enrichment. Shape-matched skeleton while resolving
+	     (D-17); silently absent on a miss. Label uses use:marquee (long names, MEMORY rule). -->
+	{#if dzLoading}
+		<div class="dzinfo" aria-hidden="true">
+			<span class="sk sk-info"></span>
+			<span class="sk sk-info short"></span>
+		</div>
+	{:else if merged.releaseDate || merged.label || merged.genres.length || merged.tracks != null || merged.duration != null || merged.deezerFans != null}
+		<div class="dzinfo">
+			{#if merged.releaseDate}<span class="dzrow"><b>{t('deezer.released')}</b> {merged.releaseDate}</span>{/if}
+			{#if merged.label}<span class="dzrow label"><b>{t('deezer.label')}</b> <span class="lbl" use:marquee><span class="marquee-inner">{merged.label}</span></span></span>{/if}
+			{#if merged.genres.length}<span class="dzrow"><b>{t('deezer.genres')}</b> {merged.genres.join(', ')}</span>{/if}
+			{#if merged.tracks != null}<span class="dzrow"><b>{t('deezer.tracks')}</b> {merged.tracks}</span>{/if}
+			{#if merged.duration != null}<span class="dzrow"><b>{t('deezer.duration')}</b> {fmtDuration(merged.duration)}</span>{/if}
+			{#if merged.deezerFans != null}<span class="dzrow"><b>{t('deezer.fans')}</b> {numFmt.format(merged.deezerFans)}</span>{/if}
+		</div>
+	{/if}
 </header>
 
 {#if loading}
@@ -446,6 +508,13 @@
 	.artist { color: var(--color-text); font-size: calc(14px * var(--fs-artist, 1)); margin: 4px 0 0; opacity: 0.85; }
 	.note { color: var(--color-text-muted); font-size: 12px; margin-top: 4px; }
 	.info { color: var(--color-text-muted); font-size: 12px; margin-top: 6px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+	/* Deezer album info (ENRICH-04) — release/label/genres/tracks/duration/fans rows. */
+	.dzinfo { color: var(--color-text-muted); font-size: 12px; margin-top: 8px; display: flex; gap: 6px 16px; justify-content: center; flex-wrap: wrap; max-width: 520px; margin-left: auto; margin-right: auto; }
+	.dzrow { display: inline-flex; align-items: baseline; gap: 5px; min-width: 0; }
+	.dzrow b { color: var(--color-text); font-weight: 600; }
+	.dzrow.label { max-width: 220px; }
+	.dzrow .lbl { display: inline-block; max-width: 150px; min-width: 0; overflow: hidden; white-space: nowrap; }
+	.dzinfo .sk-info.short { width: 90px; }
 	.muted { color: var(--color-text-muted); font-size: 14px; }
 	.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 	.row { width: 100%; text-align: left; background: none; border: none; padding: 6px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 12px; color: var(--color-text); }

@@ -3,8 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Resilient Playback & UX Polish
 status: planning
-last_updated: "2026-06-10T06:30:00.000Z"
-last_activity: 2026-06-10
+stopped_at: Phase 16 context gathered
+last_updated: "2026-06-10T07:14:46.495Z"
+last_activity: "2026-06-10 — v1.2 roadmap created: 9 phases (16–24), 46/46 requirements mapped"
 progress:
   total_phases: 9
   completed_phases: 0
@@ -184,6 +185,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-10T06:30:00.000Z
-Stopped at: v1.2 roadmap created — 9 phases (16–24), 46/46 v1.2 requirements mapped, traceability written, STATE advanced to Phase 16 "ready to plan". Phase 24 (offline SW + SEO) flagged HIGH research.
+Last session: 2026-06-10T07:14:46.488Z
+Stopped at: Phase 16 context gathered
 Resume: plan Phase 16 (`/gsd:plan-phase 16`). Phase 16 is the resilience-core dependency root; everything else builds on its `queueContext` / 2-state repeat / skip-loop guard.

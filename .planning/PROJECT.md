@@ -48,14 +48,14 @@ A user on their phone can search a song, tap it, and have it play instantly with
 - ✓ Track downloads with separate download-quality setting; offline-first playback for downloaded tracks — v1.1 follow-ups (reverses the old "no downloads" exclusion)
 - ✓ Search & data responsiveness: skeletons, search-state restore, TTL query cache, progressive results — Phase 14
 - ✓ Now-playing shared-element expand/collapse + swipe gestures — Phase 15
+- ✓ Never-stop playback: all-source failover → skip/batched toasts; 5-failure loop-guard with sticky Retry toast; offline gate + downloads up-next switch; 15s stall watchdog; prefetch-on-ended; 2-state repeat (off / repeat-one) — Validated in Phase 16: Playback Resilience Core
+- ✓ Cover-chain: a cover fetched at play time propagates to all same-song library entries + cover-cache, live — Phase 16 follow-up fix
 
 ### Active
 
 <!-- v1.2 scope. Hypotheses until shipped + validated. -->
 
-- [ ] Never-stop playback: all-source failover → toast + auto-skip; gapless next-track prefetch; auto-generated up-next when exhausted; loop-guard for offline/all-down
 - [ ] Per-context up-next sourcing setting (same-list vs genre-generated), global default = generated, defaults in config
-- [ ] 2-state repeat (off / repeat-one); shuffle remains in-app
 - [ ] Lyrics: touch-suspended auto-scroll, end spacer, CN highlight-ordering fix, robust bracket hiding
 - [ ] Menu modal rework: instant buttons + background resolve, 2-row marquee header, top-right like/close, remix, sleep timer, focus-state fix
 - [ ] Now-playing: cover swipe prev/next, half-open scroll containment, tap-cover closes subnav, top running-line loader
@@ -127,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-10 after starting milestone v1.2 (Resilient Playback & UX Polish)*
+*Last updated: 2026-06-10 after Phase 16 complete (Playback Resilience Core)*

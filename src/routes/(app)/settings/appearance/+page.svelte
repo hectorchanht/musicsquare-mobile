@@ -11,9 +11,19 @@
 		GRID_COLS_MIN,
 		GRID_COLS_MAX
 	} from '$lib/stores/settings.svelte';
+	// Demo text is sourced from the current/last-played track (D-12). The page may import the
+	// player — settings stays a LEAF store because the player read happens HERE, not in the
+	// settings store (Pitfall 6 / SSR-leak rule).
+	import { player } from '$lib/stores/player.svelte';
 	import { t } from '$lib/i18n';
 
 	onMount(() => settings.load());
+
+	// D-12: each slider's demo reads "example {name}" from the actual current/last-played track —
+	// title-type sliders show the song name, artist-type sliders the artist name. Static fallback
+	// (Stargazing / Myles Smith) when nothing has played yet.
+	const demoTitle = $derived(player.current?.title ?? 'Stargazing');
+	const demoArtist = $derived(player.current?.artist ?? 'Myles Smith');
 
 	// Each slider writes the store + persists; applyTheme() (called inside save) pushes the new
 	// CSS custom properties to <html> so every surface re-sizes live.
@@ -41,31 +51,31 @@
 	<div class="ctl">
 		<div class="lab"><span>{t('settings.fontSizeTitle')}</span><span class="val">{settings.fontScaleTitle}%</span></div>
 		<input type="range" min={FONT_SCALE_MIN} max={FONT_SCALE_MAX} step="5" value={settings.fontScaleTitle} oninput={(e) => setTitle(num(e))} />
-		<span class="prev" style:font-size={`${1.05 * settings.fontScaleTitle / 100}rem`}>Stargazing</span>
+		<span class="prev" style:font-size={`${1.05 * settings.fontScaleTitle / 100}rem`}>{t('settings.demoPrefix', { name: demoTitle })}</span>
 	</div>
 
 	<div class="ctl">
 		<div class="lab"><span>{t('settings.fontSizeArtist')}</span><span class="val">{settings.fontScaleArtist}%</span></div>
 		<input type="range" min={FONT_SCALE_MIN} max={FONT_SCALE_MAX} step="5" value={settings.fontScaleArtist} oninput={(e) => setArtist(num(e))} />
-		<span class="prev muted" style:font-size={`${0.9 * settings.fontScaleArtist / 100}rem`}>Myles Smith</span>
+		<span class="prev muted" style:font-size={`${0.9 * settings.fontScaleArtist / 100}rem`}>{t('settings.demoPrefix', { name: demoArtist })}</span>
 	</div>
 
 	<div class="ctl">
 		<div class="lab"><span>{t('settings.fontSizeLyrics')}</span><span class="val">{settings.fontScaleLyrics}%</span></div>
 		<input type="range" min={FONT_SCALE_MIN} max={FONT_SCALE_MAX} step="5" value={settings.fontScaleLyrics} oninput={(e) => setLyrics(num(e))} />
-		<span class="prev muted" style:font-size={`${1 * settings.fontScaleLyrics / 100}rem`}>You and I stargazing</span>
+		<span class="prev muted" style:font-size={`${1 * settings.fontScaleLyrics / 100}rem`}>{t('settings.demoPrefix', { name: demoTitle })}</span>
 	</div>
 
 	<div class="ctl">
 		<div class="lab"><span>{t('settings.fontSizeNpTitle')}</span><span class="val">{settings.fontScaleNpTitle}%</span></div>
 		<input type="range" min={FONT_SCALE_MIN} max={FONT_SCALE_MAX} step="5" value={settings.fontScaleNpTitle} oninput={(e) => setNpTitle(num(e))} />
-		<span class="prev" style:font-size={`${1.5 * settings.fontScaleNpTitle / 100}rem`}>Stargazing</span>
+		<span class="prev" style:font-size={`${1.5 * settings.fontScaleNpTitle / 100}rem`}>{t('settings.demoPrefix', { name: demoTitle })}</span>
 	</div>
 
 	<div class="ctl">
 		<div class="lab"><span>{t('settings.fontSizeNpArtist')}</span><span class="val">{settings.fontScaleNpArtist}%</span></div>
 		<input type="range" min={FONT_SCALE_MIN} max={FONT_SCALE_MAX} step="5" value={settings.fontScaleNpArtist} oninput={(e) => setNpArtist(num(e))} />
-		<span class="prev muted" style:font-size={`${1 * settings.fontScaleNpArtist / 100}rem`}>Myles Smith</span>
+		<span class="prev muted" style:font-size={`${1 * settings.fontScaleNpArtist / 100}rem`}>{t('settings.demoPrefix', { name: demoArtist })}</span>
 	</div>
 </section>
 

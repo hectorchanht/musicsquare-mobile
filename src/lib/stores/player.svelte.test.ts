@@ -567,3 +567,61 @@ describe('player resilience — loop-guard + skip-on-failure (PLAY-07/08)', () =
 		expect(player.notice?.kind).toBe('skip');
 	});
 });
+
+describe('player resilience — stall watchdog (PLAY-07 / D-13/D-14)', () => {
+	// armStall/disarmStall are private; drive them directly + observe via a runFallback spy.
+	const armStall = () => (player as unknown as { armStall(): void })['armStall']();
+	const setPlayed = (v: boolean) => {
+		(player as unknown as { hasPlayedSinceSrc: boolean })['hasPlayedSinceSrc'] = v;
+	};
+	let runFallbackSpy: ReturnType<typeof vi.spyOn>;
+
+	beforeEach(() => {
+		vi.useFakeTimers();
+		player.current = mk('netease', 's', 'A', 'Stalling');
+		player.queue = [player.current];
+		setPlayed(false);
+		// Spy runFallback so the watchdog firing is observable without real network.
+		runFallbackSpy = vi
+			.spyOn(player as unknown as { runFallback(f: Track): Promise<void> }, 'runFallback')
+			.mockResolvedValue(undefined);
+	});
+
+	afterEach(() => {
+		(player as unknown as { disarmStall(): void })['disarmStall']();
+		vi.useRealTimers();
+	});
+
+	it('after src-set with no audio, advancing STALL_TIMEOUT_MS routes into runFallback (D-13)', () => {
+		armStall();
+		vi.advanceTimersByTime(Player_STALL_TIMEOUT_MS);
+		expect(runFallbackSpy).toHaveBeenCalledTimes(1);
+		expect(runFallbackSpy).toHaveBeenCalledWith(player.current);
+	});
+
+	it('a timeupdate before the timeout disarms the watchdog (no failover)', () => {
+		const el = makeFakeAudio();
+		player.attach(el as unknown as HTMLAudioElement);
+		armStall();
+		// Audio starts producing — the first timeupdate disarms.
+		el.fire('timeupdate');
+		vi.advanceTimersByTime(Player_STALL_TIMEOUT_MS);
+		expect(runFallbackSpy).not.toHaveBeenCalled();
+	});
+
+	it('a play event before the timeout disarms the watchdog (no failover)', () => {
+		const el = makeFakeAudio();
+		player.attach(el as unknown as HTMLAudioElement);
+		armStall();
+		el.fire('play');
+		vi.advanceTimersByTime(Player_STALL_TIMEOUT_MS);
+		expect(runFallbackSpy).not.toHaveBeenCalled();
+	});
+
+	it('does NOT fail over when hasPlayedSinceSrc is true at fire time (mid-track buffer-dry, D-14)', () => {
+		armStall();
+		setPlayed(true); // audio already played — a later buffer stall is NOT a load failure
+		vi.advanceTimersByTime(Player_STALL_TIMEOUT_MS);
+		expect(runFallbackSpy).not.toHaveBeenCalled();
+	});
+});

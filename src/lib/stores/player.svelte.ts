@@ -352,6 +352,9 @@ class Player {
 				}
 			}
 			this.pendingSeek = desiredSeek;
+			// NOT an initial-load arming point (D-14): reresolveCurrent is a seek-recovery re-attach
+			// of the SAME track after a stale-URL error, not a fresh play. Arming the stall watchdog
+			// here would double-count a seek recovery as a load failure, so we deliberately do not.
 			audio.src = src;
 			// Attempt synchronous seek if duration already loaded; else loadedmetadata listener
 			// will pick up pendingSeek when it lands.
@@ -360,7 +363,7 @@ class Player {
 				this.pendingSeek = null;
 			}
 			void audio.play().catch(() => {
-				/* autoplay restriction — user can tap play */
+				/* autoplay restriction — user can tap play (seek-recovery, not a load stall) */
 			});
 		} catch {
 			/* re-resolve failed — leave audio in current state */
@@ -374,6 +377,25 @@ class Player {
 	 *  which reset currentTime to 0 (visible to user as "seek restarted the song"). */
 	private lastSeekAt = 0;
 	private static SEEK_ERROR_WINDOW_MS = 1500;
+
+	/**
+	 * Initial-load stall watchdog (PLAY-07 / D-13, D-14). A freshly started track whose src was
+	 * just set but that produces NO `playing`/`timeupdate` within STALL_TIMEOUT_MS is treated as a
+	 * failure and routed into runFallback (D-13). This is the detector for the iOS "play() rejected
+	 * after an async src swap, no audio, no error event" case (Pitfall 3) — the rejection itself is
+	 * swallowed by .catch, so the watchdog is what actually notices the silent stop.
+	 *
+	 * D-14 mid-track distinction: `hasPlayedSinceSrc` is set false the instant a NEW src is
+	 * assigned for initial load and flipped true on the first `playing`/`timeupdate`. The watchdog
+	 * only fails over when it is still false — a buffer-dry stall AFTER playback started (timeupdate
+	 * already fired) is buffering, not a load failure, and must NOT fail over.
+	 */
+	private static STALL_TIMEOUT_MS = 15000;
+	private stallTimer: ReturnType<typeof setTimeout> | null = null;
+	/** True once the current src has produced audio (a `playing`/`timeupdate`); false from the
+	 *  moment a new initial-load src is set. Distinguishes initial-load stall (D-13) from a
+	 *  mid-track buffer-dry (D-14). Plain field — internal watchdog state, not reactive. */
+	private hasPlayedSinceSrc = false;
 
 	currentTime = $state(0);
 	/** 0 until loadedmetadata; never NaN. */
@@ -432,6 +454,33 @@ class Player {
 		ms.setPositionState(); // clears any stale position
 	}
 
+	/**
+	 * Arm the initial-load stall watchdog (D-13). Snapshot playGen so a newer play() supersedes
+	 * this timer (the gen-check inside the callback discards a stale arm). When STALL_TIMEOUT_MS
+	 * elapses with no audio (hasPlayedSinceSrc still false) for the still-current track, route into
+	 * runFallback — runFallback owns its OWN gen-guard + AbortController, so the watchdog just fires
+	 * the failover and lets it decide supersedence. Always clears any prior timer first.
+	 */
+	private armStall() {
+		const gen = this.playGen;
+		this.disarmStall();
+		this.stallTimer = setTimeout(() => {
+			this.stallTimer = null;
+			if (this.playGen !== gen) return; // a newer play() superseded this arm
+			if (this.hasPlayedSinceSrc) return; // audio actually started — not a load stall (D-14)
+			if (!this.current) return;
+			void this.runFallback(this.current);
+		}, Player.STALL_TIMEOUT_MS);
+	}
+
+	/** Disarm the stall watchdog (a real playing/timeupdate, an error, or end-of-track). */
+	private disarmStall() {
+		if (this.stallTimer) {
+			clearTimeout(this.stallTimer);
+			this.stallTimer = null;
+		}
+	}
+
 	/** Bind the single long-lived <audio> element (called once from the layout). */
 	attach(el: HTMLAudioElement) {
 		this.audio = el;
@@ -439,6 +488,10 @@ class Player {
 		el.addEventListener('play', () => {
 			this.playing = true;
 			this.syncPlaybackState();
+			// D-13/D-14: a real `play` event means audio started — mark the src as having played and
+			// disarm the initial-load stall watchdog so it can't fire a false failover.
+			this.hasPlayedSinceSrc = true;
+			this.disarmStall();
 			// D-06 success reset: a real `playing` event is the natural counter reset — the track
 			// is actually producing audio, so the never-stop chain has recovered. Clear the
 			// consecutive-failure budget and drop any sticky 'stopped' (loop-guard / offline) notice
@@ -453,6 +506,12 @@ class Player {
 		el.addEventListener('timeupdate', () => {
 			this.currentTime = el.currentTime || 0;
 			this.syncPosition(el);
+			// D-13/D-14: the first timeupdate since src-set is the "we are actually playing" signal —
+			// flip the flag + disarm the stall watchdog. This is what makes a mid-track buffer-dry
+			// (timeupdate already fired) NOT fail over, while an initial-load that never produced a
+			// timeupdate still does.
+			this.hasPlayedSinceSrc = true;
+			this.disarmStall();
 			// Coalesce currentTime writes to localStorage so a refresh resumes near where the
 			// user left off (within ~2s). Throttled to avoid the 4×/sec timeupdate firehose.
 			this.persistThrottled();
@@ -479,11 +538,15 @@ class Player {
 		el.addEventListener('ended', () => {
 			this.playing = false;
 			this.syncPlaybackState();
+			this.disarmStall(); // track finished — no initial-load stall to watch for
 			// Repeat-one (D-10): loop the current track without advancing. The `ended` event
 			// already paused the element; rewind + play(). 'off' is the straight advance into
 			// next() (which grows auto up-next at the end of the queue — no repeat-all wrap).
 			if (this.repeatMode === 'one' && this.audio) {
 				this.audio.currentTime = 0;
+				// Not an initial-load arming point (D-14): repeat-one rewinds an already-playing
+				// src, so a rejection here is a paused-loop, not a load failure — the watchdog
+				// stays disarmed and we rely on the user to tap play.
 				void this.audio.play().catch(() => {
 					/* autoplay may require gesture — controls still work */
 				});
@@ -492,6 +555,7 @@ class Player {
 			this.next();
 		});
 		el.addEventListener('error', () => {
+			this.disarmStall(); // an error event is the failure signal — the watchdog is redundant now
 			// lw9-followup: if the error fires WITHIN the seek window, the user just clicked the
 			// progress bar — but the audio element may not be able to honor the seek because the
 			// audio.src is a stale CDN URL (typical after a page-reload restore: the resolved URL
@@ -772,9 +836,17 @@ class Player {
 						});
 						ms.playbackState = 'playing';
 					}
+					// Initial-load arming point (D-13): a NEW src for this track. Reset the played
+					// flag + arm the stall watchdog so a silent no-audio start routes into failover.
+					this.hasPlayedSinceSrc = false;
 					this.audio.src = this.cachedBlobUrl;
+					this.armStall();
+					// D-06: a rejected play() is intentionally surfaced to the stall/failure path,
+					// not swallowed — if play() rejects (iOS gesture loss) and no `play` event
+					// follows, the armed watchdog above routes into runFallback. .catch only prevents
+					// an unhandled rejection.
 					await this.audio.play().catch(() => {
-						/* autoplay may require a gesture — controls still work */
+						/* rejection owned by the stall watchdog — see comment above */
 					});
 					this.loading = false;
 					return;
@@ -829,9 +901,18 @@ class Player {
 						src = this.cachedBlobUrl;
 					}
 				}
+				// Initial-load arming point (D-13): a NEW src for this track. Reset the played flag +
+				// arm the stall watchdog so a silent no-audio start (no `playing`/`timeupdate`
+				// within ~15s) routes into failover.
+				this.hasPlayedSinceSrc = false;
 				this.audio.src = src;
+				this.armStall();
+				// D-06: a rejected play() is intentionally surfaced to the stall/failure path, not
+				// swallowed — if play() rejects (iOS gesture loss after the async resolve) and no
+				// `play` event follows, the armed watchdog above routes into runFallback. The .catch
+				// only prevents an unhandled rejection; it is NOT a silent no-op.
 				await this.audio.play().catch(() => {
-					/* autoplay may require a gesture — the controls still work */
+					/* rejection owned by the stall watchdog — see comment above */
 				});
 			}
 			// Fresh play -> regenerate the auto portion (best-effort, never blocks

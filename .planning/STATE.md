@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Last.fm Integration
-status: milestone_complete
-stopped_at: Milestone complete (Phase 14 was final phase)
-last_updated: 2026-06-07T14:40:00.000Z
-last_activity: 2026-06-07
+milestone: v1.2
+milestone_name: Resilient Playback & UX Polish
+status: planning
+last_updated: "2026-06-10T05:44:13.886Z"
+last_activity: 2026-06-10
 progress:
-  total_phases: 7
-  completed_phases: 4
-  total_plans: 9
-  completed_plans: 12
-  percent: 57
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,11 +24,10 @@ See: .planning/PROJECT.md (updated 2026-06-05)
 
 ## Current Position
 
-Milestone: v1.1 — Last.fm Integration (Phases 8–13)
-Phase: 14
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-06-07 - Shipped quick task 260607-n0u (extracted Nowbar component, reused as NP fullshrink top bar; tap bar to collapse sheet)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-06-10 — Milestone v1.2 started
 
 ## Performance Metrics
 

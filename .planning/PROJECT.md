@@ -8,18 +8,25 @@ A mobile-first web music player that searches and streams tracks aggregated from
 
 A user on their phone can search a song, tap it, and have it play instantly with a smooth, native-app-like experience — and keep playing when the screen locks.
 
-## Current Milestone: v1.1 Last.fm Integration
+## Current Milestone: v1.2 Resilient Playback & UX Polish
 
-**Goal:** Connect the standalone aggregator to Last.fm — richer track/artist/album metadata, an optional sign-in that syncs likes/scrobbles/history back to last.fm, discovery tabs built from Last.fm charts/tags, and a new Last.fm-searchable playback source.
+**Goal:** Music never stops — multi-source failover with skip-and-toast, gapless next-track prefetch, and auto-generated up-next — plus offline playback of downloaded tracks and a broad UX polish pass across lyrics, menu modal, covers, search, homepage, and sharing.
 
 **Target features:**
-- Last.fm metadata enrichment layered onto existing multi-source tracks (track/artist/album.getInfo, top tags, bios, higher-res cover art)
-- Optional Last.fm user authentication — signed auth flow (md5 api_sig with LASTFM_SECRET, auth.getSession), session key + username stored, restorable on return
-- Two-way sync: loved tracks (track.love/unlove), scrobbles (track.scrobble), recent-tracks history (user.getRecentTracks)
-- Discovery / hot-picks tabs: latest hits, charts/leaderboards (chart + geo.getTopTracks), vibe/mood tags (tag.getTopTracks/Artists), top albums/tracks/artists
-- New Last.fm-searchable source (YouTube-style) that resolves playable audio for Last.fm-discovered tracks via the existing source/proxy adapter registry
+- Playback resilience: all-source retry on failure → toast + auto-skip; never-stop guarantee (except sleep timer / sudden offline); prefetch next track for gapless flow; auto-generate up-next when queue exhausts; repeat reduced to 2 states (off / repeat-one)
+- Queue sourcing: per-context up-next setting (liked / search / downloads / etc.) — "same list" vs "genre-generated", global default = generated, defaults in config file
+- Lyrics fixes: touch/hold suspends auto-scroll; end-of-lyrics spacer so last lines center; CN translation-line highlight ordering bug; bracket-hiding robustness (wider bracket support; stop dropping original lines)
+- Menu modal rework: buttons render instantly with background data resolve; 2-row header (title/artist, marquee), like at top-right beside close; remix action (seed genre-generated queue from track); sleep timer (industry-standard durations + end-of-track); long-press focus-state bug
+- Now playing: cover swipe prev/next; half-open sheet scroll containment; tap cover closes subnav; top loading running-line
+- Search: scoring tune (short-title boost, artist-frequency boost, heavy <60s 試聽 penalty); cover fallback for results; empty-query autofocus (state-preservation safe)
+- Covers: fallback resolver for the playing track; resolve-on-scroll-into-view with name-keyed cache
+- Homepage: compact rows-of-4 display mode per section (setting); option icon + long-press → menu; section-title arrow → grid chart page / library tab
+- Sharing/SEO: per-entity OG metadata (song/album/artist); short recognizable slugs; better SEO on every page
+- Offline: downloaded songs playable offline; simplest-possible handling for online-only data when offline
+- Deezer info enrichment: artist/album metadata via Deezer (carryover from v1.1)
+- Polish: skeletons replace all loading text (shape-matched); button toast + double-click guard; text-size range 50–200% with contextual "example xxx" demo text; artist page hides trackless albums; accent setting verified wired; UX audit vs YT Music/Spotify feeds findings into requirements
 
-**Boundaries:** Last.fm sign-in is optional/additive — local-first (favorites/playlists in localStorage) keeps working signed-out. All Last.fm key + shared-secret use stays server-side only (JOOX_TOKEN parity).
+**Boundaries:** OS media-card stays standard controls only (web MediaSession has a fixed action set — no like/shuffle buttons possible for PWAs). Last.fm auth/scrobble/loved-sync deferred again → v1.3. Theme (light/dark) already shipped in v1.1 follow-ups.
 
 ## Requirements
 
@@ -33,29 +40,40 @@ A user on their phone can search a song, tap it, and have it play instantly with
 - ✓ Synced LRC lyrics display — existing (`parseLRC`, `index.html:2517`)
 - ✓ Favorites + user playlists with localStorage persistence — existing (`index.html:1804`)
 - ✓ Import / export library as JSON — existing (`importPlaylistData`/`exportPlaylistData`, `index.html:1841`)
-- ✓ Bilingual UI (Chinese / English) i18n — existing (`translations`, `index.html:1495`)
+- ✓ Bilingual UI (Chinese / English) i18n — existing (`translations`, `index.html:1495`); expanded to 15 locales in v1.1 follow-ups
+- ✓ Mobile-first SvelteKit UI: bottom nav, persistent nowbar mini-player, expandable now-playing sheet — v1.0 rebuild
+- ✓ Data layer extracted into typed modules behind source/proxy adapter registries; Cloudflare same-origin `/api/*` proxy (JOOX token server-side) — v1.0 Phase 1
+- ✓ Last.fm read-side: metadata enrichment, discovery/hot-picks shelves (charts/tags/geo), Last.fm-searchable source — v1.1 Phases 8–10
+- ✓ Deezer-chart cover sourcing + cover backfill chain (Deezer → iTunes → CN) — v1.1 follow-ups
+- ✓ Track downloads with separate download-quality setting; offline-first playback for downloaded tracks — v1.1 follow-ups (reverses the old "no downloads" exclusion)
+- ✓ Search & data responsiveness: skeletons, search-state restore, TTL query cache, progressive results — Phase 14
+- ✓ Now-playing shared-element expand/collapse + swipe gestures — Phase 15
 
 ### Active
 
-<!-- The rebuild. Hypotheses until shipped + validated. -->
+<!-- v1.2 scope. Hypotheses until shipped + validated. -->
 
-- [ ] New mobile-first UI in SvelteKit replacing the desktop three-panel layout (responsive, scales up to desktop)
-- [ ] Bottom tab navigation + persistent mini-player that expands to a full-screen now-playing view (YouTube Music / Spotify pattern)
-- [ ] Background audio: keeps playing on screen-lock with lock-screen / notification controls and metadata (`navigator.mediaSession` + Wake Lock)
-- [ ] Installable PWA with service-worker app-shell caching (streamed audio stays online-only)
-- [ ] Touch gestures: swipe to change track, swipe-down to dismiss now-playing, drag to reorder queue
-- [ ] Cloudflare Worker proxy sitting in front of all music APIs (owns CORS, rate-limit/retry, hides the JOOX token)
-- [ ] Extract the reusable data layer (search/detail fetchers, state model, persistence) out of the monolith into clean modules
-- [ ] Add Kugou and Migu as new sources; add other sources on a best-effort basis where a reliable proxy exists
-- [ ] Preserve favorites/playlists, lyrics, play modes, and bilingual i18n in the new UI
-- [ ] Deploy to Cloudflare (Pages/Workers)
+- [ ] Never-stop playback: all-source failover → toast + auto-skip; gapless next-track prefetch; auto-generated up-next when exhausted; loop-guard for offline/all-down
+- [ ] Per-context up-next sourcing setting (same-list vs genre-generated), global default = generated, defaults in config
+- [ ] 2-state repeat (off / repeat-one); shuffle remains in-app
+- [ ] Lyrics: touch-suspended auto-scroll, end spacer, CN highlight-ordering fix, robust bracket hiding
+- [ ] Menu modal rework: instant buttons + background resolve, 2-row marquee header, top-right like/close, remix, sleep timer, focus-state fix
+- [ ] Now-playing: cover swipe prev/next, half-open scroll containment, tap-cover closes subnav, top running-line loader
+- [ ] Search scoring tune + result cover fallback + empty-query autofocus
+- [ ] Cover fallback resolver (playing track + scroll-into-view) with name-keyed cache
+- [ ] Homepage compact rows-of-4 mode (per-section setting) + section grid pages / library-tab redirects
+- [ ] Sharing/SEO: per-entity OG metadata, short slugs, per-page SEO
+- [ ] Offline app usability for downloaded tracks; simple offline display for online-only data
+- [ ] Deezer artist/album info enrichment
+- [ ] Polish: shape-matched skeletons everywhere, button toast + double-click guard, text-size 50–200% with contextual demo text, hide trackless albums, accent setting wired, UX audit vs YT Music/Spotify
 
 ### Out of Scope
 
 - Native iOS/Android apps — PWA delivers the app-like experience without app-store overhead and ToS exposure
-- First-party account system (own email/password, own user DB) — REVERSED in v1.1 *only* via Last.fm: sign-in is delegated to Last.fm (optional), which provides cloud-synced likes/scrobbles/history. We still build no proprietary account store; local-first remains the signed-out default.
+- First-party account system (own email/password, own user DB) — REVERSED in v1.1 *only* via Last.fm: sign-in is delegated to Last.fm (optional), which provides cloud-synced likes/scrobbles/history. We still build no proprietary account store; local-first remains the signed-out default. Last.fm auth/write-side (sign-in, scrobble, loved-sync) deferred to **v1.3**.
 - Official *paid streaming* APIs (Spotify / Apple Music) — licensing + auth complexity. NOTE: a YouTube-style source for resolving playable audio of Last.fm-discovered tracks IS in scope for v1.1 (uses the same unofficial-proxy posture as existing sources); Last.fm itself is metadata/social only, not a stream provider.
-- Audio downloads / offline track caching — streaming only; legal exposure and storage cost
+- ~~Audio downloads / offline track caching~~ — **REVERSED in v1.1 follow-ups / formalized in v1.2**: downloads + offline-first playback shipped; v1.2 makes offline usability a first-class requirement. Owner accepts the legal/storage posture (personal/demo project).
+- Like/shuffle buttons on the OS media card (lock screen / media hub) — web MediaSession API exposes a fixed action set; custom actions aren't rendered by Chrome/Android/macOS/iOS for PWAs. Standard prev/play/next/seek only; like + shuffle live in-app.
 - Keeping the old desktop `index.html` UI maintained in parallel — it is the reference/source to extract from, not a maintained surface
 
 ## Context
@@ -85,6 +103,11 @@ A user on their phone can search a song, tap it, and have it play instantly with
 | Replace desktop UI (responsive mobile-first), don't maintain both | "Mobile first"; maintaining two UIs doubles cost | — Pending |
 | v1.1: integrate Last.fm (optional auth + metadata + discovery + new source) | Delegate accounts/cloud-sync to Last.fm instead of building our own; unlock richer metadata + charts/tags discovery for free | — Pending |
 | Last.fm key + shared secret stay server-side (edge) only | Shared secret signs auth/scrobble calls; exposing it = account-takeover risk. Mirrors JOOX_TOKEN handling (threat T-01-04) | — Pending |
+| v1.2: never-stop playback policy (failover → skip → auto-generate), with loop-guard | Core music-app expectation; silent stops are the worst UX failure. Guard prevents infinite skip loop when offline/all sources down | — Pending |
+| v1.2: per-context up-next sourcing setting, global default = genre-generated | Resolves same-list vs generated contradiction with max flexibility; search never silently appends its result list by default | — Pending |
+| v1.2: OS media card keeps standard controls only (no like/shuffle) | Web MediaSession has a fixed action set; custom buttons impossible for PWAs on all target platforms | — Pending |
+| v1.2: repeat reduced to off / repeat-one | Repeat-all redundant once queue auto-generates; simpler mental model | — Pending |
+| Last.fm auth/write-side deferred to v1.3 (second deferral) | v1.2 prioritizes playback resilience + polish; auth is additive and independent | — Pending |
 
 ## Evolution
 
@@ -104,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-06 after starting milestone v1.1 (Last.fm Integration)*
+*Last updated: 2026-06-10 after starting milestone v1.2 (Resilient Playback & UX Polish)*

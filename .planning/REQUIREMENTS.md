@@ -98,7 +98,7 @@ Milestone v1.1 (Last.fm Integration). Optional/additive — local-first still wo
 
 ## v1.2 Requirements — Resilient Playback & UX Polish
 
-Milestone v1.2. Music never stops + offline downloads + broad UX polish. Research: `.planning/research/SUMMARY.md` (key finding: failover/prefetch/similar-queue engine already exists in `player.svelte.ts` — most PLAY/QUEUE work is policy + wiring). Phases continue at 16.
+Milestone v1.2. Music never stops + offline downloads + broad UX polish. Research: `.planning/research/SUMMARY.md` (key finding: failover/prefetch/similar-queue engine already exists in `player.svelte.ts` — most PLAY/QUEUE work is policy + wiring). Phases continue at 16 (last used = 15, now-playing shared element).
 
 ### Playback Resilience
 
@@ -136,7 +136,7 @@ Milestone v1.2. Music never stops + offline downloads + broad UX polish. Researc
 ### Now Playing
 
 - [ ] **NP-01**: Swiping the cover left→right plays previous, right→left plays next — axis-locked so the sheet's vertical collapse and plain taps keep working
-- [ ] **NP-02**: In the half-open state, scrolling the panel never scrolls the page behind — scroll always applies to the front layer
+- [ ] **NP-02**: In the half-open state, scrolling the panel never scrolls the page behind it — scroll always applies to the front layer
 - [ ] **NP-03**: In the half-open state, tapping the cover closes the subnav panel
 - [ ] **NP-04**: A loading "running line" indicator (like the nowbar's) shows at the very top of the now-playing view while a track is loading
 - [ ] **NP-05**: Horizontal swipe on the nowbar mini-player changes track (AUD-05)
@@ -286,15 +286,15 @@ Each v1.1 requirement maps to exactly one phase (8–13). See `.planning/ROADMAP
 | LFSRC-01 | Phase 10 | Dropped / satisfied-by-pattern (backlog) [†] |
 | LFSRC-02 | Phase 10 | Complete (shipped Phase 9 as `resolveStub`) [†] |
 | LFSRC-03 | Phase 10 | Complete |
-| LFAUTH-01 | Phase 11 | Pending |
-| LFAUTH-02 | Phase 11 | Pending |
-| LFAUTH-03 | Phase 11 | Pending |
-| LFAUTH-04 | Phase 11 | Pending |
-| SCROB-01 | Phase 12 | Pending |
-| SCROB-02 | Phase 12 | Pending |
-| SCROB-03 | Phase 12 | Pending |
-| LOVE-01 | Phase 13 | Pending |
-| LOVE-02 | Phase 13 | Pending |
+| LFAUTH-01 | Phase 11 | Deferred → v1.3 |
+| LFAUTH-02 | Phase 11 | Deferred → v1.3 |
+| LFAUTH-03 | Phase 11 | Deferred → v1.3 |
+| LFAUTH-04 | Phase 11 | Deferred → v1.3 |
+| SCROB-01 | Phase 12 | Deferred → v1.3 |
+| SCROB-02 | Phase 12 | Deferred → v1.3 |
+| SCROB-03 | Phase 12 | Deferred → v1.3 |
+| LOVE-01 | Phase 13 | Deferred → v1.3 |
+| LOVE-02 | Phase 13 | Deferred → v1.3 |
 
 **Coverage (v1.1):**
 - v1.1 requirements: 19 total
@@ -307,8 +307,66 @@ Each v1.1 requirement maps to exactly one phase (8–13). See `.planning/ROADMAP
 
 ### Traceability (v1.2 — Resilient Playback & UX Polish)
 
-To be filled during roadmap creation. 41 v1.2 requirements total (PLAY-07..10, QUEUE-01..05, TIMER-01, LYR-01..05, MENU-01..03, NP-01..05, SRCH-01..03, COVER-01..02, HOME-02..04, ART-01, SHARE-01..03, OFFL-01..03, ENRICH-04, UX-01..07).
+Each v1.2 requirement maps to exactly one phase (16–24). See `.planning/ROADMAP.md` ## Milestone v1.2: Resilient Playback & UX Polish for phase detail.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| PLAY-07 | Phase 16 | Pending |
+| PLAY-08 | Phase 16 | Pending |
+| PLAY-09 | Phase 16 | Pending |
+| PLAY-10 | Phase 16 | Pending |
+| QUEUE-01 | Phase 17 | Pending |
+| QUEUE-02 | Phase 17 | Pending |
+| QUEUE-03 | Phase 17 | Pending |
+| QUEUE-05 | Phase 17 | Pending |
+| UX-03 | Phase 17 | Pending |
+| UX-07 | Phase 17 | Pending |
+| ENRICH-04 | Phase 17 | Pending |
+| TIMER-01 | Phase 18 | Pending |
+| MENU-01 | Phase 19 | Pending |
+| MENU-02 | Phase 19 | Pending |
+| MENU-03 | Phase 19 | Pending |
+| QUEUE-04 | Phase 19 | Pending |
+| NP-01 | Phase 20 | Pending |
+| NP-02 | Phase 20 | Pending |
+| NP-03 | Phase 20 | Pending |
+| NP-04 | Phase 20 | Pending |
+| NP-05 | Phase 20 | Pending |
+| SRCH-01 | Phase 21 | Pending |
+| SRCH-02 | Phase 21 | Pending |
+| SRCH-03 | Phase 21 | Pending |
+| COVER-01 | Phase 21 | Pending |
+| COVER-02 | Phase 21 | Pending |
+| LYR-01 | Phase 22 | Pending |
+| LYR-02 | Phase 22 | Pending |
+| LYR-03 | Phase 22 | Pending |
+| LYR-04 | Phase 22 | Pending |
+| LYR-05 | Phase 22 | Pending |
+| UX-01 | Phase 23 | Pending |
+| UX-02 | Phase 23 | Pending |
+| UX-04 | Phase 23 | Pending |
+| UX-05 | Phase 23 | Pending |
+| UX-06 | Phase 23 | Pending |
+| HOME-02 | Phase 23 | Pending |
+| HOME-03 | Phase 23 | Pending |
+| HOME-04 | Phase 23 | Pending |
+| ART-01 | Phase 23 | Pending |
+| OFFL-01 | Phase 24 | Pending |
+| OFFL-02 | Phase 24 | Pending |
+| OFFL-03 | Phase 24 | Pending |
+| SHARE-01 | Phase 24 | Pending |
+| SHARE-02 | Phase 24 | Pending |
+| SHARE-03 | Phase 24 | Pending |
+
+**Coverage (v1.2):**
+- v1.2 requirements: 46 total (PLAY-07..10, QUEUE-01..05, TIMER-01, LYR-01..05, MENU-01..03, NP-01..05, SRCH-01..03, COVER-01..02, HOME-02..04, ART-01, SHARE-01..03, OFFL-01..03, ENRICH-04, UX-01..07) — note: the milestone-kickoff summary said "41"; the actual unique-ID count is 46.
+- Mapped to phases: 46 ✓
+- Unmapped: 0 ✓
+
+**Per-phase counts (v1.2):** Phase 16: 4 (PLAY-07..10) · Phase 17: 7 (QUEUE-01/02/03/05, UX-03, UX-07, ENRICH-04) · Phase 18: 1 (TIMER-01) · Phase 19: 4 (MENU-01..03, QUEUE-04) · Phase 20: 5 (NP-01..05) · Phase 21: 5 (SRCH-01..03, COVER-01..02) · Phase 22: 5 (LYR-01..05) · Phase 23: 9 (UX-01/02/04/05/06, HOME-02..04, ART-01) · Phase 24: 6 (OFFL-01..03, SHARE-01..03)
+
+**Research flags (v1.2):** Phase 24 (OFFL-01..03 + SHARE-01..03) is **HIGH research** — net-new infrastructure: offline app-shell service worker on Cloudflare Pages, and per-entity SSR OG/slugs at the edge. Run `/gsd:plan-phase --research-phase 24` (consider splitting offline vs SEO spikes). All other v1.2 phases are LOW / LOW-MEDIUM (extensions of the existing engine + documented in-codebase patterns).
 
 ---
 *Requirements defined: 2026-06-05*
-*Last updated: 2026-06-10 after defining milestone v1.2 (Resilient Playback & UX Polish) requirements*
+*Last updated: 2026-06-10 after creating the v1.2 roadmap (Phases 16–24; 46/46 requirements mapped)*

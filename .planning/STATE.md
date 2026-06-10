@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Resilient Playback & UX Polish
 status: planning
-last_updated: "2026-06-10T05:44:13.886Z"
+last_updated: "2026-06-10T06:30:00.000Z"
 last_activity: 2026-06-10
 progress:
-  total_phases: 0
+  total_phases: 9
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,17 +17,18 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-05)
+See: .planning/PROJECT.md (updated 2026-06-10)
 
 **Core value:** A user on their phone can search a song, tap it, and have it play instantly with a smooth, native-app-like experience — and keep playing when the screen locks.
-**Current focus:** Milestone complete
+**Current focus:** Milestone v1.2 (Resilient Playback & UX Polish) — roadmap created (Phases 16–24), ready to plan Phase 16.
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 16 — Playback Resilience Core (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-06-10 — Milestone v1.2 started
+Status: Ready to plan
+Last activity: 2026-06-10 — v1.2 roadmap created: 9 phases (16–24), 46/46 requirements mapped
+Next: `/gsd:plan-phase 16`
 
 ## Performance Metrics
 
@@ -64,6 +65,10 @@ Last activity: 2026-06-10 — Milestone v1.2 started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- [Roadmap v1.2]: Phase numbering continues at 16 (last used = 15, now-playing shared element). v1.2 = Phases 16–24 (9 phases, standard granularity). The Phases 11–13 Last.fm write-side (labelled "v1.2" in an earlier ROADMAP draft) is re-deferred to v1.3 (decision 2026-06-10) and re-titled "Last.fm Write-side — Deferred to v1.3" in ROADMAP.md.
+- [Roadmap v1.2]: Phase order follows research A–H dependency chain — 16 (resilience core, the `queueContext`/2-state-repeat/skip-loop-guard dependency root) → 17 (up-next sourcing + batched settings/config + Deezer enrichment) → 18 (sleep timer) → 19 (TrackMenu rework incl. Remix) → 20 (now-playing gestures/scroll) → 21 (search+cover polish) → 22 (lyrics, after 20 to avoid NowPlaying merge churn) → 23 (cross-cutting UX audit + homepage/artist density) → 24 (offline SW + SEO, net-new infra isolated last).
+- [Roadmap v1.2]: Most PLAY/QUEUE work is policy + wiring + UI on the existing `player.svelte.ts` engine (failover/prefetch/buildSimilarQueue/offline-blob already ship) — zero net-new runtime deps. The only genuinely new infra is the offline app-shell service worker and per-entity SSR OG/slugs, both in Phase 24 and both flagged HIGH research.
+- [Roadmap v1.2]: Audit-adds placed in sensible phases — QUEUE-05 (swipe-remove/clear) in 17 (queue context), NP-05 (nowbar swipe) in 20 (now-playing gestures), LYR-01 (tap-to-seek) in 22 (lyrics), UX-04 (row swipe-actions)/UX-05 (haptics)/UX-06 (a11y) in 23 (UX audit). QUEUE-04 (Remix) lives in 19 because it is a track-menu action.
 - [Phase 8-01]: Read-proxy route shape = DEDICATED `/api/lastfm/info` route (mirrors `/api/similar`), NOT the `/api/[source]/[...path]` catch-all — avoids widening `SourceId` to `'lastfm'` (which breaks `SOURCES: Record<SourceId, SourceAdapter>` until a Phase-10 client source exists) and gets the absent-key-is-200-clean-empty posture for free.
 - [Phase 8-01]: Enriched fields = OPTIONAL fields on `Track` (tags?/bio?/bioUrl?/lastfmArt?), NOT a side cache. No `serializeTrack` whitelist on the library path; fields persist JSON-safe with no migration. Deliberately NOT added to `HistoryEntry`/`toEntry` (re-enrich on replay). `matchKey` is artist-first (`norm(artist)|norm(title)`, Pitfall 9); `dedupe.ts` keeps its legacy title|artist order and is left untouched.
 - [Roadmap v1.1]: Read-only-first phase order — enrichment (8), discovery (9), source (10) ship value with zero auth surface before the highest-risk signed-call infrastructure + auth lands once (11), then scrobble (12) and loved-sync (13) layer on top. Auth cannot move earlier: scrobble/loved-sync hard-depend on the `sk` cookie.
@@ -95,10 +100,15 @@ None yet.
 
 [Issues that affect future work]
 
+- [Phase 24]: NET-NEW INFRA, HIGH research — both halves are Cloudflare-specific and not trivially testable locally. Offline: SW lifecycle on Cloudflare Pages, iOS Safari PWA+SW+background-audio interplay, cache-versioning on deploy — verify under `wrangler pages dev` with the native `src/service-worker.ts` (NOT vite-pwa). SEO: `+page.server.ts` SSR OG at the edge, `og:image` strategy (unstable CDN cover vs composed card vs static fallback), CJK slug encode/decode, real scraper testing. Run `/gsd:plan-phase --research-phase 24` (consider splitting offline vs SEO spikes). Research flag set.
+- [Phase 20]: Cover-swipe vs sheet-collapse gesture collision (research Pitfall 7) is the highest-risk interaction in v1.2 — never `setPointerCapture` on `pointerdown`, commit axis in `pointermove` after slop, sub-slop movement must still reach `onclick` (tap contract). Reuse the existing slop/velocity idiom exactly.
+- [Phase 19]: Overlay `$effect` history invariant — dep must stay `open`-only with `untrack()` around overlay calls, single dismiss path, `{#if open && track}` for visibility. Any new sub-sheet follows the `pickerOpen` precedent. Act-on-unresolved-stub must be gated (`detailsLoaded && uid`).
+- [Phase 16]: Infinite auto-skip loop guard (research P-FAILOVER) — `consecutiveSkips` cap ~5, stop + one sticky toast, reset on a successful `audio playing` event or user gesture, gate the whole chain on `navigator.onLine === false`. iOS rejected `play()` after async src-swap must count as a failure into the loop-guard counter, never a silent `.catch(() => {})`.
+- [Phase 18]: Sleep-timer stop must NOT collide with Phase 16's skip-loop guard (suppress-`next()` path); use an absolute-timestamp deadline to survive background-tab `setTimeout` throttling.
 - [Phase 1]: Worker egress geo-behavior against JOOX/QQ audio CDNs is unconfirmed — spike required before the audio data-flow architecture is locked. Research flag set.
 - [Phase 6]: iOS standalone-PWA background audio is contested (STACK.md vs PITFALLS.md); only a real-device spike (iOS 15.4 / 16 / 17 / 18 / 18.4+) covering play-while-locked AND pause→wait→resume-from-lock can resolve it. Research flag set.
-- [Phase 11]: Highest-risk v1.1 surface — owns T-lfm-01/02/03 (secret/sk leakage, CSRF) + `api_sig` UTF-8/CJK correctness. Mandatory `周杰伦`/`稻香` signing fixture test must run in the workerd/`wrangler dev` runtime (throws NotSupportedError under jsdom/Node — that's runtime, not a code bug).
-- [Phase 13]: May need `/gsd:plan-phase --research-phase 13` IF CJK normalization proves complex (Traditional/Simplified folding, CJK punctuation variants, "ghost" loved stubs with no playable source).
+- [Phase 11]: (Deferred → v1.3) Highest-risk write-side surface — owns T-lfm-01/02/03 (secret/sk leakage, CSRF) + `api_sig` UTF-8/CJK correctness. Mandatory `周杰伦`/`稻香` signing fixture test must run in the workerd/`wrangler dev` runtime (throws NotSupportedError under jsdom/Node — that's runtime, not a code bug).
+- [Phase 13]: (Deferred → v1.3) May need `/gsd:plan-phase --research-phase 13` IF CJK normalization proves complex (Traditional/Simplified folding, CJK punctuation variants, "ghost" loved stubs with no playable source).
 - [Phase 10]: GD Studio `ytmusic` is deferred from v1.1; if ever pulled in it warrants its own feasibility spike (`s`-checksum drift, 50 req/5 min cap, instance failover, Western-catalog match rate).
 
 ### Quick Tasks Completed
@@ -157,7 +167,7 @@ None yet.
 | 260607-fnp | Appearance customization + Data/Translation polish (4 parts; decisions via AskUserQuestion: %-sliders, Title/Artist/Lyrics, cover-size+grid-cols). **P1:** new `/settings/appearance` page — per-part font-size % sliders (title/artist/lyrics) + cover-size scale + home grid-columns, applied app-wide via CSS custom props set in `settings.applyTheme()` (`--fs-*`/`--cover-scale`/`--home-grid-cols`), `app.css :root` defaults 1×/3 so SSR+returning users unchanged; threaded the vars into every title/artist/lyrics font-size (home/search/queue/NowPlaying/TrackMenu/artist/album/library) + home tile/cover/grid; `resetAppearance()`; new Appearance row in settings index. **P2:** Data tab clears name-tr cache (`names.clearCache`) / cover cache (new `clearCoverCache`) / search history + reset appearance. **P3:** translation page reordered Lyrics-mode→Lyrics→Artist→Title→Bio→AppLang with dividers; "Translate mode"→"Lyrics translate mode" + clearer copy. **P4 (corrects f4y):** Bio info is a real picker again — new `bioLang` (`'auto'`\|lang, default Auto=app/device lang) + `names.dnBio` honors it; no "Last.fm" text. 20 i18n keys × 15 locales. Verified live: Title 160%→home label 12→19.2px, reset works, bio default Auto. check 0/0, 414 tests, build OK. | 2026-06-07 | 6c4c4d9 | [260607-fnp-appearance-settings-per-part-font-sizes-](./quick/260607-fnp-appearance-settings-per-part-font-sizes-/) |
 | 260607-f4y | Translation policy + Now Playing polish (two-part; decisions via AskUserQuestion: names=flip-defaults-off-keep-pickers, lyrics=untouched, bio=auto-by-app-lang). **Part A:** names no longer auto-translate by default — dropped the legacy `nameLang`→`artistLang`/`titleLang` migration (defaults stay `'off'`, per-part pickers kept for opt-in); new `names.dnBio()` auto-translates the Last.fm bio to the app/device language (wired into the artist-page bio, was untranslated under D-07); renamed "Last.fm info translation" → "Bio info" (manual tag picker removed, now a read-only auto-translate note) with `settings.translateLastfm`/`Note` values updated across all 15 locales (keys unchanged → parity intact). **Part B (NowPlaying):** title+artist now single-line marquee-bounce when overflowing (reuse `use:marquee` + keyframe, `{#key uid}` remount for per-track re-measure, no more 3-line wrap); genre/tag chips hidden (`TagChips` removed; enrichment kept only for hi-res cover, dropped vestigial `enrich` state); inline error banner bound to `player.error`. Verified live (real Last.fm/CN data): settings shows Bio-info note + no Last.fm picker; played track → single-line untranslated title/artist, 0 genre chips, no error banner, lyrics translation preserved. check 0/0, 414 tests, build OK. | 2026-06-07 | 0be3358 | [260607-f4y-default-no-name-title-translation-rename](./quick/260607-f4y-default-no-name-title-translation-rename/) |
 
-> Note: off planned phase order (Phase-4-shaped UI pulled forward as a demo). Basic playback only; full audio engine = Phase 6, formal Mobile UI Shell = Phase 4.
+> Note: off planned phase order (Phase-4-shaped UI pulled forward as a demo). Basic playback only; full audio engine = Phase 6, formal Mobile UI Shell = Phase 4. NOTE (2026-06-10): many of the quick-tasks above already exercise the v1.2 surfaces (failover/prefetch in gte/t5r/hvu, offline blob in kyf, Deezer enrichment plumbing in jau/jip, cover backfill in rvy/0bb/wv8, gesture machines in ggj/h4s/nqf) — v1.2 phases formalize, harden, and complete these rather than build from scratch.
 
 ## Deferred Items
 
@@ -165,14 +175,15 @@ Items acknowledged and carried forward from previous milestone close:
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
-| Resilience | SRC-FB-01 source fallback on play failure (cross-source matching) | Deferred to v2 | 2026-06-05 |
-| Delight | LYR-01 tap-lyric-to-seek | Deferred to v2 | 2026-06-05 |
-| Delight | TIMER-01 sleep timer | Deferred to v2 | 2026-06-05 |
+| Resilience | SRC-FB-01 source fallback on play failure (cross-source matching) | Promoted → v1.2 PLAY-07 (Phase 16); base shipped in quick-gte | 2026-06-10 |
+| Delight | LYR-01 tap-lyric-to-seek | Promoted → v1.2 (Phase 22) | 2026-06-10 |
+| Delight | TIMER-01 sleep timer | Promoted → v1.2 (Phase 18) | 2026-06-10 |
 | Delight | HOME-01 recently-played / search history | Deferred to v2 | 2026-06-05 |
 | Delight | COACH-01 custom PWA install coachmark | Deferred to v2 | 2026-06-05 |
+| Last.fm write-side | LFAUTH/SCROB/LOVE (Phases 11–13) | Re-deferred to v1.3 | 2026-06-10 |
 
 ## Session Continuity
 
-Last session: 2026-06-06T13:41:15.133Z
-Stopped at: Phase 9 executed — 3/3 plans + code-review fixes (CR-01 image XSS, WR-01..04); pnpm check clean, 165/165 tests. SECURITY.md pending for 8 & 9 (/gsd:secure-phase).
-Resume: verify phase 9 (run /gsd:verify-phase 9) — all 3 plans complete
+Last session: 2026-06-10T06:30:00.000Z
+Stopped at: v1.2 roadmap created — 9 phases (16–24), 46/46 v1.2 requirements mapped, traceability written, STATE advanced to Phase 16 "ready to plan". Phase 24 (offline SW + SEO) flagged HIGH research.
+Resume: plan Phase 16 (`/gsd:plan-phase 16`). Phase 16 is the resilience-core dependency root; everything else builds on its `queueContext` / 2-state repeat / skip-loop guard.

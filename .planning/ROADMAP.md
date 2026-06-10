@@ -13,6 +13,8 @@ MusicSquare Mobile is a ground-up reskin of a working desktop music player: the 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
+> **Milestone sections:** v1.0 = Phases 1–7 (+14). v1.1 (Last.fm read-only, shipped) = Phases 8–10. **v1.2 (Resilient Playback & UX Polish, current) = Phases 16–24** (see `## Milestone v1.2: Resilient Playback & UX Polish` below). The Last.fm write-side (Phases 11–13) was re-deferred to v1.3 on 2026-06-10.
+
 - [ ] **Phase 1: Data Layer + Proxy Foundation** - Extract reusable data logic into typed modules; SvelteKit `+server.ts` metadata proxy with adapter registry; 4 existing sources end-to-end through the new boundary
 - [ ] **Phase 2: Audio Engine + Playback Core** - Single app-scoped `<audio>` singleton + reactive stores; play/pause/seek/next/prev, play modes, browser-direct streaming with graceful failure (headless)
 - [ ] **Phase 3: Persistence + Library** - Favorites + playlists preserved with localStorage parity and an IndexedDB migration path; JSON import/export
@@ -144,7 +146,6 @@ Plans:
 
 **Plans**: TBD
 **Research flag**: Standard adapter pattern for new sources. The queue-model refactor (`playNext`, shuffle, play-mode all touch `queueStore`) needs careful dependency tracking to avoid breaking the Phase 2 auto-advance behavior. Confirm `svelte-gestures` Svelte 5 support at build time; Pointer Events + `Spring` is the documented fallback.
-**UI hint**: yes
 
 ---
 
@@ -152,9 +153,9 @@ Plans:
 
 Connects the standalone aggregator to Last.fm across the read-only capability areas — passive metadata enrichment, auth-free editorial discovery, and a Last.fm-searchable playback source. The build order was deliberately read-only-first: prove the edge Last.fm proxy and the match-key normalization primitive with enrichment (Phase 8), then ship discovery and tap-to-play (Phases 9–10) with zero auth surface. Sign-in is optional/additive — every signed-out path keeps the local-first app fully working. All `LASTFM_KEY` use stays server-side only (JOOX_TOKEN parity).
 
-**Status:** Shipped 2026-06-06 as the read-only scope — enrichment (8), discovery/hot-picks (9), and tap-to-play re-search resolver (10), all security-verified (33/33 threats CLOSED across 8/9/10). Phase 14 (search/data responsiveness polish) also shipped. The **write-side** — auth + scrobbling + loved-tracks sync — is **deferred to Milestone v1.2** (see below). Decision 2026-06-06: auth postponed, not needed at this stage.
+**Status:** Shipped 2026-06-06 as the read-only scope — enrichment (8), discovery/hot-picks (9), and tap-to-play re-search resolver (10), all security-verified (33/33 threats CLOSED across 8/9/10). Phase 14 (search/data responsiveness polish) also shipped. The **write-side** — auth + scrobbling + loved-tracks sync — is **deferred** (see the deferred section below; re-deferred to v1.3 on 2026-06-10). Decision 2026-06-06: auth postponed, not needed at this stage.
 
-**Numbering:** Continues from the v1.0 milestone — v1.0 ended at Phase 7, so v1.1 ran Phases 8–10 (read-only); the write-side Phases 11–13 carry forward to v1.2.
+**Numbering:** Continues from the v1.0 milestone — v1.0 ended at Phase 7, so v1.1 ran Phases 8–10 (read-only); the write-side Phases 11–13 carry forward (now to v1.3).
 
 ### Phases (v1.1)
 
@@ -162,7 +163,7 @@ Connects the standalone aggregator to Last.fm across the read-only capability ar
 - [x] **Phase 9: Discovery / Hot-Picks Tab** - Auth-free Explore tab — global charts, vibe/mood tag browsing, and country/region top-lists — edge-cached to respect rate limits (completed 2026-06-06)
 - [x] **Phase 10: Last.fm-searchable Source** - re-search resolver best-match scoring (`scoreMatch`: variant-keyword penalty + matchKey similarity, dedupeBest tie-break); discovery is tap-to-play (completed 2026-06-06, security-verified)
 
-> **Phases 11–13 deferred to Milestone v1.2 (Last.fm write-side).** Auth postponed by decision 2026-06-06 — not needed at this stage. Goals/criteria/security-notes retained in the v1.2 section below; phase directories not yet created.
+> **Phases 11–13 deferred to Milestone v1.3 (Last.fm write-side).** Auth postponed by decision 2026-06-06, re-deferred 2026-06-10. Goals/criteria/security-notes retained in the deferred section below; phase directories not yet created.
 
 ### Phase Details (v1.1)
 
@@ -246,17 +247,17 @@ Plans:
 
 ---
 
-## Milestone v1.2: Last.fm Write-side (Deferred — Planned)
+## Last.fm Write-side (Phases 11–13) — Deferred to v1.3
 
-The optional signed-in layer, deferred out of v1.1 on 2026-06-06 (auth not needed at this stage). Sign-in stays optional/additive: every signed-out path keeps the local-first app fully working. All `LASTFM_SECRET` use and the user session key stay edge-only (httpOnly cookie, never localStorage). Build order: signed-call infrastructure + auth once (Phase 11), then the two write features on top (scrobbling 12, loved-sync 13). **Not started — phase directories not yet created.** Resume with `/gsd:new-milestone` (or `/gsd:discuss-phase 11`) when the write-side is wanted.
+The optional signed-in layer, deferred out of v1.1 on 2026-06-06 (auth not needed at this stage) and **re-deferred to v1.3 on 2026-06-10** (v1.2 prioritizes playback resilience + polish; auth is additive and independent). Sign-in stays optional/additive: every signed-out path keeps the local-first app fully working. All `LASTFM_SECRET` use and the user session key stay edge-only (httpOnly cookie, never localStorage). Build order: signed-call infrastructure + auth once (Phase 11), then the two write features on top (scrobbling 12, loved-sync 13). **Not started — phase directories not yet created.** Resume with `/gsd:new-milestone` (or `/gsd:discuss-phase 11`) when the write-side is wanted.
 
-### Phases (v1.2)
+### Phases (Last.fm write-side)
 
 - [ ] **Phase 11: Signed-call Infrastructure & Auth** — `api_sig` edge signer (UTF-8/CJK-correct), Last.fm Web Auth sign-in/out, httpOnly-cookie session; gates all write features
 - [ ] **Phase 12: Scrobbling (online-only)** — now-playing + exactly-once scrobble at threshold when signed in; no-op + non-blocking when signed out
 - [ ] **Phase 13: Loved-Tracks Sync** — favorite mirrors to Last.fm love/unlove; sign-in additively merges loved tracks into local favorites (non-destructive)
 
-### Phase Details (v1.2)
+### Phase Details (Last.fm write-side)
 
 ### Phase 11: Signed-call Infrastructure & Auth
 
@@ -337,12 +338,184 @@ Plans:
 **Research flag**: Standard in-codebase patterns — no `--research-phase` needed. All four store/cache/quality/streaming patterns have working exemplars in-repo (overlays/history/settings stores, edge TTL cache, source ladders); zero new dependencies.
 **Security note**: Low surface (ASVS L1). Only live concern is SSR module-state leakage in the new `searchSession` + `searchHistory` runes singletons — mitigated by browser-guarded writes mirroring settings/history/overlays. D-03 uses the client-ladder approach (does NOT touch proxy/joox.ts) so the JOOX no-log rule and `br=4` stay intact. No package installs.
 
+---
+
+## Milestone v1.2: Resilient Playback & UX Polish — 🟡 PLANNING (started 2026-06-10)
+
+Music never stops + offline downloads + a broad UX polish pass. This is a polish-and-resilience milestone on an already-functional SvelteKit PWA, NOT a greenfield build — the key research finding (`.planning/research/SUMMARY.md`) is that the failover / prefetch / similar-queue engine already ships in `src/lib/stores/player.svelte.ts`, so most PLAY/QUEUE work is **policy + wiring + UI** layered on that engine, with zero net-new runtime dependencies. The build order follows the research A–H dependency chain: the player resilience core stabilizes first (its `queueContext` / 2-state repeat / skip-loop guard are the dependency root), then up-next sourcing + settings plumbing on top, then sleep timer, then the constraint-dense TrackMenu rework, then the now-playing gesture/scroll surface, then the independent search/cover and lyrics polish passes, then the cross-cutting UX-audit + homepage/artist density work, and finally the two genuinely net-new infrastructure phases (offline app-shell service worker; per-entity SSR OG/slugs) isolated at the end because they change rendering/caching behavior on Cloudflare and carry the highest deploy risk. Every phase delivers a coherent, user-verifiable capability.
+
+> **Numbering note:** Continues from the previous milestone — the last used phase number was **15** (now-playing shared-element expand/collapse), so v1.2 runs **Phases 16–24**. (The Phases 11–13 Last.fm write-side, labelled "v1.2" in an earlier draft of this file, was **re-deferred to v1.3 on 2026-06-10** — decision in PROJECT.md; that section is retained above under "Last.fm Write-side ... Deferred to v1.3".)
+
+### Phases (v1.2)
+
+- [ ] **Phase 16: Playback Resilience Core** - Never-stop player: all-source failover → toast + auto-skip, ~5-skip loop-guard, prefetch-next, auto-generate-on-exhaust, offline short-circuit, 2-state repeat
+- [ ] **Phase 17: Up-Next Sourcing + Settings Plumbing** - Per-context up-next setting (same-list vs genre-generated, default generated), search-doesn't-append + no auto-expand, queue swipe-remove + clear, widened text-size demo, accent-wiring verify, Deezer artist/album enrichment
+- [ ] **Phase 18: Sleep Timer** - Sleep timer (5/10/15/30/45/60 min or end-of-track) from the track menu with active indicator + cancel/change
+- [ ] **Phase 19: Track Menu Rework** - Instant buttons + background resolve-then-act, 2-row marquee header, top-right like/close, Remix (seed genre queue), long-press focus-state fix
+- [ ] **Phase 20: Now-Playing Surface & Gestures** - Cover swipe prev/next (axis-locked), half-open scroll containment, tap-cover-closes-subnav, top running-line loader, nowbar horizontal swipe
+- [ ] **Phase 21: Search & Cover Pipeline Polish** - Search scoring tune (short-title / artist-frequency boost, <60s 試聽 penalty), result cover fallback, empty-query autofocus, playing-track cover guarantee, scroll-into-view uid/name-keyed cache
+- [ ] **Phase 22: Lyrics Polish** - Tap-line-to-seek, touch-suspended auto-scroll (verify live), end-spacer centering, CN translation-line ordering fix, robust bracket hiding
+- [ ] **Phase 23: UX Audit & Homepage/Artist Polish** - Shape-matched skeletons everywhere, button toast + double-click guard, row swipe-actions, haptics, a11y pass, compact rows-of-4 homepage mode + section grid/library nav, hide trackless albums
+- [ ] **Phase 24: Offline App-Shell & Sharing/SEO** - Service-worker app-shell (never caches /api or audio), downloaded-track offline playback, graceful offline degradation; per-entity SSR OG + readable slugs + per-page SEO
+
+### Phase Details (v1.2)
+
+### Phase 16: Playback Resilience Core
+
+**Goal**: A user's music never stops on its own — a track that fails is retried across every other source and, if all fail, a toast explains and the player auto-skips; the next track is prefetched so it starts immediately; when the queue exhausts it auto-generates more; and the only ways playback stops are sleep-timer expiry, sudden offline, or the consecutive-failure loop-guard tripping with one actionable sticky toast.
+**Depends on**: Nothing new (extends the existing `player.svelte.ts` failover/prefetch/regenerate engine; dependency root for v1.2)
+**Requirements**: PLAY-07, PLAY-08, PLAY-09, PLAY-10
+**Success Criteria** (what must be TRUE):
+
+  1. When a track fails to play, the app silently retries it across all other sources; if every source fails, a toast names the problem and playback auto-skips to the next track
+  2. Playback never stops by itself except sleep-timer expiry, sudden offline, or the loop-guard tripping (~5 consecutive failed skips → one actionable sticky toast); a rejected `play()` promise counts as a failure, never a silent no-op
+  3. Whenever the current track changes, the next track's URL is resolved ahead of time so it begins immediately when the current one ends (no audible resolve gap)
+  4. The repeat control has exactly two states — off / repeat-one; repeat-all is gone and continuation is handled by auto-generated up-next
+
+**Plans**: TBD
+**Research flag**: LOW — extension of documented existing `player.svelte.ts` logic (the failover/prefetch/skip-guard primitives already ship). No `--research-phase` needed.
+
+### Phase 17: Up-Next Sourcing + Settings Plumbing
+
+**Goal**: Playing a song from any context fills up-next predictably — by default genre-similar generation (search results are NOT silently appended, and the nowbar does not auto-expand on track change) — the user can override sourcing per context, manage the queue directly (swipe-to-remove, clear-all), and the milestone's config/settings changes (per-context defaults, widened text-size demo, accent wiring) land together; artist/album pages gain Deezer enrichment.
+**Depends on**: Phase 16 (`queueContext` field + stable auto-generate engine)
+**Requirements**: QUEUE-01, QUEUE-02, QUEUE-03, QUEUE-05, UX-03, UX-07, ENRICH-04
+**Success Criteria** (what must be TRUE):
+
+  1. Playing a song from search builds up-next from genre-similar generation by default (search results are NOT appended) and the nowbar stays put (no auto-expand to now-playing on track change)
+  2. When up-next is exhausted, more tracks auto-generate from the last played song so playback flows on without any user action
+  3. The user can choose, per playback context (liked / search / downloads / etc.), "same list" vs "genre-generated"; the global default is generated and the defaults live in the config file
+  4. The user can swipe a track out of up-next and clear the whole queue
+  5. The text-size setting spans 50%–200% with demo text reading "example {artist or song name}" per the type being sized, the accent-color setting visibly applies to the UI (dead wiring fixed), and artist/album pages show Deezer info, degrading gracefully when unavailable
+
+**Plans**: TBD
+**UI hint**: yes
+**Research flag**: LOW — config/`defaults.ts` + `settings.svelte.ts` changes batched; recommendation-loop (recently-played ring buffer) and queue-mutation race (`manualUids`) are documented pitfalls.
+
+### Phase 18: Sleep Timer
+
+**Goal**: A user can set a sleep timer from the track menu and trust playback to stop when it expires, while seeing an active-timer indicator they can cancel or change at any time.
+**Depends on**: Phase 16 (stable `ended`-handler + player pause hook; the timer's stop must not collide with the skip-loop guard)
+**Requirements**: TIMER-01
+**Success Criteria** (what must be TRUE):
+
+  1. The user can set a sleep timer of 5/10/15/30/45/60 minutes or "end of track" from the track menu
+  2. Playback stops at expiry (and at track end for end-of-track mode), surviving background-tab timer throttling via an absolute-timestamp deadline
+  3. While a timer is active, a visible indicator shows it, and the user can cancel it or change the duration
+
+**Plans**: TBD
+**Research flag**: LOW — `setTimeout`/absolute-deadline pattern; durations verified against Spotify. Background-tab throttle drift is the one documented pitfall.
+
+### Phase 19: Track Menu Rework
+
+**Goal**: The track menu feels instant and correct — it opens immediately with every action button visible while song data resolves in the background, actions that need resolved data gate themselves and complete once data arrives, the header reads as two marquee rows with like/close at the top-right, "Remix" starts a genre-generated queue from the track, and long-pressing to open it leaves no stuck focus state under the finger.
+**Depends on**: Phase 16 (queue engine for Remix seeding), Phase 18 (sleep-timer action lives in this menu)
+**Requirements**: MENU-01, MENU-02, MENU-03, QUEUE-04
+**Success Criteria** (what must be TRUE):
+
+  1. The menu opens instantly with all action buttons visible while data resolves; actions needing resolved data are gated (`detailsLoaded && uid`) and complete gracefully once it arrives — never acting on an unresolved stub
+  2. The header is two rows (song name / artist name) with marquee handling, the like button sits top-right beside close, and the skeleton matches this new shape
+  3. "Remix" plays the triggering track first and seeds a genre-generated up-next from it
+  4. Opening the menu by long-press leaves no focus/active state on the menu item under the finger
+
+**Plans**: TBD
+**UI hint**: yes
+**Research flag**: LOW-MEDIUM — most constraint-dense UI change in the milestone: the overlay `$effect` must stay `open`-only-dep with `untrack()` (history-stack invariant), act-on-stub must be gated, marquee re-measure + double-action dedupe handled. No `--research-phase`, but plan carefully against the documented overlay invariant.
+
+### Phase 20: Now-Playing Surface & Gestures
+
+**Goal**: The now-playing surface behaves like a native app — swiping the cover changes track (axis-locked so vertical collapse and plain taps still work), the half-open sheet contains its own scrolling instead of moving the page behind it, tapping the cover in half-open closes the subnav, a running-line loader shows at the top while a track loads, and the same horizontal swipe on the nowbar mini-player changes track.
+**Depends on**: Phase 16 (prev/next semantics the swipes drive), Phase 19 (settles `NowPlaying.svelte` churn before layering gestures)
+**Requirements**: NP-01, NP-02, NP-03, NP-04, NP-05
+**Success Criteria** (what must be TRUE):
+
+  1. Swiping the cover left→right plays previous and right→left plays next, axis-locked so the sheet's vertical collapse and plain cover taps keep working
+  2. In the half-open state, scrolling the panel never scrolls the page behind it — scroll always applies to the front layer
+  3. In the half-open state, tapping the cover closes the subnav panel
+  4. A loading "running line" indicator shows at the very top of the now-playing view while a track is loading
+  5. A horizontal swipe on the nowbar mini-player changes track
+
+**Plans**: TBD
+**UI hint**: yes
+**Research flag**: LOW-MEDIUM — the cover-swipe vs sheet-collapse gesture collision (Pitfall 7) is the highest-risk interaction: never `setPointerCapture` on `pointerdown`, commit axis in `pointermove` after slop, sub-slop movement must still reach `onclick`. Reuses the existing slop/velocity idiom; no new gesture library.
+
+### Phase 21: Search & Cover Pipeline Polish
+
+**Goal**: Search returns the right songs with artwork and a sensible focus, and the playing track always has a cover — result scoring favors shorter (non-cover) titles and frequently-appearing artists while heavily penalizing sub-60s 試聽 clips, empty result covers resolve through the fallback chain, the empty-query search page auto-focuses the input without breaking state restoration, and covers resolve lazily on scroll with a uid-first/name-keyed cache so the same song never refetches.
+**Depends on**: Phase 16 (cover fallback wires into the player's `resolvedCover` for nowbar/MediaSession)
+**Requirements**: SRCH-01, SRCH-02, SRCH-03, COVER-01, COVER-02
+**Success Criteria** (what must be TRUE):
+
+  1. Result scoring boosts shorter titles and artists recurring across results, and heavily penalizes tracks under ~60s — without falsely penalizing sources that don't report duration
+  2. Search results with empty covers resolve them via the cover fallback chain
+  3. When the search page shows nothing because the query is empty, the input is auto-focused — without breaking cross-nav search-state restoration
+  4. The playing track's cover always renders in now-playing, the nowbar, and MediaSession even when the source returns none
+  5. Covers resolve lazily when scrolled into view and are cached (uid first, then name key) so the same song never refetches
+
+**Plans**: TBD
+**UI hint**: yes
+**Research flag**: LOW — `IntersectionObserver` cover-in-view + name-key cache (key by `uid` first to avoid collisions) are documented; scoring is pure logic.
+
+### Phase 22: Lyrics Polish
+
+**Goal**: The lyrics view is dependable — tapping a line seeks to its timestamp, touching/holding/scrolling suspends auto-scroll and resumes after idle, an end spacer lets the last lines center, CN LRCs highlight the original line (not the translation) as current, and "hide parenthesised translations" handles a wider set of brackets while never dropping a line that contains original lyrics.
+**Depends on**: Phase 20 (shares `NowPlaying.svelte`; sequenced after the gesture work to avoid merge churn)
+**Requirements**: LYR-01, LYR-02, LYR-03, LYR-04, LYR-05
+**Success Criteria** (what must be TRUE):
+
+  1. Tapping a lyric line seeks playback to that line's timestamp
+  2. While the user is touching/holding/scrolling the lyrics panel, auto-scroll to the current line is suspended and resumes after an idle delay (verified live, currently reported broken)
+  3. Lines near the end can still center — an end spacer is present so the current line always centers in the viewport
+  4. On CN LRCs where translation lines precede originals, the original line is highlighted as current (ordering bug fixed)
+  5. "Hide parenthesised translations" handles a wider set of bracket types and never drops a line containing original lyrics — only the bracketed translation content is hidden
+
+**Plans**: TBD
+**UI hint**: yes
+**Research flag**: LOW — pure logic with an existing test file (`lrc.test.ts`); touch-suspend needs live confirmation.
+
+### Phase 23: UX Audit & Homepage/Artist Polish
+
+**Goal**: The app reaches a YT-Music/Spotify-grade polish bar across surfaces — every loading text becomes a shape-matched skeleton, action buttons toast on click and resist double-taps, main list rows support swipe-actions, key actions give haptic feedback where supported, an accessibility pass adds aria-pressed/focus-traps/icon-button labels, and the homepage gains a per-section compact rows-of-4 mode with section-title navigation while the artist page hides trackless albums.
+**Depends on**: Phase 17 (settings plumbing for per-section density), Phase 21 (cover/skeleton patterns settle first)
+**Requirements**: UX-01, UX-02, UX-04, UX-05, UX-06, HOME-02, HOME-03, HOME-04, ART-01
+**Success Criteria** (what must be TRUE):
+
+  1. Every loading-text placeholder is replaced by a skeleton matching the shape/count/size of the loaded data; action buttons show a toast on click and are guarded against double-clicking
+  2. Track rows on main list surfaces support swipe-actions (swipe to queue / like), and key actions give haptic feedback where the platform supports it (Android; iOS Safari ignores)
+  3. An accessibility pass adds `aria-pressed` to toggle buttons, focus-trap to sheets/menus, and labels to all icon-only buttons
+  4. Any homepage section can be set to compact mode — rows of 4 with smaller covers, still horizontally scrollable — per section in settings; an option icon (and long-press) on a compact row opens the track menu
+  5. Each section title has a right-arrow that navigates to a dedicated grid/chart page (sections mirroring library content redirect to the matching library tab); albums with no tracks are hidden from the artist page
+
+**Plans**: TBD
+**UI hint**: yes
+**Research flag**: LOW — cross-cutting polish over existing components; no new infrastructure.
+
+### Phase 24: Offline App-Shell & Sharing/SEO
+
+**Goal**: Two genuinely net-new infrastructure capabilities land safely at the end of the milestone — the app shell loads offline via a service worker (which never caches `/api/*` or audio and evicts stale shells on deploy), downloaded songs play end-to-end while offline, online-only surfaces degrade gracefully, and sharing a song/album/artist produces a short readable link whose server-rendered OG metadata describes that entity with proper SEO on every page.
+**Depends on**: Phases 16–23 (a fully-working app to wrap); isolated at the end by design (highest deploy/blast-radius risk on Cloudflare)
+**Requirements**: OFFL-01, OFFL-02, OFFL-03, SHARE-01, SHARE-02, SHARE-03
+**Success Criteria** (what must be TRUE):
+
+  1. The app shell loads offline via a service worker that never caches `/api/*` or audio CDN responses and evicts stale shells on deploy (version-keyed activate)
+  2. Downloaded songs play end-to-end while offline (find in library → tap → plays from local blob)
+  3. Online-only surfaces degrade gracefully offline — a clear offline state with downloads promoted, no dead screens or stuck loaders
+  4. Sharing a song/album/artist produces a link whose OG metadata (title, description, image) describes that entity, server-rendered so crawlers and chat apps unfurl it
+  5. Share links are short and recognizable (readable slug + stable id) and every page carries proper SEO meta (title / description / canonical)
+
+**Plans**: TBD
+**UI hint**: yes
+**Research flag**: **NEEDS deeper research** — both halves are net-new infra with Cloudflare-specific behavior. Offline: SW lifecycle on Cloudflare Pages, iOS Safari PWA+SW+background-audio, cache-versioning on deploy, verify under `wrangler pages dev` (native `src/service-worker.ts`, NOT vite-pwa). SEO: `+page.server.ts` at edge, `og:image` strategy (unstable CDN cover vs composed card vs static), CJK slug encode/decode, scraper testing. Run `/gsd:plan-phase --research-phase 24` (consider splitting offline vs SEO into separate research spikes).
+
 ## Progress
 
 **Execution Order:**
-v1.0: Phases 1 → 7. v1.1 (read-only, ✅ shipped 2026-06-06): 8 → 9 → 10, plus 14 (responsiveness polish). v1.2 (write-side, deferred): 11 (auth) → 12 → 13.
+v1.0: Phases 1 → 7. v1.1 (read-only, ✅ shipped 2026-06-06): 8 → 9 → 10, plus 14 (responsiveness polish). Last.fm write-side (deferred → v1.3): 11 (auth) → 12 → 13.
+**v1.2 (Resilient Playback & UX Polish, current): 16 → 17 → 18 → 19 → 20 → 21 → 22 → 23 → 24.**
 
-v1.2 dependency chain: 11 (auth) before 12 & 13; Phase 8's match-key primitive feeds Phase 13's reconciliation.
+v1.2 dependency chain: 16 (resilience core) is the root — its `queueContext` feeds 17, its stable `ended`-handler feeds 18 (whose stop must not collide with the skip-loop guard), its queue engine feeds 19's Remix; 19 settles `NowPlaying.svelte` before 20 layers gestures; 22 (lyrics) follows 20 to avoid merge churn on the same file; 17's settings plumbing + 21's cover/skeleton patterns feed 23; 24 (offline SW + SEO) is net-new infra isolated last (highest Cloudflare blast radius, both halves flagged for `--research-phase`).
+
+Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 13; Phase 8's match-key primitive feeds Phase 13's reconciliation.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -356,7 +529,16 @@ v1.2 dependency chain: 11 (auth) before 12 & 13; Phase 8's match-key primitive f
 | 8. Last.fm Read Foundation & Metadata Enrichment | 3/3 | Complete   | 2026-06-06 |
 | 9. Discovery / Hot-Picks Tab | 3/3 | Complete   | 2026-06-06 |
 | 10. Last.fm-searchable Source | 1/1 | Complete   | 2026-06-06 |
-| 11. Signed-call Infrastructure & Auth | 0/TBD | Deferred → v1.2 | - |
-| 12. Scrobbling (online-only) | 0/TBD | Deferred → v1.2 | - |
-| 13. Loved-Tracks Sync | 0/TBD | Deferred → v1.2 | - |
+| 11. Signed-call Infrastructure & Auth | 0/TBD | Deferred → v1.3 | - |
+| 12. Scrobbling (online-only) | 0/TBD | Deferred → v1.3 | - |
+| 13. Loved-Tracks Sync | 0/TBD | Deferred → v1.3 | - |
 | 14. Search & Data Responsiveness | 2/2 | Complete    | 2026-06-06 |
+| 16. Playback Resilience Core | 0/TBD | Not started | - |
+| 17. Up-Next Sourcing + Settings Plumbing | 0/TBD | Not started | - |
+| 18. Sleep Timer | 0/TBD | Not started | - |
+| 19. Track Menu Rework | 0/TBD | Not started | - |
+| 20. Now-Playing Surface & Gestures | 0/TBD | Not started | - |
+| 21. Search & Cover Pipeline Polish | 0/TBD | Not started | - |
+| 22. Lyrics Polish | 0/TBD | Not started | - |
+| 23. UX Audit & Homepage/Artist Polish | 0/TBD | Not started | - |
+| 24. Offline App-Shell & Sharing/SEO | 0/TBD | Not started | - |

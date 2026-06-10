@@ -20,6 +20,7 @@ import { buildArtwork, safePositionState, playbackStateFor } from '$lib/services
 import { resolveStub } from '$lib/services/discovery';
 import { blobStore } from '$lib/services/blob-store';
 import { settings } from '$lib/stores/settings.svelte';
+import type { QueueContext } from '$lib/config/defaults';
 import { history } from '$lib/stores/history.svelte';
 import { library } from '$lib/stores/library.svelte';
 import { names } from '$lib/stores/names.svelte';
@@ -155,6 +156,13 @@ class Player {
 	expanded = $state(false);
 	/** Lightweight "Up-Next" — the result set the current track came from (Phase 7 = real queue). */
 	queue = $state<Track[]>([]);
+	/** Which surface started the current queue (Phase 17, QUEUE-03). Set by every play-entry
+	 *  call site via setQueue/playStub; read in the fresh-play path to resolve the effective
+	 *  sourcing mode (same-list vs generated). User-visible state, so it IS `$state` — but it is
+	 *  intentionally NOT persisted (reload → null → resolves to the global 'generated' default,
+	 *  the safe behavior). Mirrors the manualUids side-state discipline: one player field, never
+	 *  a per-Track field. */
+	queueContext = $state<QueueContext>(null);
 
 	/** Shuffle on: toggling true randomizes queue tail (current pinned). Off = no auto-shuffle on
 	 * next play, but the already-shuffled queue stays as is (gte: user-specified, no unshuffle). */
@@ -698,9 +706,12 @@ class Player {
 		});
 	}
 
-	/** Set the active list (home grid / search results) as the Up-Next source. */
-	setQueue(tracks: Track[]) {
+	/** Set the active list (home grid / search results) as the Up-Next source. The optional
+	 *  `context` records which surface started the queue (Phase 17, QUEUE-03) so the fresh-play
+	 *  path can resolve the effective sourcing mode. Defaults to null (unknown → global default). */
+	setQueue(tracks: Track[], context: QueueContext = null) {
 		this.queue = dedupeBest(tracks, settings.preferredSource);
+		this.queueContext = context;
 		this.persist();
 	}
 
@@ -827,7 +838,12 @@ class Player {
 	 * Returns the resolved Track on success, or null on a miss OR a supersede. Never throws
 	 * (resolveStub is best-effort; this wraps it defensively too).
 	 */
-	async playStub(artist: string, title: string, cover?: string | null): Promise<Track | null> {
+	async playStub(
+		artist: string,
+		title: string,
+		cover?: string | null,
+		context: QueueContext = null
+	): Promise<Track | null> {
 		const key = `${artist}${PENDING_KEY_SEP}${title}`.toLowerCase().trim();
 
 		// Dedupe: same song tapped again while its resolve is still in flight → no-op.
@@ -855,7 +871,7 @@ class Player {
 			// Hand off to the real player. Clear the optimistic overlay; play() sets `current`
 			// (and owns loading from here) so there is no flicker of a stale pending bar.
 			this.pendingTrack = null;
-			this.setQueue([tr]);
+			this.setQueue([tr], context);
 			void this.play(tr, { fresh: true });
 			return tr;
 		}
@@ -899,7 +915,10 @@ class Player {
 		// Fallback continuations DO NOT re-record — history reflects user intent, not the
 		// resolved source we ended up playing.
 		if (!opts?.fromFallback) history.record(track);
-		if (settings.autoExpandOnPlay) this.expanded = true;
+		// D-05: auto-expand fires ONLY on explicit fresh user plays — never on auto-advance,
+		// failover skip, or queue progression (those call play() without opts.fresh). Fixes the
+		// track-change auto-expand bug where the nowbar jumped open on every advance.
+		if (opts?.fresh && settings.autoExpandOnPlay) this.expanded = true;
 		try {
 			// Offline-first: if the track is in library.downloads AND we have its blob cached,
 			// skip the network resolve entirely and play straight from the local blob. The
@@ -1017,10 +1036,20 @@ class Player {
 					/* rejection owned by the stall watchdog — see comment above */
 				});
 			}
-			// Fresh play -> regenerate the auto portion (best-effort, never blocks
-			// playback). Otherwise just keep the queue topped up via auto-grow.
-			if (opts?.fresh) void this.regenerate(resolved);
-			else void this.ensureAhead();
+			// Fresh play -> per-context sourcing branch (Phase 17, D-03/D-04). 'generated'
+			// (global default) regenerates the auto portion from genre-similar songs; 'same-list'
+			// keeps the snapshot the caller passed via setQueue (search results / liked list /
+			// etc.) and only tops it up on exhaust via ensureAhead (the snapshot still grows when
+			// it runs out — D-03). A non-fresh play (auto-advance/failover) never regenerates.
+			if (opts?.fresh) {
+				if (settings.effectiveUpnextMode(this.queueContext) === 'generated') {
+					void this.regenerate(resolved);
+				} else {
+					void this.ensureAhead();
+				}
+			} else {
+				void this.ensureAhead();
+			}
 			// Pre-resolve the NEXT track so next()/track-end starts instantly. Best-effort,
 			// non-blocking (like ensureAhead/regenerate above). Fired AFTER ensureAhead so a
 			// freshly-grown tail exists to be prefetched on the next play()/tick; prefetchNext

@@ -486,7 +486,7 @@
 					topArtists = [];
 					tagShelves = [];
 					countryShelves = [];
-					if (seedQueue) player.setQueue(picks);
+					if (seedQueue) player.setQueue(picks, 'home-discovery');
 					saveCache({
 						v: 2,
 						topHits: [],
@@ -516,7 +516,7 @@
 	// at the NEWER song (no toast), a miss clears pendingTrack (toast). Cover-if-known is
 	// passed so the optimistic bar shows real art immediately when available.
 	async function playStub(item: DiscoveryTrack) {
-		const tr = await player.playStub(item.artist, item.title, item.image);
+		const tr = await player.playStub(item.artist, item.title, item.image, 'home-discovery');
 		if (tr === null && player.pendingTrack == null) toast(t('home.unplayable'));
 	}
 
@@ -569,7 +569,7 @@
 		if (token) {
 			const tr = decodeTrack(token);
 			if (tr) {
-				player.setQueue([tr]);
+				player.setQueue([tr], 'home-discovery');
 				player.play(tr);
 			}
 			history.replaceState(null, '', location.pathname); // clear the param
@@ -581,7 +581,7 @@
 			applyCache(cached);
 			// Re-seed the queue only for the fallback grid (discovery taps resolve-on-tap).
 			if (!token && cached.useFallback && cached.fallback.length) {
-				player.setQueue(cached.fallback);
+				player.setQueue(cached.fallback, 'home-discovery');
 			}
 			loading = false;
 			scheduleBackfill(); // FIX-A: backfill covers for the just-applied cached shelves
@@ -627,7 +627,7 @@
 		<!-- D-06 fallback: the random buildDiversePicks grid (real Tracks → tap-to-play). -->
 		<div class="grid">
 			{#each fallbackSongs as track (track.uid)}
-				<button class="tile" use:longpress onlongpress={() => { menuTrack = track; menuOpen = true; }} onclick={() => { player.setQueue(fallbackSongs); player.play(track); }}>
+				<button class="tile" use:longpress onlongpress={() => { menuTrack = track; menuOpen = true; }} onclick={() => { player.setQueue(fallbackSongs, 'home-discovery'); player.play(track); }}>
 					<div class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track.uid)}></div>
 					{#if track.qualityLabel || track.quality}<span class="q">{track.qualityLabel ?? track.quality}</span>{/if}
 					<div class="scrim"></div>

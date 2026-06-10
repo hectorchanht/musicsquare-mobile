@@ -270,7 +270,26 @@ const pt: Dict = {
 	"album.loading": "Carregando álbum…",
 	"album.noTracks": "Nenhuma faixa encontrada para \"{name}\".",
 	"album.openFromArtist": "Abra este álbum na página de um artista para ver sua lista de faixas.",
-	"album.unplayable": "Não foi possível encontrar uma versão jogável"
+	"album.unplayable": "Não foi possível encontrar uma versão jogável",
+
+	// --- Phase 17: up-next sourcing + deezer enrichment + queue clear ---
+	'settings.upnextSourcing': 'Up-next sourcing',
+	'settings.upnextSameList': 'Same list',
+	'settings.upnextGenerated': 'Genre-generated',
+	'settings.ctxSearch': 'Search',
+	'settings.ctxAlbum': 'Album',
+	'settings.ctxArtist': 'Artist',
+	'settings.ctxHomeDiscovery': 'Home',
+	'settings.demoPrefix': 'example {name}',
+	'nowplaying.clearQueue': 'Clear',
+	'deezer.fans': 'Fans',
+	'deezer.albums': 'Albums',
+	'deezer.released': 'Released',
+	'deezer.label': 'Label',
+	'deezer.genres': 'Genres',
+	'deezer.tracks': 'Tracks',
+	'deezer.duration': 'Duration',
+
 };
 
 export default pt;

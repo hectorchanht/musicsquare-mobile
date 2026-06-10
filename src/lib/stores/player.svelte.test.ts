@@ -40,6 +40,7 @@ const localStorageMock: Storage = {
 vi.stubGlobal('localStorage', localStorageMock);
 
 import { player } from './player.svelte';
+import { settings } from './settings.svelte';
 import { library } from '$lib/stores/library.svelte';
 import { resolveStub } from '$lib/services/discovery';
 import { ensureTrackDetails } from '$lib/services/catalog';
@@ -936,5 +937,123 @@ describe('player.reresolveCurrent — gen guard after the blob await (WR-02)', (
 		// reresolveCurrent must have bailed on the post-blob gen re-check — the src a concurrent
 		// play() set is NOT clobbered with the stale re-resolved URL.
 		expect(el.src).toBe('NEW-SRC-FROM-PLAY');
+	});
+});
+
+describe('player.queueContext — context-threaded setQueue/playStub (Phase 17 QUEUE-03)', () => {
+	// These use the global beforeEach's MOCKED play() — we only assert queueContext + that play
+	// is handed the resolved track. setQueue is a synchronous field set, no real <audio> needed.
+	it("setQueue(tracks, 'search') sets queueContext to 'search'", () => {
+		player.setQueue([mk('netease', '1', 'A', 'S')], 'search');
+		expect(player.queueContext).toBe('search');
+	});
+
+	it('setQueue(tracks) with no context defaults queueContext to null', () => {
+		player.setQueue([mk('netease', '1', 'A', 'S')], 'liked'); // first set a non-null context
+		player.setQueue([mk('qq', '2', 'B', 'T')]); // then call with no arg
+		expect(player.queueContext).toBeNull();
+	});
+
+	it("playStub threads its context arg through the internal setQueue", async () => {
+		const track = mk('netease', 'hit', '周杰伦', '稻香');
+		mockResolve.mockResolvedValue(track);
+		await player.playStub('周杰伦', '稻香', null, 'home-discovery');
+		await flush();
+		expect(player.queueContext).toBe('home-discovery');
+		expect(player.play).toHaveBeenCalledWith(track, { fresh: true });
+	});
+
+	it('queueContext is NOT written to the persisted player snapshot', () => {
+		player.current = mk('netease', '1', 'A', 'S');
+		player.setQueue([mk('netease', '1', 'A', 'S')], 'album');
+		const raw = localStorage.getItem('openmusic:player:v1');
+		expect(raw).toBeTruthy();
+		expect(JSON.parse(raw as string)).not.toHaveProperty('queueContext');
+	});
+});
+
+describe('player.play — auto-expand fresh-only guard + per-context branch (Phase 17 QUEUE-01/D-05)', () => {
+	// Exercise the REAL play() (restore the global spy) with a fake <audio>, mocked resolve, and
+	// spies on the private regenerate/ensureAhead so we observe the branch without real network.
+	let el: ReturnType<typeof makeFakeAudio>;
+	const resolved = (s: SourceId, id: string): Track => ({
+		...mk(s, id, 'Artist', 'Song'),
+		audioUrl: `https://cdn/${id}.mp3`
+	});
+
+	beforeEach(() => {
+		(player.play as unknown as { mockRestore(): void }).mockRestore?.();
+		mockEnsure.mockReset();
+		player.current = null;
+		player.queue = [];
+		player.queueContext = null;
+		player.expanded = false;
+		player.error = null;
+		player.loading = false;
+		vi.stubGlobal('navigator', { onLine: true });
+		el = makeFakeAudio();
+		player.attach(el as unknown as HTMLAudioElement);
+		vi.spyOn(library, 'isDownloaded').mockReturnValue(false);
+		// Restore default settings so each case controls them explicitly.
+		settings.autoExpandOnPlay = false;
+		settings.upnextMode = 'generated';
+		settings.upnextPerContext = {};
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		settings.autoExpandOnPlay = false;
+		settings.upnextMode = 'generated';
+		settings.upnextPerContext = {};
+	});
+
+	it('autoExpandOnPlay=true: a fresh play expands; a non-fresh play does NOT (D-05)', async () => {
+		settings.autoExpandOnPlay = true;
+		const r = resolved('netease', 'F');
+		mockEnsure.mockResolvedValue(r);
+
+		await player.play(stub('netease', 'F', 'Artist', 'Song'), { fresh: true });
+		await flush();
+		expect(player.expanded).toBe(true);
+
+		// Reset, then a non-fresh play (auto-advance/failover path) must leave expanded unchanged.
+		player.expanded = false;
+		mockEnsure.mockResolvedValue(resolved('qq', 'N'));
+		await player.play(stub('qq', 'N', 'Artist', 'Song')); // no opts.fresh
+		await flush();
+		expect(player.expanded).toBe(false);
+	});
+
+	it("a fresh play in a 'generated' context regenerates (similar-queue path)", async () => {
+		const regenSpy = vi
+			.spyOn(player as unknown as { regenerate(t: Track): Promise<void> }, 'regenerate')
+			.mockResolvedValue(undefined);
+		const aheadSpy = vi
+			.spyOn(player as unknown as { ensureAhead(): Promise<void> }, 'ensureAhead')
+			.mockResolvedValue(undefined);
+		player.queueContext = 'search'; // 'search' resolves to global 'generated' default
+		mockEnsure.mockResolvedValue(resolved('netease', 'G'));
+
+		await player.play(stub('netease', 'G', 'Artist', 'Song'), { fresh: true });
+		await flush();
+		expect(regenSpy).toHaveBeenCalledTimes(1);
+		expect(aheadSpy).not.toHaveBeenCalled();
+	});
+
+	it("a fresh play in a 'same-list' context does NOT regenerate (snapshot survives)", async () => {
+		const regenSpy = vi
+			.spyOn(player as unknown as { regenerate(t: Track): Promise<void> }, 'regenerate')
+			.mockResolvedValue(undefined);
+		const aheadSpy = vi
+			.spyOn(player as unknown as { ensureAhead(): Promise<void> }, 'ensureAhead')
+			.mockResolvedValue(undefined);
+		settings.upnextPerContext = { liked: 'same-list' };
+		player.queueContext = 'liked';
+		mockEnsure.mockResolvedValue(resolved('netease', 'S'));
+
+		await player.play(stub('netease', 'S', 'Artist', 'Song'), { fresh: true });
+		await flush();
+		expect(regenSpy).not.toHaveBeenCalled();
+		expect(aheadSpy).toHaveBeenCalledTimes(1); // snapshot still grows on exhaust (D-03)
 	});
 });

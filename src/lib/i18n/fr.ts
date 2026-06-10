@@ -270,7 +270,26 @@ const fr: Dict = {
 	"album.loading": "Chargement de l'album…",
 	"album.noTracks": "Aucune piste trouvée pour \"{name}\".",
 	"album.openFromArtist": "Ouvrez cet album à partir d'une page d'artiste pour voir sa tracklist.",
-	"album.unplayable": "Impossible de trouver une version jouable"
+	"album.unplayable": "Impossible de trouver une version jouable",
+
+	// --- Phase 17: up-next sourcing + deezer enrichment + queue clear ---
+	'settings.upnextSourcing': 'Up-next sourcing',
+	'settings.upnextSameList': 'Same list',
+	'settings.upnextGenerated': 'Genre-generated',
+	'settings.ctxSearch': 'Search',
+	'settings.ctxAlbum': 'Album',
+	'settings.ctxArtist': 'Artist',
+	'settings.ctxHomeDiscovery': 'Home',
+	'settings.demoPrefix': 'example {name}',
+	'nowplaying.clearQueue': 'Clear',
+	'deezer.fans': 'Fans',
+	'deezer.albums': 'Albums',
+	'deezer.released': 'Released',
+	'deezer.label': 'Label',
+	'deezer.genres': 'Genres',
+	'deezer.tracks': 'Tracks',
+	'deezer.duration': 'Duration',
+
 };
 
 export default fr;

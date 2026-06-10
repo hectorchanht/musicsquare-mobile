@@ -14,6 +14,7 @@
 	import { longpress } from '$lib/actions/longpress';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import type { Track } from '$lib/sources/types';
+	import type { QueueContext } from '$lib/config/defaults';
 
 	type Tab = 'liked' | 'playlists' | 'downloads' | 'fav-artists' | 'history';
 	const VALID_TABS: ReadonlySet<Tab> = new Set(['liked', 'playlists', 'downloads', 'fav-artists', 'history']);
@@ -112,12 +113,15 @@
 		return `linear-gradient(145deg, hsl(${h} 55% 32%), hsl(${(h + 40) % 360} 55% 18%))`;
 	}
 	function playList(list: Track[], t: Track) {
-		player.setQueue(list);
+		// Phase 17 (QUEUE-03): pass the active tab's queue context so per-context sourcing
+		// resolves. 'playlists' tab → the 'playlist' context (singular QueueContext token).
+		const ctx: QueueContext = tab === 'playlists' ? 'playlist' : tab === 'downloads' ? 'downloads' : 'liked';
+		player.setQueue(list, ctx);
 		player.play(t);
 	}
 	// Listen history: replay slice (audioUrl re-resolves on play), moved here from settings.
 	function playEntry(track: Track) {
-		player.setQueue(history.entries as Track[]);
+		player.setQueue(history.entries as Track[], 'history');
 		player.play(track);
 	}
 </script>

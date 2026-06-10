@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { ChevronLeft, Music, Radio, Zap, Maximize2, Download, Sliders } from '@lucide/svelte';
+	import { ChevronLeft, Music, Radio, Zap, Maximize2, Download, Sliders, ListMusic } from '@lucide/svelte';
 	import { settings, type DefaultQuality, type DefaultSource } from '$lib/stores/settings.svelte';
+	import type { UpnextMode, QueueContext } from '$lib/config/defaults';
 	import { SOURCES } from '$lib/sources/registry';
 	import type { SourceId } from '$lib/sources/types';
 	import { t, type TranslationKey } from '$lib/i18n';
@@ -38,6 +39,26 @@
 	function toggleSource(id: SourceId) {
 		const cur = sourceEnabled(id);
 		settings.enabledSources = { ...settings.enabledSources, [id]: !cur };
+		settings.save();
+	}
+
+	// Phase 17 (QUEUE-03 / D-01/D-02): per-context up-next sourcing. One selector row per
+	// context (Settings → Playback ONLY — no queue-header chip). Each row reflects the
+	// effective mode and writes a per-context override, mirroring the setSource handler.
+	// Labels reuse existing surface keys where they exist (liked/playlists/downloads/history/
+	// album) and use the Phase-17 ctx* keys for the rest.
+	const upnextContexts: { ctx: Exclude<QueueContext, null>; key: TranslationKey }[] = [
+		{ ctx: 'liked', key: 'library.liked' },
+		{ ctx: 'search', key: 'settings.ctxSearch' },
+		{ ctx: 'downloads', key: 'library.downloads' },
+		{ ctx: 'playlist', key: 'library.playlists' },
+		{ ctx: 'album', key: 'settings.ctxAlbum' },
+		{ ctx: 'artist', key: 'settings.ctxArtist' },
+		{ ctx: 'home-discovery', key: 'settings.ctxHomeDiscovery' },
+		{ ctx: 'history', key: 'history.heading' }
+	];
+	function setUpnext(ctx: Exclude<QueueContext, null>, v: UpnextMode) {
+		settings.upnextPerContext = { ...settings.upnextPerContext, [ctx]: v };
 		settings.save();
 	}
 </script>
@@ -88,6 +109,25 @@
 	</button>
 </section>
 
+<section>
+	<h2><ListMusic size={15} /> {t('settings.upnextSourcing')}</h2>
+	{#each upnextContexts as c (c.ctx)}
+		<div class="upnext-row">
+			<span class="ctx-label">{t(c.key)}</span>
+			<div class="seg">
+				<button
+					class:on={settings.effectiveUpnextMode(c.ctx) === 'same-list'}
+					onclick={() => setUpnext(c.ctx, 'same-list')}>{t('settings.upnextSameList')}</button
+				>
+				<button
+					class:on={settings.effectiveUpnextMode(c.ctx) === 'generated'}
+					onclick={() => setUpnext(c.ctx, 'generated')}>{t('settings.upnextGenerated')}</button
+				>
+			</div>
+		</div>
+	{/each}
+</section>
+
 <!-- ii6: Advanced > Sources — tucked behind a <details> accordion so the Playback tab
 	   stays speed/quality-first. Lets a user opt INTO 5sing (enabledByDefault:false). -->
 <details class="advanced">
@@ -122,6 +162,9 @@
 	.sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform 0.15s ease; }
 	.sw.on { background: var(--color-primary); }
 	.sw.on::after { transform: translateX(18px); }
+	.upnext-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; }
+	.upnext-row .ctx-label { font-size: 14px; color: var(--color-text); }
+	.upnext-row .seg button { padding: 6px 12px; font-size: 12px; }
 	.advanced { margin: 22px 0; padding: 10px 12px; background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: 12px; }
 	.advanced summary { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-muted); cursor: pointer; padding: 4px 0; }
 	.advanced .chips { margin-top: 12px; }

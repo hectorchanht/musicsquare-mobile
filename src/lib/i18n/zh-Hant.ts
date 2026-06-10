@@ -300,7 +300,26 @@ const zhHant: Dict = {
 	'album.loading': '載入專輯中…',
 	'album.noTracks': '找不到「{name}」的歌曲。',
 	'album.openFromArtist': '請從歌手頁面開啟此專輯以查看曲目清單。',
-	'album.unplayable': '找不到可播放的版本'
+	'album.unplayable': '找不到可播放的版本',
+
+	// --- Phase 17: up-next sourcing + deezer enrichment + queue clear ---
+	'settings.upnextSourcing': '接下來播放的來源',
+	'settings.upnextSameList': '同一清單',
+	'settings.upnextGenerated': '依曲風生成',
+	'settings.ctxSearch': '搜尋',
+	'settings.ctxAlbum': '專輯',
+	'settings.ctxArtist': '歌手',
+	'settings.ctxHomeDiscovery': '首頁',
+	'settings.demoPrefix': '範例 {name}',
+	'nowplaying.clearQueue': '清除',
+	'deezer.fans': '粉絲',
+	'deezer.albums': '專輯',
+	'deezer.released': '發行日期',
+	'deezer.label': '廠牌',
+	'deezer.genres': '曲風',
+	'deezer.tracks': '曲目',
+	'deezer.duration': '時長',
+
 };
 
 export default zhHant;

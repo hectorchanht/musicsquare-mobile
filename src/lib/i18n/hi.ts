@@ -270,7 +270,26 @@ const hi: Dict = {
 	"album.loading": "एल्बम लोड हो रहा है...",
 	"album.noTracks": "No tracks found for \"{name}\".",
 	"album.openFromArtist": "इस एल्बम की ट्रैकलिस्ट देखने के लिए इसे किसी कलाकार पृष्ठ से खोलें।",
-	"album.unplayable": "खेलने योग्य संस्करण नहीं मिल सका"
+	"album.unplayable": "खेलने योग्य संस्करण नहीं मिल सका",
+
+	// --- Phase 17: up-next sourcing + deezer enrichment + queue clear ---
+	'settings.upnextSourcing': 'Up-next sourcing',
+	'settings.upnextSameList': 'Same list',
+	'settings.upnextGenerated': 'Genre-generated',
+	'settings.ctxSearch': 'Search',
+	'settings.ctxAlbum': 'Album',
+	'settings.ctxArtist': 'Artist',
+	'settings.ctxHomeDiscovery': 'Home',
+	'settings.demoPrefix': 'example {name}',
+	'nowplaying.clearQueue': 'Clear',
+	'deezer.fans': 'Fans',
+	'deezer.albums': 'Albums',
+	'deezer.released': 'Released',
+	'deezer.label': 'Label',
+	'deezer.genres': 'Genres',
+	'deezer.tracks': 'Tracks',
+	'deezer.duration': 'Duration',
+
 };
 
 export default hi;

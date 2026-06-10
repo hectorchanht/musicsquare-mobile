@@ -381,7 +381,7 @@
 	<ul class="list">
 		{#each results as t (t.uid)}
 			<li>
-				<button class="row" use:longpress onlongpress={() => { menuTrack = t; menuOpen = true; }} onclick={() => { player.setQueue(results); player.play(t); }}>
+				<button class="row" use:longpress onlongpress={() => { menuTrack = t; menuOpen = true; }} onclick={() => { player.setQueue(results, 'search'); player.play(t); }}>
 					<span class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></span>
 					<span class="meta">
 						<span class="r-title">{names.dnTitle(t.title)}</span>

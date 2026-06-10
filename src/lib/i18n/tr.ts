@@ -270,7 +270,26 @@ const tr: Dict = {
 	"album.loading": "Albüm yükleniyor…",
 	"album.noTracks": "\"{name}\" için parça bulunamadı.",
 	"album.openFromArtist": "Parça listesini görmek için bu albümü bir sanatçı sayfasından açın.",
-	"album.unplayable": "Oynanabilir bir sürüm bulunamadı"
+	"album.unplayable": "Oynanabilir bir sürüm bulunamadı",
+
+	// --- Phase 17: up-next sourcing + deezer enrichment + queue clear ---
+	'settings.upnextSourcing': 'Up-next sourcing',
+	'settings.upnextSameList': 'Same list',
+	'settings.upnextGenerated': 'Genre-generated',
+	'settings.ctxSearch': 'Search',
+	'settings.ctxAlbum': 'Album',
+	'settings.ctxArtist': 'Artist',
+	'settings.ctxHomeDiscovery': 'Home',
+	'settings.demoPrefix': 'example {name}',
+	'nowplaying.clearQueue': 'Clear',
+	'deezer.fans': 'Fans',
+	'deezer.albums': 'Albums',
+	'deezer.released': 'Released',
+	'deezer.label': 'Label',
+	'deezer.genres': 'Genres',
+	'deezer.tracks': 'Tracks',
+	'deezer.duration': 'Duration',
+
 };
 
 export default tr;

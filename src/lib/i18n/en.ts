@@ -135,6 +135,19 @@ const en = {
 	'settings.lyricsTranslateMode': 'Lyrics translate mode',
 	'settings.bioAuto': 'Auto (app language)',
 
+	// --- settings: up-next sourcing (Phase 17, QUEUE-03) ---
+	'settings.upnextSourcing': 'Up-next sourcing',
+	'settings.upnextSameList': 'Same list',
+	'settings.upnextGenerated': 'Genre-generated',
+	// Per-context labels — only the contexts without a reusable existing key. liked/playlists/
+	// downloads reuse library.*; history reuses history.heading.
+	'settings.ctxSearch': 'Search',
+	'settings.ctxAlbum': 'Album',
+	'settings.ctxArtist': 'Artist',
+	'settings.ctxHomeDiscovery': 'Home',
+	// Text-size demo (Phase 17, UX-03) — single interpolation key, NOT per-slider strings.
+	'settings.demoPrefix': 'example {name}',
+
 	// --- settings: home layout (quick-260606-w87) ---
 	'settings.groupHome': 'Home layout',
 	'settings.groupHomeDesc': 'Sections, genres, density, landing',
@@ -195,6 +208,7 @@ const en = {
 	'nowplaying.collapsePanel': 'Collapse panel',
 	'nowplaying.expandPanel': 'Expand panel',
 	'nowplaying.upNext': 'Up Next',
+	'nowplaying.clearQueue': 'Clear',
 	'nowplaying.lyrics': 'Lyrics',
 	'nowplaying.related': 'Related',
 	'nowplaying.reorderTrack': 'Reorder track',
@@ -300,7 +314,17 @@ const en = {
 	'album.loading': 'Loading album…',
 	'album.noTracks': 'No tracks found for "{name}".',
 	'album.openFromArtist': 'Open this album from an artist page to see its tracklist.',
-	'album.unplayable': "Couldn't find a playable version"
+	'album.unplayable': "Couldn't find a playable version",
+
+	// --- deezer enrichment sections (Phase 17, ENRICH-04 — Plan 04 consumers) ---
+	// Numeric counts render as a number + ONE unit key (never per-count strings).
+	'deezer.fans': 'Fans',
+	'deezer.albums': 'Albums',
+	'deezer.released': 'Released',
+	'deezer.label': 'Label',
+	'deezer.genres': 'Genres',
+	'deezer.tracks': 'Tracks',
+	'deezer.duration': 'Duration'
 } as const;
 
 export default en;

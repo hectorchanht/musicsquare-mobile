@@ -3,7 +3,7 @@
 import { browser } from '$app/environment';
 import type { SourceId } from '$lib/sources/types';
 import { detectAppLang, type AppLang } from '$lib/i18n';
-import { DEFAULTS } from '$lib/config/defaults';
+import { DEFAULTS, UPNEXT_DEFAULTS, type UpnextMode, type QueueContext } from '$lib/config/defaults';
 import {
 	DEFAULT_SECTION_ORDER,
 	clampShelfSize,
@@ -103,6 +103,12 @@ class Settings {
 	 *  `enabledByDefault`. Explicit true/false overrides. Lets a user opt INTO 5sing
 	 *  (`enabledByDefault: false`) without changing the adapter contract. */
 	enabledSources = $state<Partial<Record<SourceId, boolean>>>({});
+	/** Global up-next sourcing mode (Phase 17, QUEUE-03). Used when a context has no override
+	 *  AND as the fallback for an unknown (`null`) context. Roadmap-locked default 'generated'. */
+	upnextMode = $state<UpnextMode>(UPNEXT_DEFAULTS.mode);
+	/** Per-context up-next sourcing overrides (D-01). Absent key → falls back to `upnextMode`.
+	 *  Persisted (load/save) with a defensive parse mirroring `enabledSources`. */
+	upnextPerContext = $state<Partial<Record<Exclude<QueueContext, null>, UpnextMode>>>({});
 	/** Bio (Last.fm artist bio) target language. `'auto'` = follow appLang (default); `'off'` =
 	 * untranslated; otherwise an explicit language (quick-260607-fnp; supersedes the f4y note). */
 	bioLang = $state<'auto' | LyricsLang>('auto');
@@ -203,6 +209,17 @@ class Settings {
 					v.enabledSources && typeof v.enabledSources === 'object' && !Array.isArray(v.enabledSources)
 						? (v.enabledSources as Partial<Record<SourceId, boolean>>)
 						: {};
+				// Up-next sourcing (Phase 17). perContext: same object-not-array guard as
+				// enabledSources (T-17-01 — malformed → safe {}); mode validated against the
+				// 2-value union, else the global default. Absent → defaults, no migration.
+				this.upnextPerContext =
+					v.upnextPerContext && typeof v.upnextPerContext === 'object' && !Array.isArray(v.upnextPerContext)
+						? (v.upnextPerContext as Partial<Record<Exclude<QueueContext, null>, UpnextMode>>)
+						: {};
+				this.upnextMode =
+					v.upnextMode === 'same-list' || v.upnextMode === 'generated'
+						? v.upnextMode
+						: UPNEXT_DEFAULTS.mode;
 				this.bioLang = (v.bioLang as 'auto' | LyricsLang) ?? 'auto';
 				// Appearance scales (fnp): clamp to safe bounds; absent → today's 100 / 3 cols.
 				this.fontScaleTitle = clampInt(v.fontScaleTitle, FONT_SCALE_MIN, FONT_SCALE_MAX, 100);
@@ -272,6 +289,8 @@ class Settings {
 					lyricsSkip: this.lyricsSkip,
 					lastfmSkip: this.lastfmSkip,
 					enabledSources: this.enabledSources,
+					upnextPerContext: this.upnextPerContext,
+					upnextMode: this.upnextMode,
 					bioLang: this.bioLang,
 					fontScaleTitle: this.fontScaleTitle,
 					fontScaleArtist: this.fontScaleArtist,
@@ -379,7 +398,18 @@ class Settings {
 		this.defaultSource = d.defaultSource;
 		this.autoExpandOnPlay = d.autoExpandOnPlay;
 		this.enabledSources = { ...d.enabledSources };
+		this.upnextPerContext = { ...DEFAULTS.upnext.perContext };
+		this.upnextMode = DEFAULTS.upnext.mode;
 		this.save();
+	}
+
+	/** Resolve the effective up-next sourcing mode for a queue context (Phase 17, QUEUE-03).
+	 *  A `null` (unknown) context resolves to the global `upnextMode`; otherwise a per-context
+	 *  override wins, falling back to the global default. Settings stays a LEAF store — this
+	 *  resolver depends on no other store. */
+	effectiveUpnextMode(ctx: QueueContext): UpnextMode {
+		if (!ctx) return this.upnextMode;
+		return this.upnextPerContext[ctx] ?? this.upnextMode;
 	}
 
 	/** Reset the Home layout settings (section order/hidden + tag/country selection + size +

@@ -1422,6 +1422,7 @@ class Player {
 		next.splice(target, 0, moved);
 		this.queue = next;
 		this.manualUids.add(moved.uid); // reordered = pinned manual
+		this.persist(); // WR-05: every queue mutation persists — a reload keeps the user's order
 	}
 
 	/** Seek to a fraction [0,1] of the track. */

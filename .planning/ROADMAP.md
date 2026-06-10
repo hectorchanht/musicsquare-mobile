@@ -348,7 +348,7 @@ Music never stops + offline downloads + a broad UX polish pass. This is a polish
 
 ### Phases (v1.2)
 
-- [ ] **Phase 16: Playback Resilience Core** - Never-stop player: all-source failover → toast + auto-skip, ~5-skip loop-guard, prefetch-next, auto-generate-on-exhaust, offline short-circuit, 2-state repeat
+- [x] **Phase 16: Playback Resilience Core** - Never-stop player: all-source failover → toast + auto-skip, ~5-skip loop-guard, prefetch-next, auto-generate-on-exhaust, offline short-circuit, 2-state repeat (completed 2026-06-10)
 - [ ] **Phase 17: Up-Next Sourcing + Settings Plumbing** - Per-context up-next setting (same-list vs genre-generated, default generated), search-doesn't-append + no auto-expand, queue swipe-remove + clear, widened text-size demo, accent-wiring verify, Deezer artist/album enrichment
 - [ ] **Phase 18: Sleep Timer** - Sleep timer (5/10/15/30/45/60 min or end-of-track) from the track menu with active indicator + cancel/change
 - [ ] **Phase 19: Track Menu Rework** - Instant buttons + background resolve-then-act, 2-row marquee header, top-right like/close, Remix (seed genre queue), long-press focus-state fix
@@ -385,7 +385,7 @@ Plans:
 
 **Wave 3** *(blocked on 16-02 — consumes player.notice)*
 
-- [ ] 16-03-PLAN.md — Layout toast host (auto-dismiss skip/batched + sticky loop-guard Retry + offline notice, silent failover) + 15-locale i18n keys (checkpoint: human-verify) (PLAY-07/08)
+- [x] 16-03-PLAN.md — Layout toast host (auto-dismiss skip/batched + sticky loop-guard Retry + offline notice, silent failover) + 15-locale i18n keys (checkpoint: human-verify) (PLAY-07/08)
 
 **Research flag**: LOW — extension of documented existing `player.svelte.ts` logic (the failover/prefetch/skip-guard primitives already ship). No `--research-phase` needed.
 
@@ -547,7 +547,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 | 12. Scrobbling (online-only) | 0/TBD | Deferred → v1.3 | - |
 | 13. Loved-Tracks Sync | 0/TBD | Deferred → v1.3 | - |
 | 14. Search & Data Responsiveness | 2/2 | Complete    | 2026-06-06 |
-| 16. Playback Resilience Core | 2/3 | In Progress|  |
+| 16. Playback Resilience Core | 3/3 | Complete   | 2026-06-10 |
 | 17. Up-Next Sourcing + Settings Plumbing | 0/TBD | Not started | - |
 | 18. Sleep Timer | 0/TBD | Not started | - |
 | 19. Track Menu Rework | 0/TBD | Not started | - |

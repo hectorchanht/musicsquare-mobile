@@ -1,7 +1,7 @@
 ---
 phase: 16-playback-resilience-core
 plan: 03
-status: checkpoint-pending
+status: complete
 subsystem: playback
 requirements: [PLAY-07, PLAY-08]
 tags: [resilience, toast, notice, i18n, loop-guard, offline, layout-host]
@@ -130,3 +130,7 @@ None — no new security-relevant surface. Toast text is interpolated via `t()` 
 ## Checkpoint Status
 
 Task 3 is a `checkpoint:human-verify` gate (`gate="blocking"`). All implementation work (Tasks 1–2) is committed and this SUMMARY is committed with `status: checkpoint-pending`. The orchestrator should present the checkpoint report (returned by the executor) to the user; on "approved", mark this plan complete.
+
+## Checkpoint Resolution (2026-06-10)
+
+Human verification checkpoint resolved: user responded "continue with the task" (accepted; no toast issues reported). One unrelated bug reported in the same response — covers enriched at play time not shared to home-page library tiles — handled as a standalone fix outside this plan's scope.

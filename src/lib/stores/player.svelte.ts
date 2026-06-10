@@ -385,6 +385,7 @@ class Player {
 			let src: string = resolved.audioUrl;
 			if (library.isDownloaded(resolved.uid)) {
 				const blob = await blobStore.get(resolved.uid).catch(() => null);
+				if (myGen !== this.playGen) return; // WR-02: a newer play() landed mid-IDB-read
 				if (blob) {
 					this.cachedBlobUrl = URL.createObjectURL(blob);
 					src = this.cachedBlobUrl;
@@ -556,6 +557,11 @@ class Player {
 		el.addEventListener('pause', () => {
 			this.playing = false;
 			this.syncPlaybackState();
+			// WR-05: a pause during the initial-load window means the user opted OUT of this load —
+			// disarm the stall watchdog so it can't, 15s later, runFallback → play(swap) and start
+			// audio against an explicit pause. Mirrors the `ended` disarm. (Masked before CR-01 by
+			// the early `play`-event disarm; reachable now that disarm only happens on real audio.)
+			this.disarmStall();
 		});
 		el.addEventListener('timeupdate', () => {
 			this.currentTime = el.currentTime || 0;

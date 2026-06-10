@@ -20,6 +20,11 @@ vi.mock('$lib/services/fallback', () => ({ tryFallback: vi.fn(), fallbackOrder: 
 // migration path (persisted repeatMode → 'off'|'one') actually executes in node, and provide a
 // minimal in-memory localStorage so persist()/restore() have a backing store to read/write.
 vi.mock('$app/environment', () => ({ browser: true }));
+// WR-02/CR-02: mock the IDB blob store so the offline-blob read in reresolveCurrent/play can be a
+// DEFERRED promise (controls the await window the gen re-check guards). Defaults to a miss.
+vi.mock('$lib/services/blob-store', () => ({
+	blobStore: { get: vi.fn(async () => null), put: vi.fn(), del: vi.fn() }
+}));
 
 const memStore = new Map<string, string>();
 const localStorageMock: Storage = {
@@ -39,10 +44,12 @@ import { library } from '$lib/stores/library.svelte';
 import { resolveStub } from '$lib/services/discovery';
 import { ensureTrackDetails } from '$lib/services/catalog';
 import { tryFallback } from '$lib/services/fallback';
+import { blobStore } from '$lib/services/blob-store';
 
 const mockResolve = vi.mocked(resolveStub);
 const mockEnsure = vi.mocked(ensureTrackDetails);
 const mockTryFallback = vi.mocked(tryFallback);
+const mockBlobGet = vi.mocked(blobStore.get);
 
 function mk(source: SourceId, songid: string, artist: string, title: string): Track {
 	return {
@@ -727,6 +734,17 @@ describe('player resilience — stall watchdog (PLAY-07 / D-13/D-14)', () => {
 		vi.advanceTimersByTime(Player_STALL_TIMEOUT_MS);
 		expect(runFallbackSpy).not.toHaveBeenCalled();
 	});
+
+	it('WR-05: an explicit pause during initial load disarms the watchdog (no auto-failover)', () => {
+		const el = makeFakeAudio();
+		player.attach(el as unknown as HTMLAudioElement);
+		armStall();
+		// User taps pause within the 15s initial-load window — opting out of this load. The
+		// watchdog must NOT, 15s later, runFallback → play(swap) and start audio over the pause.
+		el.fire('pause');
+		vi.advanceTimersByTime(Player_STALL_TIMEOUT_MS);
+		expect(runFallbackSpy).not.toHaveBeenCalled();
+	});
 });
 
 describe('player resilience — offline gate + downloads switch (PLAY-09 / D-07/D-08)', () => {
@@ -857,5 +875,57 @@ describe('player.play — generation guard against stale slow resolves (CR-02)',
 		await flush();
 		expect(player.current?.uid).toBe(resolvedB.uid); // still B — A discarded
 		expect(el.src).toBe('https://cdn/b.mp3');
+	});
+});
+
+describe('player.reresolveCurrent — gen guard after the blob await (WR-02)', () => {
+	// reresolveCurrent re-attaches the SAME track after a stale-URL seek error. It already
+	// gen-checks after ensureTrackDetails, but a downloaded track has a SECOND await (blobStore.get)
+	// before audio.src is written; a play() landing in that window would otherwise get its fresh src
+	// overwritten. Drive reresolveCurrent (private) with a deferred blob read and bump playGen
+	// mid-read.
+	const reresolve = () =>
+		(player as unknown as { reresolveCurrent(): Promise<void> })['reresolveCurrent']();
+	let el: ReturnType<typeof makeFakeAudio>;
+
+	beforeEach(() => {
+		(player.play as unknown as { mockRestore(): void }).mockRestore?.();
+		mockEnsure.mockReset();
+		mockBlobGet.mockReset();
+		vi.stubGlobal('navigator', { onLine: true });
+		el = makeFakeAudio();
+		player.attach(el as unknown as HTMLAudioElement);
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it('a newer play() landing during the IDB blob read discards the stale src write', async () => {
+		const cur = mk('netease', 'X', 'Artist', 'Song');
+		player.current = cur;
+		player.queue = [cur];
+		el.src = 'NEW-SRC-FROM-PLAY'; // stand-in for the src a concurrent play() already set
+
+		// Resolve returns a downloaded track so reresolveCurrent enters the blob branch.
+		const resolved: Track = { ...cur, audioUrl: 'https://cdn/old-reresolved.mp3' };
+		mockEnsure.mockResolvedValue(resolved);
+		vi.spyOn(library, 'isDownloaded').mockReturnValue(true);
+		const dBlob = deferred<Blob | null>();
+		mockBlobGet.mockReturnValue(dBlob.promise);
+
+		const p = reresolve(); // captures myGen = current playGen
+		await flush(); // run up to the awaited blobStore.get
+
+		// A newer play() bumps playGen while the blob read is in flight.
+		(player as unknown as { playGen: number }).playGen++;
+
+		dBlob.resolve(null);
+		await p;
+		await flush();
+
+		// reresolveCurrent must have bailed on the post-blob gen re-check — the src a concurrent
+		// play() set is NOT clobbered with the stale re-resolved URL.
+		expect(el.src).toBe('NEW-SRC-FROM-PLAY');
 	});
 });

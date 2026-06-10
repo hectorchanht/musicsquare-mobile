@@ -403,7 +403,7 @@ Plans:
   5. The text-size setting spans 50%–200% with demo text reading "example {artist or song name}" per the type being sized, the accent-color setting visibly applies to the UI (dead wiring fixed), and artist/album pages show Deezer info, degrading gracefully when unavailable
 
 **Plans**: 4 plans (2 waves)
-- [ ] 17-01-PLAN.md — Per-context up-next sourcing engine + auto-expand fix + all Phase-17 i18n keys (QUEUE-01/02/03)
+- [x] 17-01-PLAN.md — Per-context up-next sourcing engine + auto-expand fix + all Phase-17 i18n keys (QUEUE-01/02/03)
 - [ ] 17-02-PLAN.md — Queue management: horizontal swipe-remove + clear-all + removedUids exclusion (QUEUE-05)
 - [ ] 17-03-PLAN.md — Settings polish: text-size 50–200% + dynamic demo text + accent-hover derivation (UX-03/07)
 - [ ] 17-04-PLAN.md — Deezer artist/album enrichment routes + merge + page sections (ENRICH-04)
@@ -552,7 +552,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 | 13. Loved-Tracks Sync | 0/TBD | Deferred → v1.3 | - |
 | 14. Search & Data Responsiveness | 2/2 | Complete    | 2026-06-06 |
 | 16. Playback Resilience Core | 3/3 | Complete    | 2026-06-10 |
-| 17. Up-Next Sourcing + Settings Plumbing | 0/TBD | Not started | - |
+| 17. Up-Next Sourcing + Settings Plumbing | 1/4 | In Progress|  |
 | 18. Sleep Timer | 0/TBD | Not started | - |
 | 19. Track Menu Rework | 0/TBD | Not started | - |
 | 20. Now-Playing Surface & Gestures | 0/TBD | Not started | - |

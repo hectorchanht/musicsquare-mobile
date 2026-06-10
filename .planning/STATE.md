@@ -4,8 +4,8 @@ milestone: v1.2
 milestone_name: Resilient Playback & UX Polish
 status: executing
 stopped_at: Phase 17 context gathered
-last_updated: "2026-06-10T12:00:55.883Z"
-last_activity: 2026-06-10 -- Phase 17 planning complete
+last_updated: "2026-06-10T16:20:01.548Z"
+last_activity: 2026-06-10 -- Phase 17 execution started
 progress:
   total_phases: 9
   completed_phases: 1
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-10)
 
 **Core value:** A user on their phone can search a song, tap it, and have it play instantly with a smooth, native-app-like experience — and keep playing when the screen locks.
-**Current focus:** Phase 17 — up next sourcing + settings plumbing
+**Current focus:** Phase 17 — up-next-sourcing-settings-plumbing
 
 ## Current Position
 
-Phase: 17
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-06-10 -- Phase 17 planning complete
+Phase: 17 (up-next-sourcing-settings-plumbing) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 17
+Last activity: 2026-06-10 -- Phase 17 execution started
 Next: `/gsd:plan-phase 16`
 
 ## Performance Metrics

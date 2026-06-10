@@ -703,7 +703,7 @@
 			{#if player.playing}<Pause size={26} />{:else}<Play size={26} />{/if}
 		</button>
 		<button class="t" aria-label={t('nowplaying.next')} onclick={() => player.next()}><SkipForward size={26} /></button>
-		<button class="t" class:on={player.repeatMode !== 'off'} aria-label={player.repeatMode === 'one' ? t('nowplaying.repeatModeOne') : player.repeatMode === 'all' ? t('nowplaying.repeatModeAll') : t('nowplaying.repeat')} onclick={() => player.cycleRepeat()}>
+		<button class="t" class:on={player.repeatMode !== 'off'} aria-label={player.repeatMode === 'one' ? t('nowplaying.repeatModeOne') : t('nowplaying.repeat')} onclick={() => player.cycleRepeat()}>
 			{#if player.repeatMode === 'one'}<Repeat1 size={20} />{:else}<Repeat size={20} />{/if}
 		</button>
 	</div>

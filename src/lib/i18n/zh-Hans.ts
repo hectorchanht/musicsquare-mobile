@@ -300,7 +300,26 @@ const zhHans: Dict = {
 	'album.loading': '加载专辑中…',
 	'album.noTracks': '找不到「{name}」的歌曲。',
 	'album.openFromArtist': '请从歌手页面打开此专辑以查看曲目列表。',
-	'album.unplayable': '找不到可播放的版本'
+	'album.unplayable': '找不到可播放的版本',
+
+	// --- Phase 17: up-next sourcing + deezer enrichment + queue clear ---
+	'settings.upnextSourcing': '接下来播放的来源',
+	'settings.upnextSameList': '同一列表',
+	'settings.upnextGenerated': '按曲风生成',
+	'settings.ctxSearch': '搜索',
+	'settings.ctxAlbum': '专辑',
+	'settings.ctxArtist': '歌手',
+	'settings.ctxHomeDiscovery': '首页',
+	'settings.demoPrefix': '示例 {name}',
+	'nowplaying.clearQueue': '清除',
+	'deezer.fans': '粉丝',
+	'deezer.albums': '专辑',
+	'deezer.released': '发行日期',
+	'deezer.label': '厂牌',
+	'deezer.genres': '曲风',
+	'deezer.tracks': '曲目',
+	'deezer.duration': '时长',
+
 };
 
 export default zhHans;

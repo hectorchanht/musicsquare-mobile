@@ -270,7 +270,26 @@ const id: Dict = {
 	"album.loading": "Memuat album…",
 	"album.noTracks": "Tidak ada lagu yang ditemukan untuk \"{name}\".",
 	"album.openFromArtist": "Buka album ini dari halaman artis untuk melihat daftar lagunya.",
-	"album.unplayable": "Tidak dapat menemukan versi yang dapat dimainkan"
+	"album.unplayable": "Tidak dapat menemukan versi yang dapat dimainkan",
+
+	// --- Phase 17: up-next sourcing + deezer enrichment + queue clear ---
+	'settings.upnextSourcing': 'Up-next sourcing',
+	'settings.upnextSameList': 'Same list',
+	'settings.upnextGenerated': 'Genre-generated',
+	'settings.ctxSearch': 'Search',
+	'settings.ctxAlbum': 'Album',
+	'settings.ctxArtist': 'Artist',
+	'settings.ctxHomeDiscovery': 'Home',
+	'settings.demoPrefix': 'example {name}',
+	'nowplaying.clearQueue': 'Clear',
+	'deezer.fans': 'Fans',
+	'deezer.albums': 'Albums',
+	'deezer.released': 'Released',
+	'deezer.label': 'Label',
+	'deezer.genres': 'Genres',
+	'deezer.tracks': 'Tracks',
+	'deezer.duration': 'Duration',
+
 };
 
 export default id;

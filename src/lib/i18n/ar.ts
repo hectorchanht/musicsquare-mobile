@@ -270,7 +270,26 @@ const ar: Dict = {
 	"album.loading": "جارٍ تحميل الألبوم…",
 	"album.noTracks": "لم يتم العثور على مسارات لـ \"{name}\".",
 	"album.openFromArtist": "افتح هذا الألبوم من صفحة فنان لرؤية قائمة الأغاني الخاصة به.",
-	"album.unplayable": "تعذر العثور على نسخة قابلة للتشغيل"
+	"album.unplayable": "تعذر العثور على نسخة قابلة للتشغيل",
+
+	// --- Phase 17: up-next sourcing + deezer enrichment + queue clear ---
+	'settings.upnextSourcing': 'Up-next sourcing',
+	'settings.upnextSameList': 'Same list',
+	'settings.upnextGenerated': 'Genre-generated',
+	'settings.ctxSearch': 'Search',
+	'settings.ctxAlbum': 'Album',
+	'settings.ctxArtist': 'Artist',
+	'settings.ctxHomeDiscovery': 'Home',
+	'settings.demoPrefix': 'example {name}',
+	'nowplaying.clearQueue': 'Clear',
+	'deezer.fans': 'Fans',
+	'deezer.albums': 'Albums',
+	'deezer.released': 'Released',
+	'deezer.label': 'Label',
+	'deezer.genres': 'Genres',
+	'deezer.tracks': 'Tracks',
+	'deezer.duration': 'Duration',
+
 };
 
 export default ar;

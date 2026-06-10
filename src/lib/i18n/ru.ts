@@ -270,7 +270,26 @@ const ru: Dict = {
 	"album.loading": "Загрузка альбома…",
 	"album.noTracks": "Треки \"{name}\" не найдены.",
 	"album.openFromArtist": "Откройте этот альбом на странице исполнителя, чтобы просмотреть его треклист.",
-	"album.unplayable": "Не удалось найти играбельную версию"
+	"album.unplayable": "Не удалось найти играбельную версию",
+
+	// --- Phase 17: up-next sourcing + deezer enrichment + queue clear ---
+	'settings.upnextSourcing': 'Up-next sourcing',
+	'settings.upnextSameList': 'Same list',
+	'settings.upnextGenerated': 'Genre-generated',
+	'settings.ctxSearch': 'Search',
+	'settings.ctxAlbum': 'Album',
+	'settings.ctxArtist': 'Artist',
+	'settings.ctxHomeDiscovery': 'Home',
+	'settings.demoPrefix': 'example {name}',
+	'nowplaying.clearQueue': 'Clear',
+	'deezer.fans': 'Fans',
+	'deezer.albums': 'Albums',
+	'deezer.released': 'Released',
+	'deezer.label': 'Label',
+	'deezer.genres': 'Genres',
+	'deezer.tracks': 'Tracks',
+	'deezer.duration': 'Duration',
+
 };
 
 export default ru;

@@ -270,7 +270,26 @@ const vi: Dict = {
 	"album.loading": "Đang tải anbom…",
 	"album.noTracks": "Không tìm thấy bản nhạc nào cho \"{name}\".",
 	"album.openFromArtist": "Mở album này từ trang nghệ sĩ để xem danh sách bài hát của nó.",
-	"album.unplayable": "Không tìm được phiên bản chơi được"
+	"album.unplayable": "Không tìm được phiên bản chơi được",
+
+	// --- Phase 17: up-next sourcing + deezer enrichment + queue clear ---
+	'settings.upnextSourcing': 'Up-next sourcing',
+	'settings.upnextSameList': 'Same list',
+	'settings.upnextGenerated': 'Genre-generated',
+	'settings.ctxSearch': 'Search',
+	'settings.ctxAlbum': 'Album',
+	'settings.ctxArtist': 'Artist',
+	'settings.ctxHomeDiscovery': 'Home',
+	'settings.demoPrefix': 'example {name}',
+	'nowplaying.clearQueue': 'Clear',
+	'deezer.fans': 'Fans',
+	'deezer.albums': 'Albums',
+	'deezer.released': 'Released',
+	'deezer.label': 'Label',
+	'deezer.genres': 'Genres',
+	'deezer.tracks': 'Tracks',
+	'deezer.duration': 'Duration',
+
 };
 
 export default vi;

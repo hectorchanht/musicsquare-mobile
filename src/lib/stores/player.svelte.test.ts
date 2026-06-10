@@ -1247,33 +1247,48 @@ describe('sleep timer expiry — Phase-18 blocker (never enters the failure mach
 	});
 	afterEach(() => sleepTimer.cancel());
 
-	it('minutes-mode timeupdate at the deadline pauses once, deactivates the timer, and does NOT call next()', () => {
-		const audio = makeSleepAudio();
-		player.attach(audio as unknown as HTMLAudioElement);
-		sleepTimer.set('minutes', 5);
-		sleepTimer.deadline = Date.now() - 1; // force the absolute deadline into the past
+	it('minutes-mode timeupdate at the deadline fades then pauses once, deactivates the timer, and does NOT call next()', () => {
+		vi.useFakeTimers();
+		try {
+			const audio = makeSleepAudio();
+			player.attach(audio as unknown as HTMLAudioElement);
+			sleepTimer.set('minutes', 5);
+			sleepTimer.deadline = Date.now() - 1; // force the absolute deadline into the past
 
-		audio.fire('timeupdate');
+			audio.fire('timeupdate');
+			// canFadeVolume true (writable fake volume) → a ~10s fade interval is armed; pause is
+			// deferred until the fade completes. Advance past FADE_MS so finishExpiry() runs.
+			vi.advanceTimersByTime(10_200);
 
-		expect(audio.pause).toHaveBeenCalledTimes(1);
-		expect(sleepTimer.active).toBe(false);
-		expect(player.next).not.toHaveBeenCalled();
+			expect(audio.pause).toHaveBeenCalledTimes(1);
+			expect(sleepTimer.active).toBe(false);
+			expect(audio.volume).toBe(1); // pre-fade volume restored (D-02)
+			expect(player.next).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('the timeupdate expiry does NOT route into runFallback and emits NO notice (failure-counter proxy)', () => {
-		mockTryFallback.mockReset();
-		const audio = makeSleepAudio();
-		player.attach(audio as unknown as HTMLAudioElement);
-		sleepTimer.set('minutes', 10);
-		sleepTimer.deadline = Date.now() - 1;
+		vi.useFakeTimers();
+		try {
+			mockTryFallback.mockReset();
+			const audio = makeSleepAudio();
+			player.attach(audio as unknown as HTMLAudioElement);
+			sleepTimer.set('minutes', 10);
+			sleepTimer.deadline = Date.now() - 1;
 
-		audio.fire('timeupdate');
+			audio.fire('timeupdate');
+			vi.advanceTimersByTime(10_200);
 
-		// consecutiveFailures/errorBurst are private — assert the observable proxies instead:
-		// an expiry never tries a cross-source fallback and never surfaces a skip/loop notice.
-		expect(mockTryFallback).not.toHaveBeenCalled();
-		expect(player.notice).toBeNull();
-		expect(player.next).not.toHaveBeenCalled();
+			// consecutiveFailures/errorBurst are private — assert the observable proxies instead:
+			// an expiry never tries a cross-source fallback and never surfaces a skip/loop notice.
+			expect(mockTryFallback).not.toHaveBeenCalled();
+			expect(player.notice).toBeNull();
+			expect(player.next).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('a non-expired minutes timeupdate runs the existing body (currentTime sync) unchanged', () => {
@@ -1287,5 +1302,76 @@ describe('sleep timer expiry — Phase-18 blocker (never enters the failure mach
 		expect(audio.pause).not.toHaveBeenCalled();
 		expect(player.currentTime).toBe(42); // existing timeupdate body ran
 		expect(sleepTimer.active).toBe(true);
+	});
+
+	it("end-of-track mode beats repeat-one: `ended` pauses (no replay) and does NOT call next() (D-03)", () => {
+		const audio = makeSleepAudio();
+		audio.currentTime = 99; // non-zero so a suppressed repeat-one rewind is observable
+		player.attach(audio as unknown as HTMLAudioElement);
+		sleepTimer.set('end-of-track');
+		player.repeatMode = 'one'; // would normally rewind+replay — sleep-stop must beat it
+		audio.play.mockClear();
+
+		audio.fire('ended');
+
+		// decideEndedAction returned 'sleep-stop' BEFORE the repeat-one branch and BEFORE next():
+		expect(player.next).not.toHaveBeenCalled();
+		expect(audio.play).not.toHaveBeenCalled(); // repeat-one rewind+replay suppressed
+		expect(audio.currentTime).toBe(99); // repeat-one would have set currentTime=0 — it didn't
+		expect(sleepTimer.active).toBe(false); // timer cancelled at the boundary (D-09)
+	});
+
+	it('end-of-track is INERT when no end-of-track timer is armed: repeat-one still rewinds + replays', () => {
+		const audio = makeSleepAudio();
+		audio.currentTime = 87;
+		player.attach(audio as unknown as HTMLAudioElement);
+		// sleepTimer is off (beforeEach cancel) → decideEndedAction('off','one') === 'repeat-rewind'
+		player.repeatMode = 'one';
+
+		audio.fire('ended');
+
+		expect(audio.currentTime).toBe(0); // repeat-one rewound
+		expect(audio.play).toHaveBeenCalled(); // repeat-one replayed
+		expect(player.next).not.toHaveBeenCalled();
+	});
+
+	it('D-04: expireSleepTimer() when already paused clears the timer silently and does NOT pause again', () => {
+		const audio = makeSleepAudio();
+		audio.paused = true; // user already paused manually
+		player.attach(audio as unknown as HTMLAudioElement);
+		sleepTimer.set('minutes', 5);
+
+		player.expireSleepTimer();
+
+		expect(audio.pause).not.toHaveBeenCalled(); // no second pause (D-04 silent clear)
+		expect(sleepTimer.active).toBe(false); // timer cleared
+		expect(player.next).not.toHaveBeenCalled();
+	});
+
+	it('D-05: a gesture (seek) during an in-flight fade aborts the stop — restores volume + cancels timer', () => {
+		vi.useFakeTimers();
+		try {
+			const audio = makeSleepAudio();
+			audio.duration = 200; // finite so seekFraction sets currentTime (not pendingSeekFrac)
+			player.attach(audio as unknown as HTMLAudioElement);
+			sleepTimer.set('minutes', 5);
+			sleepTimer.deadline = Date.now() - 1;
+
+			audio.fire('timeupdate'); // arms the fade interval
+			vi.advanceTimersByTime(400); // partway through the fade — volume is now < 1
+			expect(audio.volume).toBeLessThan(1);
+
+			// A seek gesture mid-fade aborts (D-05). seekFraction (NOT next, which is spied) runs
+			// the REAL abortFade() at its top.
+			player.seekFraction(0.5);
+
+			expect(audio.volume).toBe(1); // pre-fade volume restored
+			expect(sleepTimer.active).toBe(false); // timer cancelled — user is awake
+			// Advancing past the original FADE_MS must NOT pause: the fade interval was cleared.
+			vi.advanceTimersByTime(10_000);
+			expect(audio.pause).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });

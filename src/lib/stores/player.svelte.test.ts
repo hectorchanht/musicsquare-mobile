@@ -143,6 +143,14 @@ beforeEach(() => {
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	// IN-02: vi.restoreAllMocks() does NOT undo vi.stubGlobal — without this, a stubbed
+	// `navigator` (e.g. the offline suite's { onLine: false }) would persist into later suites in
+	// this worker, leaving a truthy-but-mediaSession-less navigator that the `ms` accessor's
+	// feature detection would see. Unstub globally after every test as the single safety net…
+	vi.unstubAllGlobals();
+	// …then re-establish the module-level localStorage stub that unstubAllGlobals also tears down
+	// (it is set once at import, not per-test; restore()/persist() tests depend on it).
+	vi.stubGlobal('localStorage', localStorageMock);
 });
 
 describe('player.playStub — optimistic resolve-on-tap (FIX-A)', () => {
@@ -770,7 +778,8 @@ describe('player resilience — offline gate + downloads switch (PLAY-09 / D-07/
 
 	afterEach(() => {
 		library.downloads = [];
-		vi.stubGlobal('navigator', { onLine: true });
+		// IN-02: the top-level afterEach unstubs navigator globally — no need to re-stub onLine:true
+		// here (which would itself leave a lingering stub).
 	});
 
 	it('offline: does NOT call tryFallback and does NOT increment the counter (D-08)', async () => {

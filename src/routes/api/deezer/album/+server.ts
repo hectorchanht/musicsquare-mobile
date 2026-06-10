@@ -128,7 +128,13 @@ export const GET: RequestHandler = async ({ url, request }) => {
 		// 2. Fetch album by id and reshape (T-17-10: every field optional + null-safe).
 		const byIdUrl = `${DEEZER_ALBUM_BYID}/${encodeURIComponent(String(id))}`;
 		const byIdRes = await fetchWithRetry(byIdUrl, { signal: AbortSignal.timeout(8000) }, 2);
+		// WR-04 / T-17-13: a non-ok by-id response is a transient failure — empty shape, NO cache.
+		if (!byIdRes.ok) return jsonResult(EMPTY, origin);
 		const dz = (await byIdRes.json()) as DzAlbum;
+		// WR-04 / T-17-13: Deezer signals quota/rate-limit as HTTP 200 with an `{"error":{…}}`
+		// body — it parses fine and every field coalesces to null. A real entity always carries
+		// an id; without one this is NOT a successful reshape → empty shape, NO cache, no TTL.
+		if (dz?.id == null) return jsonResult(EMPTY, origin);
 		const out: AlbumResult = {
 			cover: dz?.cover_xl ?? null,
 			releaseDate: dz?.release_date ?? null,

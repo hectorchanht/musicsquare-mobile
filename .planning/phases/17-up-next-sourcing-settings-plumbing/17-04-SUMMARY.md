@@ -91,3 +91,7 @@ None — plan executed exactly as written. (Two minor judgment calls within plan
 - The `deezer.*` i18n keys consumed here were created by Plan 01 Task 4; this plan did not edit any locale file.
 - The merge helper is pure and reusable — any future surface needing Last.fm + Deezer field precedence (e.g. a Now-Playing detail sheet) can import `mergeEnrichArtist`/`mergeEnrichAlbum` directly.
 - Edge routes cache successful reshapes 24h at the edge + 7d client-side (`cached`), so a popular artist/album is fetched from Deezer at most once per TTL window (T-17-14 rate-limit amplification mitigated).
+
+## Self-Check: PASSED
+
+All created files verified on disk (`artist/+server.ts`, `album/+server.ts`, `enrich-merge.ts`, `enrich-merge.test.ts`, `17-04-SUMMARY.md`). All commits verified in git log: 8c949af (Task 1), 3e585fb (RED), fe71c03 (GREEN), b7cf6e3 (Task 3), cc9f92e (SUMMARY). TDD gate compliance: `test(...)` RED commit precedes `feat(...)` GREEN commit for the mergeEnrich feature.

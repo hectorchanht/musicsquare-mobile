@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Resilient Playback & UX Polish
-status: ready_to_plan
-stopped_at: Phase 16 complete (3/3) — ready to discuss Phase 17
-last_updated: 2026-06-10T10:33:40.298Z
-last_activity: 2026-06-10 -- Phase 16 execution started
+status: planning
+stopped_at: Phase 17 context gathered
+last_updated: "2026-06-10T11:17:29.796Z"
+last_activity: 2026-06-10
 progress:
   total_phases: 9
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
   completed_plans: 3
-  percent: 0
+  percent: 11
 ---
 
 # Project State
@@ -186,6 +186,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-10T07:14:46.488Z
-Stopped at: Phase 16 context gathered
+Last session: 2026-06-10T11:17:29.787Z
+Stopped at: Phase 17 context gathered
 Resume: plan Phase 16 (`/gsd:plan-phase 16`). Phase 16 is the resilience-core dependency root; everything else builds on its `queueContext` / 2-state repeat / skip-loop guard.

@@ -50,12 +50,14 @@ A user on their phone can search a song, tap it, and have it play instantly with
 - ✓ Now-playing shared-element expand/collapse + swipe gestures — Phase 15
 - ✓ Never-stop playback: all-source failover → skip/batched toasts; 5-failure loop-guard with sticky Retry toast; offline gate + downloads up-next switch; 15s stall watchdog; prefetch-on-ended; 2-state repeat (off / repeat-one) — Validated in Phase 16: Playback Resilience Core
 - ✓ Cover-chain: a cover fetched at play time propagates to all same-song library entries + cover-cache, live — Phase 16 follow-up fix
+- ✓ Per-context up-next sourcing (same-list vs generated, global default = generated) with `queueContext` threading; queue management (swipe-to-remove + clear with regeneration exclusion); auto-expand fixed to fresh plays only — Validated in Phase 17: Up-Next Sourcing & Settings Plumbing
+- ✓ Deezer artist/album info enrichment via own-origin edge proxies with field-precedence merge beside Last.fm — Validated in Phase 17
+- ✓ Text-size sliders widened to 50–200% with live demo text from current track; accent setting hover state wired via derived `--color-primary-hover` — Validated in Phase 17
 
 ### Active
 
 <!-- v1.2 scope. Hypotheses until shipped + validated. -->
 
-- [ ] Per-context up-next sourcing setting (same-list vs genre-generated), global default = generated, defaults in config
 - [ ] Lyrics: touch-suspended auto-scroll, end spacer, CN highlight-ordering fix, robust bracket hiding
 - [ ] Menu modal rework: instant buttons + background resolve, 2-row marquee header, top-right like/close, remix, sleep timer, focus-state fix
 - [ ] Now-playing: cover swipe prev/next, half-open scroll containment, tap-cover closes subnav, top running-line loader
@@ -64,8 +66,7 @@ A user on their phone can search a song, tap it, and have it play instantly with
 - [ ] Homepage compact rows-of-4 mode (per-section setting) + section grid pages / library-tab redirects
 - [ ] Sharing/SEO: per-entity OG metadata, short slugs, per-page SEO
 - [ ] Offline app usability for downloaded tracks; simple offline display for online-only data
-- [ ] Deezer artist/album info enrichment
-- [ ] Polish: shape-matched skeletons everywhere, button toast + double-click guard, text-size 50–200% with contextual demo text, hide trackless albums, accent setting wired, UX audit vs YT Music/Spotify
+- [ ] Polish: shape-matched skeletons everywhere, button toast + double-click guard, hide trackless albums, UX audit vs YT Music/Spotify
 
 ### Out of Scope
 
@@ -127,4 +128,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-10 after Phase 16 complete (Playback Resilience Core)*
+*Last updated: 2026-06-11 after Phase 17 complete (Up-Next Sourcing & Settings Plumbing)*

@@ -3,7 +3,7 @@
 	import { fly } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import { goto } from '$app/navigation';
-	import { ChevronDown, MoreVertical, Heart, SkipBack, SkipForward, Play, Pause, Repeat, Repeat1, GripVertical } from '@lucide/svelte';
+	import { ChevronDown, MoreVertical, Heart, SkipBack, SkipForward, Play, Pause, Repeat, Repeat1, GripVertical, Trash2 } from '@lucide/svelte';
 	import { player, fmtTime } from '$lib/stores/player.svelte';
 	import { settings, effectiveTarget } from '$lib/stores/settings.svelte';
 	import { library } from '$lib/stores/library.svelte';
@@ -17,6 +17,7 @@
 	import { enrichTrack } from '$lib/services/lastfm';
 	import { longpress } from '$lib/actions/longpress';
 	import { marquee } from '$lib/actions/marquee';
+	import { swipeRemove } from '$lib/actions/swipeRemove';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import Nowbar from '$lib/components/Nowbar.svelte';
 	import { parseLRC, splitParenLines, type LyricLine } from '$lib/services/lrc';
@@ -728,6 +729,9 @@
 			<button data-tab="queue" class:active={tab === 'queue'} onclick={() => selectTab('queue')}>{t('nowplaying.upNext')}</button>
 			<button data-tab="lyrics" class:active={tab === 'lyrics'} onclick={() => selectTab('lyrics')}>{t('nowplaying.lyrics')}</button>
 			<button data-tab="related" class:active={tab === 'related'} onclick={() => selectTab('related')}>{t('nowplaying.related')}</button>
+			{#if tab === 'queue' && player.queue.length > 1}
+				<button class="clear" onclick={() => player.clearQueue()} aria-label={t('nowplaying.clearQueue')}><Trash2 size={16} /></button>
+			{/if}
 		</nav>
 
 		<div class="panel">
@@ -740,7 +744,7 @@
 								class:over={i === dragOver && i !== dragFrom}
 								style:transform={i === dragFrom && rowDragY ? `translateY(${rowDragY}px)` : undefined}
 							>
-								<button class="row q-row" class:playing={track.uid === player.current?.uid} use:longpress onlongpress={() => openMenu(track)} onclick={() => player.play(track, { fresh: true })}>
+								<button class="row q-row" class:playing={track.uid === player.current?.uid} use:swipeRemove={{ onremove: () => player.removeFromQueue(track.uid) }} use:longpress onlongpress={() => openMenu(track)} onclick={() => player.play(track, { fresh: true })}>
 									<span class="r-title">{names.dnTitle(track.title)}</span>
 									<span class="r-artist">{names.dnArtist(track.artist)}</span>
 								</button>
@@ -862,6 +866,10 @@
 	.subnav { display: flex; justify-content: space-around; padding-bottom: 6px; touch-action: none; user-select: none; -webkit-user-select: none; }
 	.subnav button { background: none; border: none; color: var(--color-text-muted); font-size: 13px; min-height: 40px; padding: 8px 12px; cursor: pointer; border-bottom: 2px solid transparent; }
 	.subnav button.active { color: var(--color-text); border-bottom-color: var(--color-primary); }
+	/* Clear-queue button (Phase 17, QUEUE-05) — an icon affordance in the queue-tab header,
+	   no active underline; muted until pressed. */
+	.subnav button.clear { min-height: 40px; padding: 8px 10px; display: grid; place-items: center; opacity: 0.7; }
+	.subnav button.clear:active { opacity: 1; color: var(--color-text); }
 	.panel { flex: 1; overflow-y: auto; }
 	.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 	.row { width: 100%; text-align: left; background: none; border: none; padding: 8px 6px; border-radius: 8px; cursor: pointer; display: flex; flex-direction: column; }

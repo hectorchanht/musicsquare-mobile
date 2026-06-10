@@ -25,6 +25,12 @@ vi.mock('$app/environment', () => ({ browser: true }));
 vi.mock('$lib/services/blob-store', () => ({
 	blobStore: { get: vi.fn(async () => null), put: vi.fn(), del: vi.fn() }
 }));
+// QUEUE-05 (17-02): mock the two up-next generators so a test can OBSERVE the exclude/`have` Set
+// passed to them (the removedUids-exclusion assertions) without real network. Both default to []
+// — the same "sources dry → adds nothing" outcome the real fns hit headless, so the existing
+// end-of-queue / ensureAhead tests keep their behaviour (they already assert "adds nothing").
+vi.mock('$lib/services/similar', () => ({ buildSimilarQueue: vi.fn(async () => []) }));
+vi.mock('$lib/services/picks', () => ({ buildDiversePicks: vi.fn(async () => []) }));
 
 const memStore = new Map<string, string>();
 const localStorageMock: Storage = {
@@ -46,11 +52,15 @@ import { resolveStub } from '$lib/services/discovery';
 import { ensureTrackDetails } from '$lib/services/catalog';
 import { tryFallback } from '$lib/services/fallback';
 import { blobStore } from '$lib/services/blob-store';
+import { buildSimilarQueue } from '$lib/services/similar';
+import { buildDiversePicks } from '$lib/services/picks';
 
 const mockResolve = vi.mocked(resolveStub);
 const mockEnsure = vi.mocked(ensureTrackDetails);
 const mockTryFallback = vi.mocked(tryFallback);
 const mockBlobGet = vi.mocked(blobStore.get);
+const mockSimilar = vi.mocked(buildSimilarQueue);
+const mockPicks = vi.mocked(buildDiversePicks);
 
 function mk(source: SourceId, songid: string, artist: string, title: string): Track {
 	return {
@@ -1055,5 +1065,128 @@ describe('player.play — auto-expand fresh-only guard + per-context branch (Pha
 		await flush();
 		expect(regenSpy).not.toHaveBeenCalled();
 		expect(aheadSpy).toHaveBeenCalledTimes(1); // snapshot still grows on exhaust (D-03)
+	});
+});
+
+describe('player.removeFromQueue / clearQueue / removedUids (Phase 17 QUEUE-05 / D-08..D-10)', () => {
+	// These use the global beforeEach's MOCKED play() (synchronous current set). removeFromQueue
+	// and clearQueue are synchronous queue mutations; the removedUids exclusion is observed via the
+	// mocked buildSimilarQueue / buildDiversePicks exclude-Set argument.
+	beforeEach(() => {
+		mockSimilar.mockReset().mockResolvedValue([]);
+		mockPicks.mockReset().mockResolvedValue([]);
+		player.current = null;
+		player.queue = [];
+		player.queueContext = null;
+	});
+
+	it('removeFromQueue(uid) drops the matching entry from the queue', () => {
+		const a = mk('netease', '1', 'A', 'S1');
+		const b = mk('qq', '2', 'B', 'S2');
+		player.queue = [a, b];
+		player.removeFromQueue(b.uid);
+		expect(player.queue.map((t) => t.uid)).toEqual([a.uid]);
+	});
+
+	it('removeFromQueue(uid) deletes it from manual pins (a pinned track can still be swiped away)', () => {
+		const a = mk('netease', '1', 'A', 'S1');
+		const b = mk('qq', '2', 'B', 'S2');
+		player.queue = [a, b];
+		player.addToQueue(b); // pins b into manualUids (already in queue → dedupe keeps one)
+		const manual = (player as unknown as { manualUids: Set<string> }).manualUids;
+		expect(manual.has(b.uid)).toBe(true);
+		player.removeFromQueue(b.uid);
+		expect(manual.has(b.uid)).toBe(false);
+	});
+
+	it('clearQueue() leaves queue = [current] when a current track exists and clears pins', () => {
+		const cur = mk('netease', 'C', 'A', 'Cur');
+		const a = mk('qq', '1', 'B', 'S1');
+		player.current = cur;
+		player.queue = [cur, a];
+		player.addToQueue(a); // pin a
+		player.clearQueue();
+		expect(player.queue.map((t) => t.uid)).toEqual([cur.uid]); // only current survives (D-08)
+		expect((player as unknown as { manualUids: Set<string> }).manualUids.size).toBe(0);
+	});
+
+	it('clearQueue() leaves an empty queue when there is no current track', () => {
+		player.current = null;
+		player.queue = [mk('netease', '1', 'A', 'S1'), mk('qq', '2', 'B', 'S2')];
+		player.clearQueue();
+		expect(player.queue).toEqual([]);
+	});
+
+	it('clearQueue() does NOT trigger an immediate regenerate/ensureAhead (D-09 — refill near end only)', async () => {
+		const regenSpy = vi
+			.spyOn(player as unknown as { regenerate(t: Track): Promise<void> }, 'regenerate')
+			.mockResolvedValue(undefined);
+		const aheadSpy = vi
+			.spyOn(player as unknown as { ensureAhead(): Promise<void> }, 'ensureAhead')
+			.mockResolvedValue(undefined);
+		const cur = mk('netease', 'C', 'A', 'Cur');
+		player.current = cur;
+		player.queue = [cur, mk('qq', '1', 'B', 'S1'), mk('kuwo', '2', 'C', 'S2')];
+		player.clearQueue();
+		await flush();
+		expect(regenSpy).not.toHaveBeenCalled();
+		expect(aheadSpy).not.toHaveBeenCalled();
+		expect(player.queue.map((t) => t.uid)).toEqual([cur.uid]); // stays at [current]
+	});
+
+	it('a removeFromQueue uid is excluded from regenerate buildSimilarQueue exclude set (D-10)', async () => {
+		const seed = mk('netease', 'SEED', 'A', 'Seed');
+		const gone = mk('qq', 'GONE', 'B', 'Gone');
+		player.queue = [seed, gone];
+		player.removeFromQueue(gone.uid);
+		await (player as unknown as { regenerate(t: Track): Promise<void> }).regenerate(seed);
+		expect(mockSimilar).toHaveBeenCalledTimes(1);
+		const excludeArg = mockSimilar.mock.calls[0][1] as Set<string>;
+		expect(excludeArg.has(gone.uid)).toBe(true);
+	});
+
+	it('a removeFromQueue uid is excluded from ensureAhead buildDiversePicks `have` set (D-10/QUEUE-02)', async () => {
+		const cur = mk('netease', 'C', 'A', 'Cur');
+		const gone = mk('qq', 'GONE', 'B', 'Gone');
+		player.current = cur;
+		player.queue = [cur]; // within 2 of the end → ensureAhead runs
+		player.removeFromQueue(gone.uid); // gone is no longer in queue, but must stay excluded
+		await (player as unknown as { ensureAhead(): Promise<void> }).ensureAhead();
+		expect(mockPicks).toHaveBeenCalledTimes(1);
+		const haveArg = mockPicks.mock.calls[0][1] as Set<string>;
+		expect(haveArg.has(gone.uid)).toBe(true);
+	});
+
+	it('a fresh play resets removedUids — the next regenerate no longer excludes the old uid', async () => {
+		// This one drives the REAL play() fresh branch (where removedUids.clear() lives), so restore
+		// the globally-spied play(), attach a fake <audio>, and drive a 'generated'-context fresh play.
+		(player.play as unknown as { mockRestore?(): void }).mockRestore?.();
+		vi.stubGlobal('navigator', { onLine: true });
+		const el = makeFakeAudio();
+		player.attach(el as unknown as HTMLAudioElement);
+		vi.spyOn(library, 'isDownloaded').mockReturnValue(false);
+		settings.upnextMode = 'generated';
+		settings.upnextPerContext = {};
+		player.queueContext = 'search'; // resolves to 'generated' → fresh play calls regenerate
+
+		const gone = mk('qq', 'GONE', 'B', 'Gone');
+		player.removeFromQueue(gone.uid); // session A: gone is excluded
+		// A fresh play starts a NEW session → removedUids cleared BEFORE regenerate runs.
+		mockEnsure.mockResolvedValue({ ...mk('netease', 'F', 'A', 'Song'), audioUrl: 'https://cdn/f.mp3' });
+		await player.play(stub('netease', 'F', 'A', 'Song'), { fresh: true });
+		await flush();
+		// regenerate ran during the fresh play; its exclude set must NOT contain the old uid.
+		expect(mockSimilar).toHaveBeenCalled();
+		const excludeArg = mockSimilar.mock.calls[0][1] as Set<string>;
+		expect(excludeArg.has(gone.uid)).toBe(false); // cleared on fresh play (D-10 session-scoped)
+	});
+
+	it('removedUids is NOT written to the persisted player snapshot (session-scoped, not serialized)', () => {
+		player.current = mk('netease', 'C', 'A', 'Cur');
+		player.removeFromQueue('qq:GONE');
+		const raw = localStorage.getItem('openmusic:player:v1');
+		expect(raw).toBeTruthy();
+		expect(raw as string).not.toContain('removedUids');
+		expect(raw as string).not.toContain('GONE');
 	});
 });

@@ -773,3 +773,56 @@ describe('player resilience — offline gate + downloads switch (PLAY-09 / D-07/
 		expect(failures()).toBe(0);
 	});
 });
+
+describe('player.play — generation guard against stale slow resolves (CR-02)', () => {
+	// These exercise the REAL play() (the global beforeEach spies it; we restore the original
+	// here so the generation re-checks actually run). ensureTrackDetails is mocked with deferred
+	// promises so we control settle order: a slow play(A) and a fast play(B), then settle A LAST.
+	let el: ReturnType<typeof makeFakeAudio>;
+
+	beforeEach(() => {
+		(player.play as unknown as { mockRestore(): void }).mockRestore?.();
+		mockEnsure.mockReset();
+		player.current = null;
+		player.queue = [];
+		player.error = null;
+		player.loading = false;
+		vi.stubGlobal('navigator', { onLine: true });
+		el = makeFakeAudio();
+		player.attach(el as unknown as HTMLAudioElement);
+		// Downloaded-lookup off so play() takes the network/CDN branch (no IDB).
+		vi.spyOn(library, 'isDownloaded').mockReturnValue(false);
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it('a slow play(A) that settles AFTER a fast play(B) is discarded — current + src stay on B', async () => {
+		const stubA = stub('netease', 'A', 'Artist A', 'Song A');
+		const stubB = stub('qq', 'B', 'Artist B', 'Song B');
+		const resolvedA: Track = { ...mk('netease', 'A', 'Artist A', 'Song A'), audioUrl: 'https://cdn/a.mp3' };
+		const resolvedB: Track = { ...mk('qq', 'B', 'Artist B', 'Song B'), audioUrl: 'https://cdn/b.mp3' };
+
+		const dA = deferred<Track>();
+		const dB = deferred<Track>();
+		// First ensureTrackDetails call (A) gets the slow deferred; second (B) the fast one.
+		mockEnsure.mockReturnValueOnce(dA.promise).mockReturnValueOnce(dB.promise);
+
+		void player.play(stubA); // gen → 1, awaits A's slow resolve
+		void player.play(stubB); // gen → 2, supersedes A
+
+		// B resolves first and starts playing.
+		dB.resolve(resolvedB);
+		await flush();
+		expect(player.current?.uid).toBe(resolvedB.uid);
+		expect(el.src).toBe('https://cdn/b.mp3');
+
+		// A's slow resolve settles LAST — its continuation must bail on the gen re-check and NOT
+		// clobber current/src with the stale, earlier-tapped track.
+		dA.resolve(resolvedA);
+		await flush();
+		expect(player.current?.uid).toBe(resolvedB.uid); // still B — A discarded
+		expect(el.src).toBe('https://cdn/b.mp3');
+	});
+});

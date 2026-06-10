@@ -827,6 +827,12 @@ class Player {
 		// fallback continuation — the fallback IS the continuation of the user's original intent
 		// and must not invalidate itself.
 		if (!opts?.fromFallback) this.playGen++;
+		// CR-02: snapshot the generation right after the (conditional) bump and re-check it after
+		// EVERY await below before writing current / audio.src / Media Session. A fallback
+		// continuation inherits the value it was started under (it deliberately does not bump),
+		// so it bails the instant a newer user play() supersedes it. Without this, a slow resolve
+		// for an earlier tap could settle late and clobber the track the user actually chose.
+		const myGen = this.playGen;
 		// One-way edge: record the play BEFORE resolution so it lands even if audio
 		// resolution later errors. history imports nothing back (no circular dep).
 		// Fallback continuations DO NOT re-record — history reflects user intent, not the
@@ -841,6 +847,7 @@ class Player {
 			// song was downloaded earlier.
 			if (library.isDownloaded(track.uid)) {
 				const offlineBlob = await blobStore.get(track.uid).catch(() => null);
+				if (myGen !== this.playGen) return; // CR-02: superseded mid-IDB-read — discard
 				if (offlineBlob && this.audio) {
 					if (this.cachedBlobUrl) {
 						URL.revokeObjectURL(this.cachedBlobUrl);
@@ -881,6 +888,7 @@ class Player {
 				}
 			}
 			const resolved = await ensureTrackDetails(track);
+			if (myGen !== this.playGen) return; // CR-02: superseded mid-resolve — discard
 			this.current = resolved;
 			// keep the queue entry in sync with the resolved track
 			const i = this.indexOf(track);
@@ -924,6 +932,7 @@ class Player {
 				let src: string = resolved.audioUrl;
 				if (library.isDownloaded(resolved.uid)) {
 					const blob = await blobStore.get(resolved.uid).catch(() => null);
+					if (myGen !== this.playGen) return; // CR-02: superseded mid-IDB-read — discard
 					if (blob) {
 						this.cachedBlobUrl = URL.createObjectURL(blob);
 						src = this.cachedBlobUrl;

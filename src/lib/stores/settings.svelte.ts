@@ -4,6 +4,9 @@ import { browser } from '$app/environment';
 import type { SourceId } from '$lib/sources/types';
 import { detectAppLang, type AppLang } from '$lib/i18n';
 import { DEFAULTS, UPNEXT_DEFAULTS, type UpnextMode, type QueueContext } from '$lib/config/defaults';
+// Pure util (no DOM/browser/store imports) — settings stays a LEAF store. Used by
+// applyTheme() to derive --color-primary-hover from the chosen accent (UX-07 root-cause fix).
+import { darken } from '$lib/services/color';
 import {
 	DEFAULT_SECTION_ORDER,
 	clampShelfSize,
@@ -48,9 +51,11 @@ export type Theme = 'dark' | 'light';
 const KEY = 'openmusic:settings:v1';
 const DEFAULT_ACCENT = '#7c5cff';
 
-/** Appearance-scale bounds (percent), shared by the store + the appearance settings UI. */
-export const FONT_SCALE_MIN = 70;
-export const FONT_SCALE_MAX = 160;
+/** Appearance-scale bounds (percent), shared by the store + the appearance settings UI.
+ *  UX-03 / D-11: widened to 50–200. The clamp only WIDENS — previously-persisted 70–160
+ *  values stay valid (clampInt re-clamps within the new, looser bounds). */
+export const FONT_SCALE_MIN = 50;
+export const FONT_SCALE_MAX = 200;
 export const COVER_SCALE_MIN = 70;
 export const COVER_SCALE_MAX = 150;
 export const GRID_COLS_MIN = 2;
@@ -332,6 +337,10 @@ class Settings {
 		if (!browser) return;
 		const r = document.documentElement;
 		r.style.setProperty('--color-primary', this.accent);
+		// UX-07 ROOT-CAUSE FIX: the hover var was pinned at #6a48f0 in app.css and never set at
+		// runtime, so hover surfaces (buttons/tabs/chips) ignored the chosen accent. Derive it from
+		// the accent — ~12% darken matches today's #7c5cff → #6a48f0 relationship (A3).
+		r.style.setProperty('--color-primary-hover', darken(this.accent, 0.12));
 		// Appearance scales (fnp) — multipliers off the per-rule base sizes. 100% → 1 (no change).
 		r.style.setProperty('--fs-title', String(this.fontScaleTitle / 100));
 		r.style.setProperty('--fs-artist', String(this.fontScaleArtist / 100));

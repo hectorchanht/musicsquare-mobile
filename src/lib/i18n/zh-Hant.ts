@@ -234,6 +234,12 @@ const zhHant: Dict = {
 	'menu.detailAudioUrl': '音訊網址',
 	'menu.detailNotResolved': '（尚未解析）',
 	'menu.detailUnknown': '未知',
+	'menu.sleepTimer': '睡眠定時器',
+
+	// --- sleep timer (Phase 18, TIMER-01) ---
+	'timer.minutes': '{n} 分鐘',
+	'timer.endOfTrack': '本曲結束',
+	'timer.cancel': '取消定時器',
 
 	// --- toasts ---
 	'toast.playingNext': '下一首播放',

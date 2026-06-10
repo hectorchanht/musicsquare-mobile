@@ -12,6 +12,7 @@
 	import { t, type TranslationKey } from '$lib/i18n';
 	import NowPlaying from '$lib/components/NowPlaying.svelte';
 	import Nowbar from '$lib/components/Nowbar.svelte';
+	import SleepTimerSheet from '$lib/components/SleepTimerSheet.svelte';
 
 	let { children } = $props();
 
@@ -152,6 +153,10 @@
 	{#if player.expanded}
 		<NowPlaying />
 	{/if}
+
+	<!-- Sleep-timer sheet: mounted ONCE, UNGATED — reachable from the nowbar (collapsed) AND the
+	     expanded now-playing. Driven by the shared sleepTimer.sheetOpen flag (TIMER-01). -->
+	<SleepTimerSheet />
 
 	<nav class="tabbar">
 		{#each tabs as tab (tab.href)}

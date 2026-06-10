@@ -247,6 +247,14 @@ const en = {
 	'menu.detailAudioUrl': 'Audio URL',
 	'menu.detailNotResolved': '(not resolved)',
 	'menu.detailUnknown': 'unknown',
+	'menu.sleepTimer': 'Sleep timer',
+
+	// --- sleep timer (Phase 18, TIMER-01) ---
+	// The minutes label is a SINGLE interpolation key (mirrors skippedMany's count token)
+	// — never six hardcoded "5 min"/"10 min" strings.
+	'timer.minutes': '{n} min',
+	'timer.endOfTrack': 'End of track',
+	'timer.cancel': 'Cancel timer',
 
 	// --- toasts ---
 	'toast.playingNext': 'Playing next',

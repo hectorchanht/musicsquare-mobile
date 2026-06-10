@@ -22,6 +22,13 @@ class SleepTimer {
 	selectedMinutes = $state<number | null>(null);
 	/** ms left, refreshed by the 1s UI tick while a minutes timer is active. */
 	remaining = $state(0);
+	/**
+	 * UI-trigger flag (plan 18-03): any surface (track menu, nowbar badge, now-playing
+	 * readout) flips this to `true` to open the ONE globally-mounted SleepTimerSheet. Pure UI
+	 * state — never touched by the deadline logic, never persisted. The sheet's overlay $effect
+	 * depends on this flag ONLY (the pickerOpen precedent).
+	 */
+	sheetOpen = $state(false);
 	private tick: ReturnType<typeof setInterval> | null = null;
 
 	get active(): boolean {

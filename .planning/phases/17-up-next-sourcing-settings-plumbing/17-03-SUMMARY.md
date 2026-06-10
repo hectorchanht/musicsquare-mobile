@@ -110,3 +110,9 @@ All threat-register dispositions were satisfied as planned (no new surface intro
 ## TDD Gate Compliance
 
 Tasks 1 and 2 followed the RED→GREEN cycle with paired `test(...)` then `feat(...)` commits (verified in the commit log above). Task 3 is a UI-wiring task with no `tdd="true"` flag; its verification gate is `svelte-check` (clean).
+
+## Self-Check: PASSED
+
+- Created files exist: `src/lib/services/color.ts`, `src/lib/services/color.test.ts`, `17-03-SUMMARY.md`.
+- Modified files exist: `settings.svelte.ts`, `settings.svelte.test.ts`, `appearance/+page.svelte`.
+- All 5 task commits + the docs commit are reachable in git log (`aca5a14`, `58ac631`, `fe17f99`, `5a0fa30`, `e8ad412`, `4cfa77c`).

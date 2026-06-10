@@ -465,6 +465,14 @@ class Player {
 	 * Plain Set (not $state) so Track objects stay clean — no origin field on Track.
 	 */
 	private manualUids = new Set<string>();
+	/**
+	 * Uids the user swiped out of Up-Next this session (Phase 17, QUEUE-05 / D-10). An internal
+	 * exclusion budget mirroring manualUids: a plain Set (NOT $state — never reactive, keeps Track
+	 * objects clean) that regenerate's buildSimilarQueue exclude set + ensureAhead's buildDiversePicks
+	 * `have` set both union in, so a swiped-away song does not regenerate back. Session-scoped: reset
+	 * on a fresh user play and NEVER persisted (a reload starts a clean session).
+	 */
+	private removedUids = new Set<string>();
 
 	/**
 	 * Single SSR + feature-detection guard for the Media Session API (MS-05, T-kyf-03).
@@ -735,6 +743,31 @@ class Player {
 	}
 
 	/**
+	 * Remove one track from Up-Next (Phase 17, QUEUE-05 / D-10 — swipe-to-remove). The uid is
+	 * session-excluded from auto-generation (removedUids) so it does not regenerate back in, and
+	 * dropped from manualUids so a previously-pinned track can still be swiped away. Re-reads
+	 * `this.queue` at write-time and filters it (Pitfall 1 — never a closed-over snapshot).
+	 */
+	removeFromQueue(uid: string) {
+		this.removedUids.add(uid); // D-10: session-excluded from regen/grow
+		this.manualUids.delete(uid);
+		this.queue = this.queue.filter((t) => t.uid !== uid);
+		this.persist();
+	}
+
+	/**
+	 * Clear the whole queue (Phase 17, QUEUE-05 / D-08). Keeps ONLY the currently-playing track
+	 * (never-stop: current survives) and resets manual pins. D-09: deliberately does NOT regenerate
+	 * or ensureAhead here — the queue stays at [current] and the exhaust engine refills only when
+	 * the current track nears its end. Re-reads `this.current`/`this.queue` at write-time (Pitfall 1).
+	 */
+	clearQueue() {
+		this.queue = this.current ? [this.current] : [];
+		this.manualUids.clear();
+		this.persist();
+	}
+
+	/**
 	 * Append more diverse picks when the queue is within 2 of the end, so playback
 	 * never runs short. Guarded against re-entry (growing flag) and dry sources.
 	 */
@@ -744,7 +777,9 @@ class Player {
 		if (i < 0 || this.queue.length - i > 2) return;
 		this.growing = true;
 		try {
-			const have = new Set(this.queue.map((t) => t.uid));
+			// Union removedUids (Phase 17, D-10/QUEUE-02): swiped-away songs stay excluded from the
+			// auto-grow picks, not just from the current queue snapshot.
+			const have = new Set([...this.queue.map((t) => t.uid), ...this.removedUids]);
 			const more = await buildDiversePicks(8, have);
 			if (more.length) this.queue = dedupeBest([...this.queue, ...more], settings.preferredSource);
 		} catch {
@@ -1042,6 +1077,9 @@ class Player {
 			// etc.) and only tops it up on exhaust via ensureAhead (the snapshot still grows when
 			// it runs out — D-03). A non-fresh play (auto-advance/failover) never regenerates.
 			if (opts?.fresh) {
+				// D-10: a fresh user play starts a NEW listening session — clear the swipe-removed
+				// exclusion budget BEFORE regenerate so previously-removed songs are eligible again.
+				this.removedUids.clear();
 				if (settings.effectiveUpnextMode(this.queueContext) === 'generated') {
 					void this.regenerate(resolved);
 				} else {
@@ -1072,7 +1110,13 @@ class Player {
 			const manualEntries = this.queue.filter(
 				(t) => this.manualUids.has(t.uid) && t.uid !== seed.uid
 			);
-			const exclude = new Set<string>([seed.uid, ...manualEntries.map((t) => t.uid)]);
+			// Union removedUids (Phase 17, D-10): swiped-away songs stay excluded from the regenerated
+			// auto portion, so a removed track does not reappear via the similar-queue generator.
+			const exclude = new Set<string>([
+				seed.uid,
+				...manualEntries.map((t) => t.uid),
+				...this.removedUids
+			]);
 			const auto = await buildSimilarQueue(seed, exclude);
 			this.queue = dedupeBest([seed, ...manualEntries, ...auto], settings.preferredSource);
 		} catch {

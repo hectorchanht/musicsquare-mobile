@@ -381,7 +381,7 @@ Plans:
 
 **Wave 2** *(blocked on 16-01 — same file)*
 
-- [ ] 16-02-PLAN.md — Resilience engine: failure counter + ~5-skip loop-guard + offline gate/downloads switch + ~15s stall watchdog + rejected-play()-as-failure + prefetch-on-ended + store notice channel (PLAY-07/08/09)
+- [x] 16-02-PLAN.md — Resilience engine: failure counter + ~5-skip loop-guard + offline gate/downloads switch + ~15s stall watchdog + rejected-play()-as-failure + prefetch-on-ended + store notice channel (PLAY-07/08/09)
 
 **Wave 3** *(blocked on 16-02 — consumes player.notice)*
 
@@ -547,7 +547,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 | 12. Scrobbling (online-only) | 0/TBD | Deferred → v1.3 | - |
 | 13. Loved-Tracks Sync | 0/TBD | Deferred → v1.3 | - |
 | 14. Search & Data Responsiveness | 2/2 | Complete    | 2026-06-06 |
-| 16. Playback Resilience Core | 1/3 | In Progress|  |
+| 16. Playback Resilience Core | 2/3 | In Progress|  |
 | 17. Up-Next Sourcing + Settings Plumbing | 0/TBD | Not started | - |
 | 18. Sleep Timer | 0/TBD | Not started | - |
 | 19. Track Menu Rework | 0/TBD | Not started | - |

@@ -105,3 +105,9 @@ No new threat surface introduced (no network endpoints, auth paths, or trust-bou
 ## Known Stubs
 
 None. No hardcoded empty data flows to UI; no placeholder text introduced.
+
+## Self-Check: PASSED
+
+- Created files present: `swipeRemove.ts`, `swipeRemove.test.ts`, `17-02-SUMMARY.md`.
+- Modified files present in HEAD tree: `player.svelte.ts`, `player.svelte.test.ts`, `NowPlaying.svelte`.
+- Commits present: `e8833fb`, `004d464`, `ed6d6dc`, `ccfbe66`.

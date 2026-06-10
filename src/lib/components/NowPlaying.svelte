@@ -416,6 +416,7 @@
 	let gripStartY = 0;
 	let gripMoved = 0;
 	let gripStartTab: Tab | null = null; // gesture-transient: the subnav tab the gesture started on (null = grip/empty)
+	let gripStartPlainButton = false; // gesture-transient: started on a subnav button WITHOUT data-tab (e.g. Clear) — WR-02
 	let closedOffset = 300; // distance from full-top to closed/peek-top (measured at drag start)
 	let halfOffset = $state(150); // distance from full-top to half-open-top; reactive so the resting-half transform updates when re-measured
 	let snapTimer: ReturnType<typeof setTimeout> | null = null;
@@ -457,8 +458,12 @@
 		gripMoved = 0;
 		// Remember which subnav tab (if any) the gesture started on, so a TAP switches that
 		// tab with priority over the generic grip toggle. null = grip handle / empty nav area.
-		const btn = (e.target as HTMLElement).closest('.subnav button') as HTMLElement | null;
+		// WR-02: only buttons WITH data-tab count as tabs; a plain subnav button (e.g. the
+		// Clear-queue button) must act alone — its tap must NOT fall through to the generic
+		// grip toggle (Clear used to also snap the sheet to a different state).
+		const btn = (e.target as HTMLElement).closest('.subnav button[data-tab]') as HTMLElement | null;
 		gripStartTab = btn ? (btn.dataset.tab as Tab) : null;
+		gripStartPlainButton = !btn && !!(e.target as HTMLElement).closest('.subnav button');
 		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 		if (snapTimer) clearTimeout(snapTimer);
 		gripVel.reset();
@@ -489,6 +494,12 @@
 				gripStartTab = null;
 				return;
 			}
+			if (gripStartPlainButton) {
+				// WR-02: tap on a non-tab subnav button (e.g. Clear queue) — its own onclick
+				// acts alone; the generic grip toggle must NOT also change the sheet state.
+				gripStartPlainButton = false;
+				return;
+			}
 			// Tap on the grip handle / empty nav area → generic single step:
 			// closed→half, half→closed, full→half.
 			sheetState = sheetState === 'closed' ? 'half' : sheetState === 'full' ? 'half' : 'closed';
@@ -496,6 +507,7 @@
 			return;
 		}
 		gripStartTab = null;
+		gripStartPlainButton = false;
 		let target: SheetState;
 		// FLICK → a fast pointer velocity steps ONE state in the flick direction, regardless
 		// of how far the finger travelled (down = toward closed, up = toward full), clamped at

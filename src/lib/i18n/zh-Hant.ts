@@ -193,7 +193,6 @@ const zhHant: Dict = {
 	'nowplaying.next': '下一首',
 	'nowplaying.repeat': '重複播放',
 	'nowplaying.repeatModeOne': '單曲循環',
-	'nowplaying.repeatModeAll': '列表循環',
 	'nowplaying.collapsePanel': '收合面板',
 	'nowplaying.expandPanel': '展開面板',
 	'nowplaying.upNext': '待播清單',

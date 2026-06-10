@@ -175,7 +175,6 @@ const pt: Dict = {
 	"nowplaying.next": "Próximo",
 	"nowplaying.repeat": "Repetir",
 	"nowplaying.repeatModeOne": "Repetir uma",
-	"nowplaying.repeatModeAll": "Repetir tudo",
 	"nowplaying.collapsePanel": "Recolher painel",
 	"nowplaying.expandPanel": "Expandir painel",
 	"nowplaying.upNext": "A seguir",

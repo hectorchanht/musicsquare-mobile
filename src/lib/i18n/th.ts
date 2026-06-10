@@ -175,7 +175,6 @@ const th: Dict = {
 	"nowplaying.next": "ถัดไป",
 	"nowplaying.repeat": "ทำซ้ำ",
 	"nowplaying.repeatModeOne": "เล่นซ้ำเพลงเดียว",
-	"nowplaying.repeatModeAll": "เล่นซ้ำทั้งหมด",
 	"nowplaying.collapsePanel": "ยุบแผง",
 	"nowplaying.expandPanel": "ขยายแผง",
 	"nowplaying.upNext": "ต่อไป",

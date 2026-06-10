@@ -175,7 +175,6 @@ const hi: Dict = {
 	"nowplaying.next": "अगला",
 	"nowplaying.repeat": "दोहराएँ",
 	"nowplaying.repeatModeOne": "एक दोहराएँ",
-	"nowplaying.repeatModeAll": "सभी दोहराएँ",
 	"nowplaying.collapsePanel": "पैनल संक्षिप्त करें",
 	"nowplaying.expandPanel": "पैनल का विस्तार करें",
 	"nowplaying.upNext": "अगला",

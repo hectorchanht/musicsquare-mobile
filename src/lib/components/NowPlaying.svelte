@@ -744,7 +744,7 @@
 								class:over={i === dragOver && i !== dragFrom}
 								style:transform={i === dragFrom && rowDragY ? `translateY(${rowDragY}px)` : undefined}
 							>
-								<button class="row q-row" class:playing={track.uid === player.current?.uid} use:swipeRemove={{ onremove: () => player.removeFromQueue(track.uid) }} use:longpress onlongpress={() => openMenu(track)} onclick={() => player.play(track, { fresh: true })}>
+								<button class="row q-row" class:playing={track.uid === player.current?.uid} use:swipeRemove={{ onremove: () => player.removeFromQueue(track.uid), enabled: track.uid !== player.current?.uid }} use:longpress onlongpress={() => openMenu(track)} onclick={() => player.play(track, { fresh: true })}>
 									<span class="r-title">{names.dnTitle(track.title)}</span>
 									<span class="r-artist">{names.dnArtist(track.artist)}</span>
 								</button>

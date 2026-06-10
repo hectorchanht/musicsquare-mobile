@@ -1091,12 +1091,26 @@ describe('player.removeFromQueue / clearQueue / removedUids (Phase 17 QUEUE-05 /
 	it('removeFromQueue(uid) deletes it from manual pins (a pinned track can still be swiped away)', () => {
 		const a = mk('netease', '1', 'A', 'S1');
 		const b = mk('qq', '2', 'B', 'S2');
+		player.current = a; // a is playing, so addToQueue(b) does not auto-play b (b ≠ current)
 		player.queue = [a, b];
 		player.addToQueue(b); // pins b into manualUids (already in queue → dedupe keeps one)
 		const manual = (player as unknown as { manualUids: Set<string> }).manualUids;
 		expect(manual.has(b.uid)).toBe(true);
 		player.removeFromQueue(b.uid);
 		expect(manual.has(b.uid)).toBe(false);
+	});
+
+	it('removeFromQueue(current.uid) is a NO-OP — never-stop: the playing track survives (CR-01)', () => {
+		const cur = mk('netease', 'C', 'A', 'Cur');
+		const b = mk('qq', '2', 'B', 'S2');
+		player.current = cur;
+		player.queue = [cur, b];
+		player.removeFromQueue(cur.uid);
+		// Queue unchanged — removing the current track would orphan indexOf(current), killing
+		// next()/ensureAhead/prefetchNext AND persisting the broken state (CR-01).
+		expect(player.queue.map((t) => t.uid)).toEqual([cur.uid, b.uid]);
+		// And the uid is NOT session-excluded (the removal never happened).
+		expect((player as unknown as { removedUids: Set<string> }).removedUids.has(cur.uid)).toBe(false);
 	});
 
 	it('clearQueue() leaves queue = [current] when a current track exists and clears pins', () => {

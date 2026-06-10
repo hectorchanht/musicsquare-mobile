@@ -749,6 +749,10 @@ class Player {
 	 * `this.queue` at write-time and filters it (Pitfall 1 — never a closed-over snapshot).
 	 */
 	removeFromQueue(uid: string) {
+		// CR-01: never-stop — the CURRENT track survives (mirrors clearQueue's invariant).
+		// Removing it would orphan indexOf(current) → next()/ensureAhead/prefetchNext all go
+		// permanently dead AND persist() would write the broken state across reloads.
+		if (uid === this.current?.uid) return;
 		this.removedUids.add(uid); // D-10: session-excluded from regen/grow
 		this.manualUids.delete(uid);
 		this.queue = this.queue.filter((t) => t.uid !== uid);

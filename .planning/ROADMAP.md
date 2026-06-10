@@ -372,7 +372,21 @@ Music never stops + offline downloads + a broad UX polish pass. This is a polish
   3. Whenever the current track changes, the next track's URL is resolved ahead of time so it begins immediately when the current one ends (no audible resolve gap)
   4. The repeat control has exactly two states — off / repeat-one; repeat-all is gone and continuation is handled by auto-generated up-next
 
-**Plans**: TBD
+**Plans**: 3 plans (3 waves)
+Plans:
+
+**Wave 1**
+
+- [ ] 16-01-PLAN.md — Repeat 2-state (off/one) collapse + restore migration (`player.svelte.ts` + NowPlaying) (PLAY-10)
+
+**Wave 2** *(blocked on 16-01 — same file)*
+
+- [ ] 16-02-PLAN.md — Resilience engine: failure counter + ~5-skip loop-guard + offline gate/downloads switch + ~15s stall watchdog + rejected-play()-as-failure + prefetch-on-ended + store notice channel (PLAY-07/08/09)
+
+**Wave 3** *(blocked on 16-02 — consumes player.notice)*
+
+- [ ] 16-03-PLAN.md — Layout toast host (auto-dismiss skip/batched + sticky loop-guard Retry + offline notice, silent failover) + 15-locale i18n keys (checkpoint: human-verify) (PLAY-07/08)
+
 **Research flag**: LOW — extension of documented existing `player.svelte.ts` logic (the failover/prefetch/skip-guard primitives already ship). No `--research-phase` needed.
 
 ### Phase 17: Up-Next Sourcing + Settings Plumbing
@@ -533,7 +547,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 | 12. Scrobbling (online-only) | 0/TBD | Deferred → v1.3 | - |
 | 13. Loved-Tracks Sync | 0/TBD | Deferred → v1.3 | - |
 | 14. Search & Data Responsiveness | 2/2 | Complete    | 2026-06-06 |
-| 16. Playback Resilience Core | 0/TBD | Not started | - |
+| 16. Playback Resilience Core | 0/3 | Planned | - |
 | 17. Up-Next Sourcing + Settings Plumbing | 0/TBD | Not started | - |
 | 18. Sleep Timer | 0/TBD | Not started | - |
 | 19. Track Menu Rework | 0/TBD | Not started | - |

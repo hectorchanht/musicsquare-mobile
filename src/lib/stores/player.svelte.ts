@@ -20,6 +20,8 @@ import { buildArtwork, safePositionState, playbackStateFor } from '$lib/services
 import { resolveStub } from '$lib/services/discovery';
 import { blobStore } from '$lib/services/blob-store';
 import { settings } from '$lib/stores/settings.svelte';
+import { sleepTimer } from '$lib/stores/sleepTimer.svelte';
+import { isExpired, fadeVolumeAt, canFadeVolume, decideEndedAction } from '$lib/services/sleep-timer';
 import type { QueueContext } from '$lib/config/defaults';
 import { history } from '$lib/stores/history.svelte';
 import { library } from '$lib/stores/library.svelte';
@@ -452,6 +454,17 @@ class Player {
 	 *  mid-track buffer-dry (D-14). Plain field — internal watchdog state, not reactive. */
 	private hasPlayedSinceSrc = false;
 
+	/** Sleep-timer fade-out interval (TIMER-01, D-01). On platforms that honour volume writes
+	 *  expiry ramps the volume down over ~10s then pauses; cleared on finish/abort. Plain field —
+	 *  internal fade lifecycle, never reactive. Mirrors the stallTimer clearInterval idiom. */
+	private fadeTimer: ReturnType<typeof setInterval> | null = null;
+	/** Volume snapshot taken at the start of a fade so finishExpiry/abortFade can restore it (D-02). */
+	private preFadeVolume = 1;
+	/** Coarse secondary minutes-deadline backstop (RESEARCH Assumption A1): catches the iOS
+	 *  screen-wake case where `timeupdate` stalled while locked. The `timeupdate` listener stays
+	 *  the authority; this is a belt-and-suspenders net armed via onSleepTimerSet(). */
+	private wakeTimer: ReturnType<typeof setTimeout> | null = null;
+
 	currentTime = $state(0);
 	/** 0 until loadedmetadata; never NaN. */
 	duration = $state(0);
@@ -544,6 +557,104 @@ class Player {
 		}
 	}
 
+	/**
+	 * The sleep-timer minutes expiry (TIMER-01). The ONE sanctioned way playback stops by itself
+	 * — an INTENTIONAL pause, not a failure. Phase-18 blocker (STATE.md): this path MUST be
+	 * invisible to the Phase-16 never-stop machinery — it never calls next(), never bumps playGen
+	 * (the sole legitimate bump stays in play()), never touches consecutiveFailures/errorBurst, and
+	 * never routes into runFallback/tripLoopGuard. It only pauses + restores volume + cancels the
+	 * timer, and the paused lock-screen state comes for free via the existing `pause` listener (D-09).
+	 *
+	 * D-01: on platforms that honour volume writes, ramp the volume down over ~10s then pause; on
+	 * iOS (read-only volume) pause instantly. D-04: if the user already paused manually, clear the
+	 * timer silently (no second pause, no fade).
+	 */
+	expireSleepTimer() {
+		if (!this.audio) {
+			sleepTimer.cancel();
+			return;
+		}
+		// D-04: already paused → silent clear, no fade, no duplicate pause.
+		if (this.audio.paused) {
+			sleepTimer.cancel();
+			return;
+		}
+		const audio = this.audio;
+		if (canFadeVolume(audio)) {
+			// D-01: ~10s linear fade, then pause (the indicator stays until finishExpiry cancels it).
+			this.preFadeVolume = audio.volume;
+			const start = Date.now();
+			const FADE_MS = 10_000;
+			this.disarmFadeTimer(); // never stack two fades
+			this.fadeTimer = setInterval(() => {
+				const elapsed = Date.now() - start;
+				audio.volume = fadeVolumeAt(elapsed, FADE_MS, this.preFadeVolume); // pure, clamped [0,1]
+				if (elapsed >= FADE_MS) this.finishExpiry();
+			}, 200);
+		} else {
+			// iOS / unsupported volume writes → instant pause (D-01 feature-detected).
+			this.finishExpiry();
+		}
+	}
+
+	/** Complete the expiry: stop the fade, pause (→ `pause` listener → lock screen paused, D-09),
+	 *  restore the pre-fade volume for the next play (D-02), and cancel the timer (silent, D-09). */
+	private finishExpiry() {
+		this.disarmFadeTimer();
+		this.disarmWakeTimer();
+		this.audio?.pause();
+		if (this.audio) this.audio.volume = this.preFadeVolume; // D-02: restore for next play
+		sleepTimer.cancel();
+	}
+
+	/** D-05: any playback gesture during a fade aborts the stop — clear the fade, restore the
+	 *  pre-fade volume, and cancel the timer (the user is awake). No-op when no fade is in flight. */
+	private abortFade() {
+		if (this.fadeTimer) {
+			this.disarmFadeTimer();
+			if (this.audio) this.audio.volume = this.preFadeVolume; // restore
+			sleepTimer.cancel(); // user is awake — clear the timer too
+		}
+	}
+
+	/** Clear the fade interval (mirrors disarmStall's clearTimeout idiom). */
+	private disarmFadeTimer() {
+		if (this.fadeTimer) {
+			clearInterval(this.fadeTimer);
+			this.fadeTimer = null;
+		}
+	}
+
+	/** Clear the coarse secondary deadline backstop. */
+	private disarmWakeTimer() {
+		if (this.wakeTimer) {
+			clearTimeout(this.wakeTimer);
+			this.wakeTimer = null;
+		}
+	}
+
+	/**
+	 * Arm the coarse secondary minutes-deadline backstop (RESEARCH Assumption A1). Called by the
+	 * timer UI AFTER `sleepTimer.set('minutes', …)` (leaf-store direction: the store never imports
+	 * the player; the player reads the store, the UI bridges them). The `timeupdate` listener stays
+	 * the authority — this single `setTimeout` is a free catch-the-wake net for the iOS locked-screen
+	 * case where `timeupdate` stalled while the page was hidden. It re-checks isExpired() and obeys
+	 * the SAME suppress-next/no-failure-machinery rules (it calls the same expireSleepTimer()). A
+	 * non-minutes set (end-of-track) just disarms any prior wake timer.
+	 */
+	onSleepTimerSet() {
+		this.disarmWakeTimer();
+		if (sleepTimer.mode === 'minutes' && sleepTimer.deadline != null) {
+			const delay = Math.max(0, sleepTimer.deadline - Date.now());
+			this.wakeTimer = setTimeout(() => {
+				this.wakeTimer = null;
+				if (sleepTimer.mode === 'minutes' && isExpired(Date.now(), sleepTimer.deadline)) {
+					this.expireSleepTimer();
+				}
+			}, delay);
+		}
+	}
+
 	/** Bind the single long-lived <audio> element (called once from the layout). */
 	attach(el: HTMLAudioElement) {
 		this.audio = el;
@@ -587,6 +698,14 @@ class Player {
 			this.disarmStall();
 		});
 		el.addEventListener('timeupdate', () => {
+			// Sleep-timer minutes backstop (TIMER-01, Pattern 1): `timeupdate` fires ~4×/sec while
+			// audio plays — exempt from intensive bg-tab throttling — so checking the ABSOLUTE
+			// deadline here is the throttle-proof expiry authority. expireSleepTimer() pauses in
+			// place; the existing body (currentTime/syncPosition/persist) is suppressed for this tick.
+			if (sleepTimer.mode === 'minutes' && isExpired(Date.now(), sleepTimer.deadline)) {
+				this.expireSleepTimer();
+				return;
+			}
 			this.currentTime = el.currentTime || 0;
 			this.syncPosition(el);
 			// D-13/D-14: the first timeupdate since src-set is the "we are actually playing" signal —
@@ -622,6 +741,17 @@ class Player {
 			this.playing = false;
 			this.syncPlaybackState();
 			this.disarmStall(); // track finished — no initial-load stall to watch for
+			// Sleep end-of-track (TIMER-01, D-03): when an end-of-track timer is armed, the natural
+			// track boundary is the stop point — and it BEATS repeat-one. decideEndedAction makes the
+			// precedence explicit + unit-tested: 'sleep-stop' returns BEFORE the repeat-one rewind and
+			// BEFORE next(), so neither runs. The `ended` event already paused the element; cancel the
+			// timer (indicator disappears, D-09) and clear the OS media UI. NEVER calls next()/playGen.
+			const endedAction = decideEndedAction(sleepTimer.mode, this.repeatMode);
+			if (endedAction === 'sleep-stop') {
+				sleepTimer.cancel();
+				this.clearMedia();
+				return;
+			}
 			// Repeat-one (D-10): loop the current track without advancing. The `ended` event
 			// already paused the element; rewind + play(). 'off' is the straight advance into
 			// next() (which grows auto up-next at the end of the queue — no repeat-all wrap).
@@ -1142,12 +1272,14 @@ class Player {
 	}
 
 	toggle() {
+		this.abortFade(); // D-05: a play/pause gesture during a fade aborts the sleep stop
 		if (!this.audio) return;
 		if (this.audio.paused) this.audio.play().catch(() => {});
 		else this.audio.pause();
 	}
 
 	next() {
+		this.abortFade(); // D-05: a skip gesture during a fade aborts the sleep stop
 		const i = this.indexOf(this.current);
 		if (i >= 0 && i + 1 < this.queue.length) {
 			this.play(this.queue[i + 1]);
@@ -1163,6 +1295,7 @@ class Player {
 	}
 
 	prev() {
+		this.abortFade(); // D-05: a prev gesture during a fade aborts the sleep stop
 		// restart if >3s in, else previous track
 		if (this.audio && this.audio.currentTime > 3) {
 			this.audio.currentTime = 0;
@@ -1440,6 +1573,7 @@ class Player {
 
 	/** Seek to a fraction [0,1] of the track. */
 	seekFraction(frac: number) {
+		this.abortFade(); // D-05: a seek gesture during a fade aborts the sleep stop
 		if (!this.audio) return;
 		// lw9-followup: stamp the seek time so a sympathetic audio.error fired by the same
 		// seek (past-buffered-range on a non-range-capable CDN) doesn't kick off runFallback().

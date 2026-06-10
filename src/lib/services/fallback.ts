@@ -9,17 +9,27 @@
 // exactly ONE source — keeping the per-source attempts cheap and isolating any source failure.
 
 import { searchAll, ensureTrackDetails } from '$lib/services/catalog';
-import { dedupeBest } from '$lib/services/dedupe';
+import { dedupeBest, sameSongKey } from '$lib/services/dedupe';
 import { getEnabledAdapters, SOURCES } from '$lib/sources/registry';
 import type { SourceId, Track } from '$lib/sources/types';
 
 /**
  * Build the ordered list of source ids to try as a fallback, given the source that just failed.
- * Drops the failed source; surfaces `preferred` first when set. Pure — exported for testability.
+ * Drops the failed source AND every source in `attempted` (sources already tried for this logical
+ * song — CR-03); surfaces `preferred` first when set. Pure — exported for testability.
+ *
+ * `attempted` prevents the unbounded A↔B ping-pong where a resolve-but-unplayable source (URL
+ * resolves, the <audio> 403s) keeps being re-offered because fallbackOrder only excluded the
+ * single source that just failed: once A-netease and A-qq have both been tried for one song, both
+ * are excluded so the order empties and the caller routes to total-failure (the counter engages).
  */
-export function fallbackOrder(failed: SourceId, preferred?: SourceId): SourceId[] {
+export function fallbackOrder(
+	failed: SourceId,
+	preferred?: SourceId,
+	attempted?: ReadonlySet<SourceId>
+): SourceId[] {
 	const enabled = getEnabledAdapters({}).map((a) => a.id);
-	const remaining = enabled.filter((s) => s !== failed);
+	const remaining = enabled.filter((s) => s !== failed && !attempted?.has(s));
 	if (preferred && remaining.includes(preferred)) {
 		return [preferred, ...remaining.filter((s) => s !== preferred)];
 	}
@@ -51,22 +61,37 @@ function onlySource(id: SourceId): Partial<Record<SourceId, boolean>> {
  *
  * `signal` aborts the in-flight searchAll/ensureTrackDetails when a newer play() supersedes; the
  * caller is responsible for bumping its generation and aborting the controller.
+ *
+ * `attempted` (CR-03) carries the sources already tried for THIS logical song across the fallback
+ * episode. fallbackOrder excludes every member, so a resolve-but-unplayable source is never
+ * re-offered within the same episode; once the order empties this returns null (total failure) and
+ * the caller's loop-guard counter engages — closing the unbounded A↔B ping-pong. Each source this
+ * call touches is added to the set (it is mutated in place by design so the caller sees what was
+ * tried).
  */
 export async function tryFallback(
 	failed: Track,
 	preferred: SourceId | undefined,
-	signal?: AbortSignal
+	signal?: AbortSignal,
+	attempted?: Set<SourceId>
 ): Promise<Track | null> {
 	const query = `${failed.artist} ${failed.title}`.trim();
 	if (!query) return null;
-	const order = fallbackOrder(failed.source, preferred);
+	const order = fallbackOrder(failed.source, preferred, attempted);
 	for (const src of order) {
 		if (signal?.aborted) return null;
+		// Mark this source as attempted for the episode BEFORE the await — even if it throws or
+		// yields no playable URL, it must not be retried for the same song (CR-03).
+		attempted?.add(src);
 		try {
 			const result = await searchAll(query, 1, onlySource(src), signal);
 			if (signal?.aborted) return null;
 			const candidates = dedupeBest(result.interleaved, src);
-			const stub = candidates[0];
+			// WR-06: a fuzzy upstream search can return a DIFFERENT song; adopting candidates[0]
+			// unconditionally would silently auto-play the wrong track under the original's
+			// identity (successful failover is silent by design). Gate adoption on a normalized
+			// title+artist match before resolving, reusing dedupe's own key normalization.
+			const stub = candidates.find((c) => sameSongKey(c, failed));
 			if (!stub) continue;
 			const resolved = await ensureTrackDetails(stub, signal);
 			if (signal?.aborted) return null;

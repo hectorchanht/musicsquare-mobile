@@ -36,6 +36,19 @@ function key(t: Track): string {
 	return `${norm(t.title)}|${norm(t.artist)}`;
 }
 
+/**
+ * Two tracks are "the same song" iff their normalized title+artist keys match (WR-06). Reuses the
+ * exact `key()` normalization dedupe applies so a cross-source fallback can verify a fuzzy upstream
+ * search returned the SAME song before adopting it (a fuzzy search can return an unrelated track,
+ * which would otherwise silently auto-play under the original track's identity). A blank/untitled
+ * key is never considered a match (returns false) so we don't adopt garbage on a no-title stub.
+ */
+export function sameSongKey(a: Track, b: Track): boolean {
+	const ka = key(a);
+	if (!ka || ka === '|') return false;
+	return ka === key(b);
+}
+
 function better(a: Track, b: Track, preferred?: SourceId): Track {
 	const qa = qualityRank(a);
 	const qb = qualityRank(b);

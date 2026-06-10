@@ -82,6 +82,32 @@ export const PLAYBACK_DEFAULTS = {
 	enabledSources: {} as Partial<Record<SourceId, boolean>>
 } as const;
 
+// ---- Up-next sourcing (Phase 17, QUEUE-03) ---------------------------------------------
+// Per-context up-next sourcing. Each context resolves to one of two modes:
+//   'same-list'  — snapshot the visible list at tap time (D-03); the exhaust engine still
+//                  refills when the snapshot runs out.
+//   'generated'  — tapped track + genre-similar generation (D-04); the global default.
+// The types live HERE (not in a store) so both player.svelte.ts and settings.svelte.ts can
+// import them without a circular dependency — defaults.ts is already imported by both.
+export type UpnextMode = 'same-list' | 'generated';
+/** Which surface started the current queue. `null` = unknown origin → global default. */
+export type QueueContext =
+	| 'liked'
+	| 'search'
+	| 'downloads'
+	| 'playlist'
+	| 'album'
+	| 'artist'
+	| 'home-discovery'
+	| 'history'
+	| null;
+export const UPNEXT_DEFAULTS = {
+	/** Global default sourcing mode — roadmap-locked to 'generated'. */
+	mode: 'generated' as UpnextMode,
+	/** Per-context overrides; empty = every context resolves to the global `mode`. */
+	perContext: {} as Partial<Record<Exclude<QueueContext, null>, UpnextMode>>
+} as const;
+
 // ---- Home layout -----------------------------------------------------------------------
 // homeSectionOrder/homeTags/homeCountries pull from the canonical pools in home-layout.ts
 // so this file stays a single source of truth (no risk of drift).
@@ -103,6 +129,7 @@ export const DEFAULTS = {
 	appearance: APPEARANCE_DEFAULTS,
 	translation: TRANSLATION_DEFAULTS,
 	playback: PLAYBACK_DEFAULTS,
+	upnext: UPNEXT_DEFAULTS,
 	home: HOME_DEFAULTS
 } as const;
 

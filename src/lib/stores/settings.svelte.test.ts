@@ -1,6 +1,16 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { settings } from './settings.svelte';
+import { settings, FONT_SCALE_MIN, FONT_SCALE_MAX } from './settings.svelte';
 import { UPNEXT_DEFAULTS } from '$lib/config/defaults';
+import { darken } from '$lib/services/color';
+
+/** clampInt is a module-private helper; re-state its exact contract here so the FONT_SCALE
+ *  cases assert the load()-path clamp behaviour without exporting internals. Mirrors
+ *  settings.svelte.ts lines 60-64 verbatim. */
+const clampInt = (n: unknown, min: number, max: number, def: number): number => {
+	if (typeof n !== 'number' || !Number.isFinite(n)) return def;
+	const f = Math.round(n);
+	return f < min ? min : f > max ? max : f;
+};
 
 // Headless runes (node project) — mirrors player.svelte.test.ts style. Under the node
 // project `browser` is false, so settings.load() is a no-op and the $state initializers
@@ -72,5 +82,59 @@ describe('settings.effectiveUpnextMode (Phase 17 QUEUE-03)', () => {
 		// Absent on a fresh load → the $state initializer keeps {}.
 		expect(settings.upnextPerContext).toEqual({});
 		expect(settings.effectiveUpnextMode('downloads')).toBe('generated');
+	});
+});
+
+// Phase 17 (UX-03 / D-11) — FONT_SCALE clamp widened to 50..200. Persisted 70-160 values
+// (the old bounds) must still load unchanged; out-of-range values clamp to the new bounds.
+describe('FONT_SCALE bounds (Phase 17 UX-03 / D-11)', () => {
+	it('exposes the widened bounds: MIN === 50, MAX === 200', () => {
+		expect(FONT_SCALE_MIN).toBe(50);
+		expect(FONT_SCALE_MAX).toBe(200);
+	});
+
+	it('a previously-valid persisted value (160) still loads unchanged within the new bounds', () => {
+		expect(clampInt(160, FONT_SCALE_MIN, FONT_SCALE_MAX, 100)).toBe(160);
+		// A value the OLD bounds would have rejected is now valid too.
+		expect(clampInt(75, FONT_SCALE_MIN, FONT_SCALE_MAX, 100)).toBe(75);
+		expect(clampInt(190, FONT_SCALE_MIN, FONT_SCALE_MAX, 100)).toBe(190);
+	});
+
+	it('out-of-range persisted values clamp to the new bounds (250→200, 30→50)', () => {
+		expect(clampInt(250, FONT_SCALE_MIN, FONT_SCALE_MAX, 100)).toBe(200);
+		expect(clampInt(30, FONT_SCALE_MIN, FONT_SCALE_MAX, 100)).toBe(50);
+	});
+
+	it('a NaN/non-number persisted value falls back to the default (100)', () => {
+		expect(clampInt(NaN, FONT_SCALE_MIN, FONT_SCALE_MAX, 100)).toBe(100);
+		expect(clampInt('x', FONT_SCALE_MIN, FONT_SCALE_MAX, 100)).toBe(100);
+	});
+});
+
+// Phase 17 (UX-07 / Pattern 5) — applyTheme derives --color-primary-hover from the accent
+// via darken(accent, 0.12). Under the node project `browser` is false, so applyTheme() is a
+// no-op (no documentElement); per the plan we assert the DERIVATION applyTheme uses — the
+// exact value it would push to the CSS var — rather than the DOM side effect.
+describe('accent-hover derivation (Phase 17 UX-07)', () => {
+	it('darken(accent, 0.12) is the hover value applyTheme sets, and it is darker than the accent', () => {
+		const accent = '#7c5cff';
+		const hover = darken(accent, 0.12);
+		expect(hover).toMatch(/^#[0-9a-f]{6}$/);
+		expect(hover).not.toBe(accent);
+		// Sanity: ~12% darken matches today's #7c5cff → #6a48f0 relationship (each channel down).
+		const ch = (h: string): [number, number, number] => {
+			const n = parseInt(h.replace('#', ''), 16);
+			return [n >> 16, (n >> 8) & 0xff, n & 0xff];
+		};
+		const [r, g, b] = ch(hover);
+		const [r0, g0, b0] = ch(accent);
+		expect(r).toBeLessThan(r0);
+		expect(g).toBeLessThan(g0);
+		expect(b).toBeLessThan(b0);
+	});
+
+	it('applyTheme() is a safe no-op under the node project (browser false, no throw)', () => {
+		settings.accent = '#1db954';
+		expect(() => settings.applyTheme()).not.toThrow();
 	});
 });

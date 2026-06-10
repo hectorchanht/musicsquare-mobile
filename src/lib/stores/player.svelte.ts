@@ -178,6 +178,13 @@ class Player {
 	 * reactivity (it's an internal supersedence guard, like pendingGen). */
 	private playGen = 0;
 
+	/** Monotonic queue generation (WR-06): bumped by every explicit setQueue() so an in-flight
+	 * regenerate() (network-bound, seconds) can detect that the caller has since installed an
+	 * EXPLICIT queue (e.g. playAlbum: playStub's [first] → regenerate races resolveAllCached →
+	 * setQueue(all album tracks)) and discard its stale result instead of replacing the user's
+	 * chosen list with generated picks. Plain field — internal supersedence guard. */
+	private queueGen = 0;
+
 	/**
 	 * Per-episode "already-attempted sources" set (CR-03). A fallback EPISODE is one logical song's
 	 * failover run, keyed by its normalized title+artist (`fallbackEpisodeKey`). Within an episode
@@ -718,6 +725,7 @@ class Player {
 	 *  `context` records which surface started the queue (Phase 17, QUEUE-03) so the fresh-play
 	 *  path can resolve the effective sourcing mode. Defaults to null (unknown → global default). */
 	setQueue(tracks: Track[], context: QueueContext = null) {
+		this.queueGen++; // WR-06: an explicit queue supersedes any in-flight regenerate result
 		this.queue = dedupeBest(tracks, settings.preferredSource);
 		this.queueContext = context;
 		this.persist();
@@ -1110,6 +1118,10 @@ class Player {
 	 * failure the queue is left as-is. Only invoked on a fresh user-initiated play.
 	 */
 	private async regenerate(seed: Track) {
+		// WR-06: snapshot the queue generation. If an explicit setQueue() lands while
+		// buildSimilarQueue is in flight (e.g. playAlbum installing the full album list),
+		// that explicit queue wins — this regenerate's result is stale and must be discarded.
+		const myQueueGen = this.queueGen;
 		try {
 			const manualEntries = this.queue.filter(
 				(t) => this.manualUids.has(t.uid) && t.uid !== seed.uid
@@ -1122,6 +1134,7 @@ class Player {
 				...this.removedUids
 			]);
 			const auto = await buildSimilarQueue(seed, exclude);
+			if (myQueueGen !== this.queueGen) return; // WR-06: superseded by an explicit setQueue()
 			this.queue = dedupeBest([seed, ...manualEntries, ...auto], settings.preferredSource);
 		} catch {
 			/* leave queue as-is */

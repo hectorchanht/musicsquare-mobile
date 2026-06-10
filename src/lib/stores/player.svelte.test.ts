@@ -1159,6 +1159,23 @@ describe('player.removeFromQueue / clearQueue / removedUids (Phase 17 QUEUE-05 /
 		expect(excludeArg.has(gone.uid)).toBe(true);
 	});
 
+	it("an explicit setQueue() mid-regenerate WINS — generated picks don't clobber it (WR-06)", async () => {
+		const seed = mk('netease', 'SEED', 'A', 'Seed');
+		const albumQueue = [seed, mk('qq', '1', 'B', 'T1'), mk('kuwo', '2', 'C', 'T2')];
+		// Hold buildSimilarQueue open so an explicit setQueue can land while it is in flight
+		// (the playAlbum race: playStub → regenerate vs resolveAllCached → setQueue(all)).
+		let resolveSimilar!: (v: Track[]) => void;
+		mockSimilar.mockReturnValue(new Promise<Track[]>((r) => (resolveSimilar = r)));
+		player.current = seed;
+		player.queue = [seed];
+		const regen = (player as unknown as { regenerate(t: Track): Promise<void> }).regenerate(seed);
+		player.setQueue(albumQueue, 'album'); // explicit queue installed mid-regenerate
+		resolveSimilar([mk('joox', '9', 'D', 'Gen')]); // late generated picks settle AFTER setQueue
+		await regen;
+		// The user's explicit album queue survives; the stale regenerate result is discarded.
+		expect(player.queue.map((t) => t.uid)).toEqual(albumQueue.map((t) => t.uid));
+	});
+
 	it('a removeFromQueue uid is excluded from ensureAhead buildDiversePicks `have` set (D-10/QUEUE-02)', async () => {
 		const cur = mk('netease', 'C', 'A', 'Cur');
 		const gone = mk('qq', 'GONE', 'B', 'Gone');

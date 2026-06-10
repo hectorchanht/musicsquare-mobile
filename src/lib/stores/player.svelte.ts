@@ -38,6 +38,42 @@ export interface PendingTrack {
 /** U+241F SYMBOL FOR UNIT SEPARATOR — a separator that cannot appear in a real title/artist. */
 const PENDING_KEY_SEP = '␟';
 
+/**
+ * Store→UI notice channel (PLAY-08 / D-02, D-04, D-05). The never-stop chain ORIGINATES inside
+ * the player store (runFallback total-failure, the stall watchdog, the offline gate) but stores
+ * never import UI — so it surfaces resilience messages on a reactive `player.notice` field that a
+ * layout-level toast host (16-03) reads one-way, mirroring the existing `player.error → Nowbar`
+ * read. The store carries RAW, i18n-free data (D-03: 16-03 owns the wording):
+ *
+ *  - `kind: 'skip'`    → an auto-skip after a track failed all sources. `count` is how many songs
+ *                        were skipped in the current burst (D-02 batching: N consecutive skips
+ *                        within ~1.5s collapse into one "{count} songs skipped" message). `title`
+ *                        is the last-skipped track's title (the host may show it). Auto-dismissing,
+ *                        no action.
+ *  - `kind: 'stopped'` → a STICKY notice with no auto-dismiss. Either the loop-guard tripped
+ *                        (~5 consecutive failures, `reason: 'loop-guard'`, carries a Retry `action`
+ *                        that skips ahead + re-arms per D-05) OR the player went offline with no
+ *                        downloads to fall back to (`reason: 'offline'`, no action — playback
+ *                        resumes when connectivity + a user gesture return).
+ *
+ * 16-03 maps (kind, reason, count, title) → a localized string via `t()`; the store stays
+ * i18n-free. `msg` holds a stable token key for hosts that prefer a direct lookup.
+ */
+export interface PlayerNotice {
+	kind: 'skip' | 'stopped';
+	/** Stable token the UI may map directly via t(); the structured fields below are preferred. */
+	msg: string;
+	/** Why a 'stopped' notice fired — distinguishes the loop-guard from the offline pause. */
+	reason?: 'loop-guard' | 'offline';
+	/** 'skip' only: number of consecutive skips collapsed into this one message (D-02). */
+	count?: number;
+	/** 'skip' only: the title of the most recently skipped track. */
+	title?: string;
+	/** 'stopped'/loop-guard only: Retry — skips ahead to the next track, resets the counter,
+	 *  re-arms the never-stop chain (D-05). Absent on the offline-pause notice. */
+	action?: () => void;
+}
+
 /** mm:ss, NaN/Infinity-safe (avoids the "NaN:NaN" bug before metadata loads). */
 export function fmtTime(s: number): string {
 	if (!Number.isFinite(s) || s < 0) return '0:00';
@@ -51,6 +87,33 @@ class Player {
 	playing = $state(false);
 	loading = $state(false);
 	error = $state<string | null>(null);
+
+	/**
+	 * Resilience notice channel (PLAY-08 / D-02, D-04, D-05). One-way reactive read by the
+	 * layout toast host (16-03). See PlayerNotice for the shape + token contract. null = nothing
+	 * to show. The store sets this from runFallback (skip / loop-guard) and handleOffline (offline
+	 * pause); a real `playing` event clears any 'stopped' notice (the success reset).
+	 */
+	notice = $state<PlayerNotice | null>(null);
+
+	/**
+	 * Consecutive-failure counter (PLAY-08 / D-04, Pitfall 1). Incremented on every auto-skip that
+	 * did NOT reach a real `playing` event; reset to 0 by the `play` listener (D-06 success reset)
+	 * and by recoverFromStop. PLAIN field (not $state) — an internal loop-guard budget, never read
+	 * reactively by the UI (the UI reads `notice` instead). Offline does NOT burn it (D-08).
+	 */
+	private consecutiveFailures = 0;
+	/** Loop-guard cap: after this many consecutive failures with zero successful plays, STOP and
+	 *  surface a sticky Retry notice instead of auto-advancing again (D-04). */
+	private static FAILURE_CAP = 5;
+	/** Skip-burst batch counter (D-02): how many skips have collapsed into the current notice. Reset
+	 *  by the debounce window below. Plain field — not reactive. */
+	private skipBurst = 0;
+	/** Debounce timer for the skip-burst collapse window (~1.5s). While it is live, further skips
+	 *  increment skipBurst into ONE notice rather than stacking N notices (D-02). */
+	private skipBurstTimer: ReturnType<typeof setTimeout> | null = null;
+	/** Skip-burst collapse window in ms (D-02 / CONTEXT D-49). */
+	private static SKIP_BURST_WINDOW_MS = 1500;
 
 	/**
 	 * Optimistic now-bar overlay (FIX-A). Set SYNCHRONOUSLY the instant a discovery stub
@@ -376,6 +439,12 @@ class Player {
 		el.addEventListener('play', () => {
 			this.playing = true;
 			this.syncPlaybackState();
+			// D-06 success reset: a real `playing` event is the natural counter reset — the track
+			// is actually producing audio, so the never-stop chain has recovered. Clear the
+			// consecutive-failure budget and drop any sticky 'stopped' (loop-guard / offline) notice
+			// so the UI stops showing "playback stopped" the instant playback resumes.
+			this.consecutiveFailures = 0;
+			if (this.notice?.kind === 'stopped') this.notice = null;
 		});
 		el.addEventListener('pause', () => {
 			this.playing = false;
@@ -889,13 +958,94 @@ class Player {
 				await this.play(swap, { fromFallback: true });
 				return;
 			}
-			// Every remaining source exhausted — surface the error as before.
-			this.error = 'playback failed (source may be region-locked or expired)';
-			this.clearMedia();
+			// Every remaining source exhausted for THIS song. Instead of just surfacing the error
+			// and stopping (the old behavior), run the never-stop policy (PLAY-07 / D-02, D-04,
+			// D-05, D-12): break a failing repeat-one loop, count the failure, then either auto-skip
+			// to the next track (below the cap) or trip the loop-guard and STOP with a sticky Retry
+			// notice (at the cap). The finally below clears loading for the loop-guard stop; the
+			// skip path's next()→play() bumps playGen and owns loading from there.
+			this.handleTotalFailure(failed);
 		} finally {
 			clearInterval(watchdog);
 			if (this.playGen === gen) this.loading = false;
 		}
+	}
+
+	/**
+	 * Never-stop total-failure policy (PLAY-07/08 / D-02, D-04, D-05, D-12). Called from
+	 * runFallback when EVERY source is exhausted for the current song. NOT called when offline —
+	 * the offline gate short-circuits before any failure is counted (D-08), so an offline dry spell
+	 * never burns the loop-guard budget.
+	 *
+	 *  - D-12: a failing repeat-one loop breaks repeat first (never-stop wins over explicit repeat),
+	 *    so we don't loop a dead track forever.
+	 *  - The failure is counted. At/over the cap (D-04) we STOP: pause, set a sticky loop-guard
+	 *    notice carrying a Retry action (recoverFromStop), keep `error` for the inline now-bar, and
+	 *    do NOT advance. Below the cap (D-02) we emit a batched skip notice and auto-skip via next().
+	 *
+	 * The skip path goes through the existing next() → play() which bumps playGen, so a user manual
+	 * skip mid-failover supersedes correctly (Pitfall 2) — there is NO parallel fast-skip path.
+	 */
+	private handleTotalFailure(failed: Track) {
+		// D-12: never-stop wins over explicit repeat — break a repeat-one loop on a failing track so
+		// it doesn't loop a dead song forever, then continue with the skip/up-next path.
+		if (this.repeatMode === 'one') {
+			this.repeatMode = 'off';
+			this.persist();
+		}
+		this.consecutiveFailures++;
+		// Keep the inline now-bar error string as before (the toast host renders `notice`; the
+		// now-bar still reads `error`).
+		this.error = 'playback failed (source may be region-locked or expired)';
+		if (this.consecutiveFailures >= Player.FAILURE_CAP) {
+			// D-04 loop-guard: stop auto-advancing. Pause, clear the OS media UI, surface ONE sticky
+			// notice with a Retry action. recoverFromStop skips ahead + resets + re-arms (D-05).
+			this.audio?.pause();
+			this.clearMedia();
+			this.notice = {
+				kind: 'stopped',
+				reason: 'loop-guard',
+				msg: 'player.notice.loopGuard',
+				action: () => this.recoverFromStop()
+			};
+			return;
+		}
+		// D-02 below the cap: emit a batched skip notice and auto-skip to the next track.
+		this.emitSkipNotice(failed.title);
+		this.next();
+	}
+
+	/**
+	 * Recovery from the loop-guard stopped state (D-05). Bound to the sticky notice's Retry action
+	 * and reused by a user "tap play" recovery: skip AHEAD to the next track (NOT retry-current, NOT
+	 * regenerate), reset the consecutive-failure counter, and re-arm the never-stop chain. next()
+	 * bumps playGen via play(), so this correctly supersedes any stale in-flight fallback.
+	 */
+	private recoverFromStop() {
+		this.consecutiveFailures = 0;
+		if (this.notice?.kind === 'stopped') this.notice = null;
+		this.next();
+	}
+
+	/**
+	 * Emit a batched auto-skip notice (D-02). N consecutive skips within SKIP_BURST_WINDOW_MS
+	 * collapse into ONE notice carrying the running `count` (so the UI shows "{count} songs
+	 * skipped" rather than N stacked toasts). Each skip (re)starts the debounce; when it elapses
+	 * with no further skip the burst counter resets so the NEXT isolated failure starts at 1.
+	 */
+	private emitSkipNotice(title: string) {
+		this.skipBurst++;
+		this.notice = {
+			kind: 'skip',
+			msg: 'player.notice.skip',
+			count: this.skipBurst,
+			title
+		};
+		if (this.skipBurstTimer) clearTimeout(this.skipBurstTimer);
+		this.skipBurstTimer = setTimeout(() => {
+			this.skipBurst = 0;
+			this.skipBurstTimer = null;
+		}, Player.SKIP_BURST_WINDOW_MS);
 	}
 
 	/**

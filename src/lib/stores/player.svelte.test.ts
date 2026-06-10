@@ -12,7 +12,10 @@ import { makeUid, type SourceId, type Track } from '$lib/sources/types';
 // Mock the resolve-on-tap shim so we control settle order + timing.
 vi.mock('$lib/services/discovery', () => ({ resolveStub: vi.fn() }));
 // Mock the detail resolver so prefetchNext's pre-resolve is observable/controllable in node.
-vi.mock('$lib/services/catalog', () => ({ ensureTrackDetails: vi.fn() }));
+vi.mock('$lib/services/catalog', () => ({ ensureTrackDetails: vi.fn(), searchAll: vi.fn() }));
+// Mock the cross-source fallback so the resilience tests drive runFallback's total-failure exit
+// (null = all sources exhausted) without real network.
+vi.mock('$lib/services/fallback', () => ({ tryFallback: vi.fn(), fallbackOrder: vi.fn(() => []) }));
 // PLAY-10: restore()/persist() early-return under !browser. Flip browser ON so the restore
 // migration path (persisted repeatMode → 'off'|'one') actually executes in node, and provide a
 // minimal in-memory localStorage so persist()/restore() have a backing store to read/write.
@@ -34,9 +37,11 @@ vi.stubGlobal('localStorage', localStorageMock);
 import { player } from './player.svelte';
 import { resolveStub } from '$lib/services/discovery';
 import { ensureTrackDetails } from '$lib/services/catalog';
+import { tryFallback } from '$lib/services/fallback';
 
 const mockResolve = vi.mocked(resolveStub);
 const mockEnsure = vi.mocked(ensureTrackDetails);
+const mockTryFallback = vi.mocked(tryFallback);
 
 function mk(source: SourceId, songid: string, artist: string, title: string): Track {
 	return {
@@ -75,6 +80,38 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 /** An unresolved search stub: detailsLoaded:false + audioUrl:null so the readiness guard does NOT short-circuit. */
 function stub(source: SourceId, songid: string, artist: string, title: string): Track {
 	return { ...mk(source, songid, artist, title), detailsLoaded: false, audioUrl: null };
+}
+
+/** Mirror of Player.FAILURE_CAP (private static = 5) for the loop-guard tests. */
+const Player_FAILURE_CAP = 5;
+/** Mirror of Player.STALL_TIMEOUT_MS (private static = 15000) for the stall-watchdog tests. */
+const Player_STALL_TIMEOUT_MS = 15000;
+
+/**
+ * Minimal fake <audio> for attach(): records addEventListener handlers so a test can `.fire()`
+ * a named event, and stubs the methods/props attach() + the listeners touch. navigator.mediaSession
+ * is absent in node, so the `ms` accessor returns null and the Media Session calls early-return.
+ */
+function makeFakeAudio() {
+	const handlers = new Map<string, Array<() => void>>();
+	return {
+		_handlers: handlers,
+		paused: true,
+		currentTime: 0,
+		duration: NaN,
+		src: '',
+		setAttribute() {},
+		addEventListener(type: string, cb: () => void) {
+			const arr = handlers.get(type) ?? [];
+			arr.push(cb);
+			handlers.set(type, arr);
+		},
+		play: vi.fn(() => Promise.resolve()),
+		pause: vi.fn(),
+		fire(type: string) {
+			for (const cb of handlers.get(type) ?? []) cb();
+		}
+	};
 }
 
 beforeEach(() => {
@@ -395,5 +432,138 @@ describe('player repeat — 2-state (PLAY-10)', () => {
 		// path is solely ensureAhead().then(...); with sources dry/empty it adds nothing and the
 		// post-grow advance finds no next track, so play() is never called with queue[0].
 		expect(playSpy).not.toHaveBeenCalledWith(a);
+	});
+});
+
+describe('player resilience — loop-guard + skip-on-failure (PLAY-07/08)', () => {
+	// runFallback is private + driven by the audio `error` path in production; drive it directly
+	// (bracket access) with tryFallback mocked to null = "all sources exhausted for this song".
+	const runFallback = (failed: Track) =>
+		(player as unknown as { runFallback(f: Track): Promise<void> })['runFallback'](failed);
+	// Internal counter for asserting the increment/reset behavior (it's a private loop-guard budget).
+	const failures = () => (player as unknown as { consecutiveFailures: number })['consecutiveFailures'];
+	const setFailures = (n: number) => {
+		(player as unknown as { consecutiveFailures: number })['consecutiveFailures'] = n;
+	};
+
+	beforeEach(() => {
+		mockTryFallback.mockReset();
+		mockTryFallback.mockResolvedValue(null); // every source exhausted → total failure
+		setFailures(0);
+		// Reset the skip-burst batch state (private; persists on the singleton across tests).
+		const p = player as unknown as {
+			skipBurst: number;
+			skipBurstTimer: ReturnType<typeof setTimeout> | null;
+		};
+		if (p.skipBurstTimer) clearTimeout(p.skipBurstTimer);
+		p.skipBurst = 0;
+		p.skipBurstTimer = null;
+		player.notice = null;
+		player.repeatMode = 'off';
+		player.current = null;
+		player.queue = [];
+		// online by default so the offline gate (Task 3) does not short-circuit these tests.
+		vi.stubGlobal('navigator', { onLine: true });
+	});
+
+	it('below the cap: increments the counter, emits a skip notice, and calls next()', async () => {
+		const a = mk('netease', 'a', 'A', 'Dead Song');
+		const b = mk('qq', 'b', 'B', 'Next Song');
+		player.queue = [a, b];
+		player.current = a;
+		const playSpy = player.play as unknown as ReturnType<typeof vi.fn>;
+		playSpy.mockClear();
+
+		await runFallback(a);
+		await flush();
+
+		expect(failures()).toBe(1);
+		expect(player.notice?.kind).toBe('skip');
+		expect(player.notice?.count).toBe(1);
+		expect(player.notice?.title).toBe('Dead Song');
+		// next() auto-skipped to queue[1].
+		expect(playSpy).toHaveBeenCalledWith(b);
+	});
+
+	it('batches consecutive skips into one notice with a rising count (D-02)', async () => {
+		const a = mk('netease', 'a', 'A', 'One');
+		const b = mk('qq', 'b', 'B', 'Two');
+		player.queue = [a, b];
+		player.current = a;
+
+		await runFallback(a);
+		await runFallback(b);
+		await flush();
+
+		expect(failures()).toBe(2);
+		expect(player.notice?.kind).toBe('skip');
+		expect(player.notice?.count).toBe(2); // collapsed, not two separate notices
+	});
+
+	it('at the cap: pauses, sets a sticky stopped notice with a Retry action, does NOT call next()', async () => {
+		const a = mk('netease', 'a', 'A', 'Dead');
+		const b = mk('qq', 'b', 'B', 'Next');
+		player.queue = [a, b];
+		player.current = a;
+		setFailures(Player_FAILURE_CAP - 1); // one more failure trips the guard
+		const playSpy = player.play as unknown as ReturnType<typeof vi.fn>;
+		playSpy.mockClear();
+
+		await runFallback(a);
+		await flush();
+
+		expect(failures()).toBe(Player_FAILURE_CAP);
+		expect(player.notice?.kind).toBe('stopped');
+		expect(player.notice?.reason).toBe('loop-guard');
+		expect(typeof player.notice?.action).toBe('function');
+		expect(player.error).toBeTruthy(); // inline now-bar error still set
+		// Loop-guard stops auto-advance.
+		expect(playSpy).not.toHaveBeenCalled();
+	});
+
+	it('the Retry action resets the counter, clears the notice, and skips ahead (D-05)', async () => {
+		const a = mk('netease', 'a', 'A', 'Dead');
+		const b = mk('qq', 'b', 'B', 'Next');
+		player.queue = [a, b];
+		player.current = a;
+		setFailures(Player_FAILURE_CAP - 1);
+		await runFallback(a);
+		await flush();
+		expect(player.notice?.kind).toBe('stopped');
+
+		const playSpy = player.play as unknown as ReturnType<typeof vi.fn>;
+		playSpy.mockClear();
+		player.notice?.action?.(); // user taps Retry
+		await flush();
+
+		expect(failures()).toBe(0); // counter reset
+		expect(player.notice).toBeNull(); // sticky notice cleared
+		expect(playSpy).toHaveBeenCalledWith(b); // skipped AHEAD to the next track, not retry-current
+	});
+
+	it('a real `playing` event resets the counter and clears a stopped notice (D-06)', () => {
+		setFailures(3);
+		player.notice = { kind: 'stopped', reason: 'loop-guard', msg: 'x' };
+		// Simulate the audio element firing `play` by invoking the bound listener via a fake element.
+		const el = makeFakeAudio();
+		player.attach(el as unknown as HTMLAudioElement);
+		el.fire('play');
+
+		expect(failures()).toBe(0);
+		expect(player.notice).toBeNull();
+	});
+
+	it('repeat-one breaks to off on a failing loop before skipping (D-12)', async () => {
+		const a = mk('netease', 'a', 'A', 'Looping Dead');
+		const b = mk('qq', 'b', 'B', 'Next');
+		player.queue = [a, b];
+		player.current = a;
+		player.repeatMode = 'one';
+
+		await runFallback(a);
+		await flush();
+
+		expect(player.repeatMode).toBe('off'); // never-stop wins over explicit repeat
+		expect(player.notice?.kind).toBe('skip');
 	});
 });

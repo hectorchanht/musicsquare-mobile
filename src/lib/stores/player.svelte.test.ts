@@ -13,6 +13,23 @@ import { makeUid, type SourceId, type Track } from '$lib/sources/types';
 vi.mock('$lib/services/discovery', () => ({ resolveStub: vi.fn() }));
 // Mock the detail resolver so prefetchNext's pre-resolve is observable/controllable in node.
 vi.mock('$lib/services/catalog', () => ({ ensureTrackDetails: vi.fn() }));
+// PLAY-10: restore()/persist() early-return under !browser. Flip browser ON so the restore
+// migration path (persisted repeatMode → 'off'|'one') actually executes in node, and provide a
+// minimal in-memory localStorage so persist()/restore() have a backing store to read/write.
+vi.mock('$app/environment', () => ({ browser: true }));
+
+const memStore = new Map<string, string>();
+const localStorageMock: Storage = {
+	get length() {
+		return memStore.size;
+	},
+	clear: () => memStore.clear(),
+	getItem: (k: string) => (memStore.has(k) ? (memStore.get(k) as string) : null),
+	key: (i: number) => Array.from(memStore.keys())[i] ?? null,
+	removeItem: (k: string) => void memStore.delete(k),
+	setItem: (k: string, v: string) => void memStore.set(k, String(v))
+};
+vi.stubGlobal('localStorage', localStorageMock);
 
 import { player } from './player.svelte';
 import { resolveStub } from '$lib/services/discovery';
@@ -63,6 +80,7 @@ function stub(source: SourceId, songid: string, artist: string, title: string): 
 beforeEach(() => {
 	mockResolve.mockReset();
 	mockEnsure.mockReset();
+	memStore.clear();
 	player.queue = [];
 	// play() touches the real <audio>/Media Session — stub it so playStub's success handoff
 	// is observable (current set) without a DOM. We assert play() is CALLED with the track.
@@ -278,5 +296,104 @@ describe('player.prefetchNext — pre-resolve next track for gapless-ish play', 
 		// queue[1] must NOT be overwritten — the stale resolve was discarded.
 		expect(player.queue[1]).toBe(next);
 		expect(player.queue[1].audioUrl).toBeNull();
+	});
+});
+
+describe('player repeat — 2-state (PLAY-10)', () => {
+	// Seed the persisted player-state blob the way persist() writes it: a serialized `current`
+	// with a real uid (restore early-returns without one), an empty queue, and the target
+	// repeatMode. restore() then resolves the track via the mocked ensureTrackDetails so it
+	// doesn't hang on the network — and audio is null in node, so restore returns right after
+	// the repeatMode migration assignment we're asserting.
+	const STATE_KEY = 'openmusic:player:v1';
+	function seedState(repeatMode: 'off' | 'one' | 'all' | undefined) {
+		const cur = mk('netease', 'r1', 'Artist', 'Title');
+		const payload: Record<string, unknown> = {
+			v: 1,
+			current: {
+				uid: cur.uid,
+				source: cur.source,
+				songid: cur.songid,
+				title: cur.title,
+				artist: cur.artist,
+				album: cur.album,
+				cover: cur.cover,
+				quality: cur.quality,
+				qualityLabel: cur.qualityLabel,
+				keyword: cur.keyword,
+				displayIndex: cur.displayIndex
+			},
+			queue: [],
+			currentTime: 0,
+			shuffle: false
+		};
+		if (repeatMode !== undefined) payload.repeatMode = repeatMode;
+		localStorage.setItem(STATE_KEY, JSON.stringify(payload));
+		// ensureTrackDetails is awaited inside restore(); resolve a complete track so it settles.
+		mockEnsure.mockResolvedValue(mk('netease', 'r1', 'Artist', 'Title'));
+	}
+
+	beforeEach(() => {
+		player.repeatMode = 'off';
+	});
+
+	it("cycleRepeat from 'off' yields 'one'", () => {
+		player.repeatMode = 'off';
+		player.cycleRepeat();
+		expect(player.repeatMode).toBe('one');
+	});
+
+	it("cycleRepeat from 'one' yields 'off' (never 'all')", () => {
+		player.repeatMode = 'one';
+		player.cycleRepeat();
+		expect(player.repeatMode).toBe('off');
+	});
+
+	it("cycleRepeat is a strict 2-state toggle (off→one→off→one)", () => {
+		player.repeatMode = 'off';
+		player.cycleRepeat();
+		expect(player.repeatMode).toBe('one');
+		player.cycleRepeat();
+		expect(player.repeatMode).toBe('off');
+		player.cycleRepeat();
+		expect(player.repeatMode).toBe('one');
+	});
+
+	it("restore() with persisted repeatMode 'all' migrates to 'off' (D-11)", async () => {
+		seedState('all' as 'off');
+		await player.restore();
+		expect(player.repeatMode).toBe('off');
+	});
+
+	it("restore() with persisted repeatMode 'one' stays 'one'", async () => {
+		seedState('one');
+		await player.restore();
+		expect(player.repeatMode).toBe('one');
+	});
+
+	it("restore() with missing repeatMode defaults to 'off'", async () => {
+		seedState(undefined);
+		await player.restore();
+		expect(player.repeatMode).toBe('off');
+	});
+
+	it('next() at end-of-queue does NOT wrap to queue[0]; it grows via ensureAhead (no repeat-all path)', async () => {
+		const a = mk('netease', 'qa', 'A', 'First');
+		const b = mk('qq', 'qb', 'B', 'Last');
+		player.queue = [a, b];
+		player.current = b; // current is the last entry → end of queue
+		// Even if a stale 'all' value were somehow present, there is no wrap branch any more.
+		(player as unknown as { repeatMode: string }).repeatMode = 'off';
+
+		const playSpy = player.play as unknown as ReturnType<typeof vi.fn>;
+		playSpy.mockClear();
+
+		player.next();
+		await flush();
+
+		// next() must NOT have played queue[0] (the removed repeat-all wrap). The end-of-queue
+		// path is solely ensureAhead().then(...); with sources dry/empty it adds nothing and the
+		// post-grow advance finds no next track, so play() is never called with queue[0].
+		expect(playSpy).not.toHaveBeenCalledWith(a);
 	});
 });

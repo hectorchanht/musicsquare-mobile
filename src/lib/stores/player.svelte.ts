@@ -72,9 +72,11 @@ class Player {
 	/** Shuffle on: toggling true randomizes queue tail (current pinned). Off = no auto-shuffle on
 	 * next play, but the already-shuffled queue stays as is (gte: user-specified, no unshuffle). */
 	shuffle = $state(false);
-	/** Tri-state repeat (gte): 'off' = today; 'one' = loop the current track on ended; 'all' = wrap
-	 * the queue when next() hits the end. Cycle: off → one → all → off. */
-	repeatMode = $state<'off' | 'one' | 'all'>('off');
+	/** 2-state repeat (PLAY-10 / D-10): 'off' = today; 'one' = loop the current track on ended.
+	 * Cycle: off → one → off. Repeat-all was removed in favor of auto-generated up-next
+	 * (ensureAhead/regenerate) — that grow-and-advance IS the semantic successor of repeat-all,
+	 * so next() no longer wraps the queue. */
+	repeatMode = $state<'off' | 'one'>('off');
 
 	/** Monotonic play generation (gte): bumped at the top of every play() so the cross-source
 	 * fallback can detect a newer play() and abort its in-flight retries. Plain field — no $state
@@ -166,7 +168,7 @@ class Player {
 			queue?: Partial<Track>[];
 			currentTime?: number;
 			shuffle?: boolean;
-			repeatMode?: 'off' | 'one' | 'all';
+			repeatMode?: 'off' | 'one';
 		} | null = null;
 		try {
 			const raw = localStorage.getItem(Player.STATE_KEY);
@@ -197,7 +199,9 @@ class Player {
 		const seek = Math.max(0, Number(payload.currentTime) || 0);
 		this.queue = (payload.queue ?? []).map(reshape);
 		this.shuffle = !!payload.shuffle;
-		this.repeatMode = payload.repeatMode ?? 'off';
+		// D-11: 2-state migration — only an explicit 'one' is kept; any persisted repeat-all (from
+		// a prior tri-state session), missing, or tampered value collapses to the safe 'off' default.
+		this.repeatMode = payload.repeatMode === 'one' ? 'one' : 'off';
 		this.current = target;
 		this.loading = true;
 		try {
@@ -406,9 +410,9 @@ class Player {
 		el.addEventListener('ended', () => {
 			this.playing = false;
 			this.syncPlaybackState();
-			// Repeat-one (gte): loop the current track without advancing. The `ended` event
-			// already paused the element; rewind + play(). 'all' is handled inside next() so
-			// the end-of-queue branch wraps; 'off' is today's straight advance.
+			// Repeat-one (D-10): loop the current track without advancing. The `ended` event
+			// already paused the element; rewind + play(). 'off' is the straight advance into
+			// next() (which grows auto up-next at the end of the queue — no repeat-all wrap).
 			if (this.repeatMode === 'one' && this.audio) {
 				this.audio.currentTime = 0;
 				void this.audio.play().catch(() => {
@@ -806,12 +810,9 @@ class Player {
 		if (i >= 0 && i + 1 < this.queue.length) {
 			this.play(this.queue[i + 1]);
 		} else {
-			// Repeat-all (gte): wrap to the start of the existing queue instead of growing.
-			if (this.repeatMode === 'all' && this.queue.length > 0) {
-				this.play(this.queue[0]);
-				return;
-			}
-			// at/near the end — grow the queue, then advance to the freshly-added track
+			// End-of-queue (D-10/D-12): no repeat-all wrap any more — auto-generated up-next is the
+			// continuation. Grow the queue via ensureAhead, then advance to the freshly-added track.
+			// (16-02 adds the runtime break-to-off when a repeat-one track fails all sources.)
 			void this.ensureAhead().then(() => {
 				const j = this.indexOf(this.current);
 				if (j >= 0 && j + 1 < this.queue.length) this.play(this.queue[j + 1]);
@@ -854,9 +855,9 @@ class Player {
 		this.persist();
 	}
 
-	/** Cycle the repeat mode (gte): off → one → all → off. */
+	/** Toggle the repeat mode (PLAY-10 / D-10): off → one → off (no repeat-all). */
 	cycleRepeat() {
-		this.repeatMode = this.repeatMode === 'off' ? 'one' : this.repeatMode === 'one' ? 'all' : 'off';
+		this.repeatMode = this.repeatMode === 'off' ? 'one' : 'off';
 		this.persist();
 	}
 

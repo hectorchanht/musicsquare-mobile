@@ -12,13 +12,33 @@
 	import { dragClose } from '$lib/actions/dragClose';
 	import { overlays } from '$lib/stores/overlays.svelte';
 	import { sleepTimer } from '$lib/stores/sleepTimer.svelte';
-	import { fmtTime } from '$lib/stores/player.svelte';
+	import { player, fmtTime } from '$lib/stores/player.svelte';
 	import { t } from '$lib/i18n';
 
 	const DURATIONS = [5, 10, 15, 30, 45, 60];
 
 	function close() {
 		sleepTimer.sheetOpen = false;
+	}
+
+	// After EVERY set/cancel, arm (or disarm) the player's coarse secondary wake-timer backstop
+	// (18-02 contract: the UI must call player.onSleepTimerSet() after set('minutes', n) to catch
+	// the iOS screen-wake-after-stall case). onSleepTimerSet() is idempotent — a non-minutes set or
+	// a cancel just disarms any prior wake timer. The timeupdate listener stays the expiry authority.
+	function pickMinutes(min: number) {
+		sleepTimer.set('minutes', min);
+		player.onSleepTimerSet();
+		close();
+	}
+	function pickEndOfTrack() {
+		sleepTimer.set('end-of-track');
+		player.onSleepTimerSet();
+		close();
+	}
+	function cancelTimer() {
+		sleepTimer.cancel();
+		player.onSleepTimerSet();
+		close();
 	}
 
 	// ---- back-gesture wiring (SINGLE dismiss path — clones TrackMenu's pickerOpen $effect) ----
@@ -46,20 +66,16 @@
 			<button
 				class="mi"
 				class:on={sleepTimer.mode === 'minutes' && sleepTimer.selectedMinutes === min}
-				onclick={() => { sleepTimer.set('minutes', min); sleepTimer.sheetOpen = false; }}
+				onclick={() => pickMinutes(min)}
 			>
 				<Moon size={18} /> {t('timer.minutes', { n: min })}
 			</button>
 		{/each}
-		<button
-			class="mi"
-			class:on={sleepTimer.mode === 'end-of-track'}
-			onclick={() => { sleepTimer.set('end-of-track'); sleepTimer.sheetOpen = false; }}
-		>
+		<button class="mi" class:on={sleepTimer.mode === 'end-of-track'} onclick={pickEndOfTrack}>
 			<Moon size={18} /> {t('timer.endOfTrack')}
 		</button>
 		{#if sleepTimer.active}
-			<button class="mi cancel" onclick={() => { sleepTimer.cancel(); sleepTimer.sheetOpen = false; }}>
+			<button class="mi cancel" onclick={cancelTimer}>
 				{t('timer.cancel')}
 			</button>
 		{/if}

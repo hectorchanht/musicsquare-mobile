@@ -3,8 +3,9 @@
 	import { fly } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import { goto } from '$app/navigation';
-	import { ChevronDown, MoreVertical, Heart, SkipBack, SkipForward, Play, Pause, Repeat, Repeat1, GripVertical, Trash2 } from '@lucide/svelte';
+	import { ChevronDown, MoreVertical, Heart, SkipBack, SkipForward, Play, Pause, Repeat, Repeat1, GripVertical, Trash2, Moon } from '@lucide/svelte';
 	import { player, fmtTime } from '$lib/stores/player.svelte';
+	import { sleepTimer } from '$lib/stores/sleepTimer.svelte';
 	import { settings, effectiveTarget } from '$lib/stores/settings.svelte';
 	import { library } from '$lib/stores/library.svelte';
 	import { names } from '$lib/stores/names.svelte';
@@ -714,6 +715,18 @@
 		</div>
 	</div>
 
+	{#if sleepTimer.active}
+		<!-- Full sleep-timer readout (D-07: now-playing shows the FULL mm:ss, end-of-track shows the
+		     label). Tappable → opens the SAME global sheet as the nowbar/track-menu (D-08). The .t /
+		     class:on idiom reads as active. -->
+		<div class="st-row">
+			<button class="t st-readout on" aria-label={t('menu.sleepTimer')} onclick={() => (sleepTimer.sheetOpen = true)}>
+				<Moon size={16} />
+				{#if sleepTimer.mode === 'minutes'}{fmtTime(sleepTimer.remaining / 1000)}{:else}{t('timer.endOfTrack')}{/if}
+			</button>
+		</div>
+	{/if}
+
 	<div class="transport" bind:this={transportEl}>
 		<button class="t" class:on={currentLiked} aria-label={currentLiked ? t('menu.liked') : t('menu.like')} onclick={toggleCurrentLike}><Heart size={20} fill={currentLiked ? 'currentColor' : 'none'} /></button>
 		<button class="t" aria-label={t('nowplaying.previous')} onclick={() => player.prev()}><SkipBack size={26} /></button>
@@ -874,6 +887,8 @@
 	.transport { display: flex; align-items: center; justify-content: space-between; margin: 6px 4px; }
 	.t { background: none; border: none; color: var(--color-text); cursor: pointer; opacity: 0.85; display: grid; place-items: center; }
 	.t.on { color: var(--color-primary); opacity: 1; }
+	.st-row { display: flex; justify-content: center; margin: 2px 4px 0; }
+	.st-readout { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-variant-numeric: tabular-nums; background: var(--color-surface); }
 	.play { width: 62px; height: 62px; border-radius: 50%; border: none; background: #fff; color: #000; cursor: pointer; display: grid; place-items: center; }
 	.sheet { display: flex; flex-direction: column; flex: 1; min-height: 0; will-change: transform; user-select: none; -webkit-user-select: none; }
 	.sheet.full, .sheet.dragging { position: absolute; inset: 0; z-index: 5; background: var(--color-bg); padding: 4px 18px env(safe-area-inset-bottom); }

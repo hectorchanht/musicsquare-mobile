@@ -7,9 +7,10 @@
 	//   - 'embed': position:static, sits in the parent's normal flow. Used inside NowPlaying.svelte
 	//     in the fullshrink layout so the cover/title/artist/play row stays visible above the
 	//     open subnav sheet.
-	import { Play, Pause, Loader } from '@lucide/svelte';
-	import { player } from '$lib/stores/player.svelte';
+	import { Play, Pause, Loader, Moon } from '@lucide/svelte';
+	import { player, fmtTime } from '$lib/stores/player.svelte';
 	import { names } from '$lib/stores/names.svelte';
+	import { sleepTimer } from '$lib/stores/sleepTimer.svelte';
 	import { t, tMaybeKey } from '$lib/i18n';
 
 	type Variant = 'docked' | 'embed';
@@ -53,6 +54,16 @@
 				</span>
 			</span>
 		</button>
+		{#if sleepTimer.active}
+			<!-- Active sleep-timer indicator: tappable, opens the global sheet (D-08). On the
+			     nowbar D-07 allows icon-only; the mm:ss countdown is shown for minutes mode when
+			     present. The . st-label container is min-0 so the short countdown never breaks the
+			     row layout (memory rule). End-of-track mode shows the moon alone. -->
+			<button class="st-badge" aria-label={t('menu.sleepTimer')} onclick={() => (sleepTimer.sheetOpen = true)}>
+				<Moon size={16} />
+				{#if sleepTimer.mode === 'minutes'}<span class="st-label">{fmtTime(sleepTimer.remaining / 1000)}</span>{/if}
+			</button>
+		{/if}
 		{#if resolving}
 			<span class="np-btn np-spin" aria-label={t('common.loading')} aria-busy="true"><Loader size={18} /></span>
 		{:else}
@@ -199,4 +210,26 @@
 		transition: transform 0.12s ease;
 	}
 	.np-btn:active { transform: scale(0.92); }
+	/* Sleep-timer badge: a small subtle variant of .np-btn (NOT the primary play button) — pill,
+	   transparent, sits to the LEFT of the play button. min-0 label so the mm:ss never overflows. */
+	.st-badge {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		flex: none;
+		min-width: 0;
+		max-width: 88px;
+		height: 32px;
+		padding: 0 10px;
+		border: 1px solid rgba(255, 255, 255, 0.16);
+		border-radius: 999px;
+		background: rgba(255, 255, 255, 0.08);
+		color: var(--color-text);
+		font-size: 12px;
+		font-variant-numeric: tabular-nums;
+		cursor: pointer;
+		transition: transform 0.12s ease;
+	}
+	.st-badge:active { transform: scale(0.92); }
+	.st-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

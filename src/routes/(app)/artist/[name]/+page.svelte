@@ -24,7 +24,13 @@
 	import { deezerArtistCover, deezerArtist, type DeezerArtistInfo } from '$lib/services/deezer';
 	import { mergeEnrichArtist } from '$lib/services/enrich-merge';
 	import { mapWithConcurrency } from '$lib/services/discovery';
+	import PageOg from '$lib/components/PageOg.svelte';
+	import type { PageData } from './$types';
 	import type { Track } from '$lib/sources/types';
+
+	// `data.og` comes from the universal +page.ts load (artist title/description derived at SSR) so
+	// the artist page emits a crawler-correct OG card in the server HTML (GLN-4).
+	let { data }: { data: PageData } = $props();
 
 	let menuTrack = $state<Track | null>(null);
 	let menuOpen = $state(false);
@@ -246,6 +252,9 @@
 </script>
 
 <svelte:head><title>{name} · openmusic</title></svelte:head>
+{#if data.og}
+	<PageOg og={data.og} />
+{/if}
 
 <header class="hero">
 	<button type="button" class="back" aria-label={t('common.back')} onclick={() => history.back()}><ChevronLeft size={22} /></button>

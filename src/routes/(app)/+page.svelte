@@ -40,7 +40,13 @@
 	import { dragScroll } from '$lib/actions/dragScroll';
 	import { marquee } from '$lib/actions/marquee';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
+	import PageOg from '$lib/components/PageOg.svelte';
+	import type { PageData } from './$types';
 	import type { Track } from '$lib/sources/types';
+
+	// `data.og` comes from the universal +page.ts load: non-null when this is a shared-song link
+	// (`/?play=<token>`), so the shared song gets a crawler-correct OG card in the SSR HTML (GLN-4).
+	let { data }: { data: PageData } = $props();
 
 	let menuTrack = $state<Track | null>(null);
 	let menuOpen = $state(false);
@@ -605,6 +611,10 @@
 		}
 	});
 </script>
+
+{#if data.og}
+	<PageOg og={data.og} />
+{/if}
 
 <header class="topnav">
 	<div class="brand"><Logo size={26} /> openmusic</div>

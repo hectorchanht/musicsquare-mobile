@@ -24,7 +24,13 @@
 	import { mergeEnrichAlbum } from '$lib/services/enrich-merge';
 	import { marquee } from '$lib/actions/marquee';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
+	import PageOg from '$lib/components/PageOg.svelte';
+	import type { PageData } from './$types';
 	import type { Track } from '$lib/sources/types';
+
+	// `data.og` comes from the universal +page.ts load (album title/description derived at SSR) so
+	// the album page emits a crawler-correct OG card in the server HTML (GLN-4).
+	let { data }: { data: PageData } = $props();
 
 	// A Last.fm tracklist entry — NOT a Track (no uid/source/audioUrl). Resolved on tap.
 	type AlbumStub = { artist: string; title: string };
@@ -402,6 +408,9 @@
 </script>
 
 <svelte:head><title>{t('album.title', { name })}</title></svelte:head>
+{#if data.og}
+	<PageOg og={data.og} />
+{/if}
 
 <header class="hero">
 	<button class="back" aria-label={t('album.back')} onclick={() => goto(albumArtist ? '/artist/' + encodeURIComponent(albumArtist) : '/')}><ChevronLeft size={22} /></button>

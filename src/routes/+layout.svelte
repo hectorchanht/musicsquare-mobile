@@ -34,17 +34,23 @@
 	<!-- Open Graph -->
 	<meta property="og:type" content="website" />
 	<meta property="og:site_name" content="openmusic" />
-	<meta property="og:title" content={TITLE} />
-	<meta property="og:description" content={DESC} />
-	<meta property="og:url" content={canonical} />
-	<meta property="og:image" content="{SITE}/og.svg" />
-	<meta property="og:image:width" content="1200" />
-	<meta property="og:image:height" content="630" />
-	<!-- Twitter -->
-	<meta name="twitter:card" content="summary_large_image" />
-	<meta name="twitter:title" content={TITLE} />
-	<meta name="twitter:description" content={DESC} />
-	<meta name="twitter:image" content="{SITE}/og.svg" />
+	<!-- GLN-4: when the active page supplies its OWN og (page.data.og from a +page.ts load — shared
+	     song / artist / album), render only the page's og:*/twitter:* so crawlers see exactly one of
+	     each property with the page-specific value. The static site-default block below is the
+	     FALLBACK for routes without per-page OG. og:type/og:site_name above stay site-wide. -->
+	{#if !page.data?.og}
+		<meta property="og:title" content={TITLE} />
+		<meta property="og:description" content={DESC} />
+		<meta property="og:url" content={canonical} />
+		<meta property="og:image" content="{SITE}/og.svg" />
+		<meta property="og:image:width" content="1200" />
+		<meta property="og:image:height" content="630" />
+		<!-- Twitter -->
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content={TITLE} />
+		<meta name="twitter:description" content={DESC} />
+		<meta name="twitter:image" content="{SITE}/og.svg" />
+	{/if}
 </svelte:head>
 
 {@render children()}

@@ -567,7 +567,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 | 14. Search & Data Responsiveness | 2/2 | Complete    | 2026-06-06 |
 | 16. Playback Resilience Core | 3/3 | Complete    | 2026-06-10 |
 | 17. Up-Next Sourcing + Settings Plumbing | 4/4 | Complete    | 2026-06-10 |
-| 18. Sleep Timer | 3/3 | Complete   | 2026-06-11 |
+| 18. Sleep Timer | 3/3 | Complete    | 2026-06-11 |
 | 19. Track Menu Rework | 0/TBD | Not started | - |
 | 20. Now-Playing Surface & Gestures | 0/TBD | Not started | - |
 | 21. Search & Cover Pipeline Polish | 0/TBD | Not started | - |

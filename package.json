@@ -9,7 +9,7 @@
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",
-		"build:native": "BUILD_TARGET=native VITE_API_BASE=https://openmusic.pages.dev vite build",
+		"build:native": "BUILD_TARGET=native VITE_API_BASE=https://openmusic.lol vite build",
 		"preview": "wrangler pages dev .svelte-kit/cloudflare --port 4173",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",

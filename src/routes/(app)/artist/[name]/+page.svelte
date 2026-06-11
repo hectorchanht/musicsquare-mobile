@@ -15,6 +15,7 @@
 	import { names } from '$lib/stores/names.svelte';
 	import { t } from '$lib/i18n';
 	import { longpress } from '$lib/actions/longpress';
+	import { lazyCover } from '$lib/actions/lazyCover';
 	import { dragScroll } from '$lib/actions/dragScroll';
 	import { marquee } from '$lib/actions/marquee';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
@@ -89,6 +90,13 @@
 	function fallbackCover(t: Track): string {
 		const h = (t.uid.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 47) % 360;
 		return `linear-gradient(145deg, hsl(${h} 55% 32%), hsl(${(h + 40) % 360} 55% 18%))`;
+	}
+	// COVER-02 D-14: hit-song rows resolve empty/broken covers lazily on scroll via use:lazyCover,
+	// repainting through this reactive uid→url map. SOLID https only (Plan 02 gate) — safe for the
+	// existing background-image render (T-0bb-01). The al-cover album/related rows are NOT touched.
+	let resolvedCovers = $state<Record<string, string>>({});
+	function onCoverResolved(uid: string, url: string) {
+		resolvedCovers = { ...resolvedCovers, [uid]: url };
 	}
 	// String-seed variant for the Last.fm album row (DiscoveryAlbum has no uid/cover).
 	function fallbackCoverSeed(seed: string): string {
@@ -375,7 +383,7 @@
 					<li>
 						<button class="row" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); menuTrack = track; menuOpen = true; }} onclick={() => { player.play(track); player.setListQueue(songs, 'artist'); }}>
 							<span class="rank">{i + 1}</span>
-							<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
+							<span class="art" use:lazyCover={{ track, onResolved: onCoverResolved }} style:background-image={(resolvedCovers[track.uid] ?? track.cover) ? `url(${resolvedCovers[track.uid] ?? track.cover})` : fallbackCover(track)}></span>
 							<span class="meta">
 								<span class="r-title">{names.dnTitle(track.title)}</span>
 								<span class="r-sub">{names.dnArtist(track.album || track.artist)}</span>

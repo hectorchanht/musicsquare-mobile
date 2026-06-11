@@ -11,6 +11,7 @@
     import { player, fmtTime } from "$lib/stores/player.svelte";
     import { names } from "$lib/stores/names.svelte";
     import { sleepTimer } from "$lib/stores/sleepTimer.svelte";
+    import { coverSwipe } from "$lib/actions/coverSwipe";
     import { t, tMaybeKey } from "$lib/i18n";
 
     type Variant = "docked" | "embed";
@@ -25,6 +26,14 @@
 
     const np = $derived(player.current ?? player.pendingTrack);
     const resolving = $derived(!player.current && !!player.pendingTrack);
+
+    // NP-05 prev boundary (D-02): rubber-band a prev swipe ONLY on the first track. hasPrev is false
+    // exactly at queue index 0 (no prev neighbor) — mirrors the NowPlaying carousel neighbor lookup.
+    // hasNext stays true (ensureAhead keeps a neighbor ahead). player.prev() itself restarts the
+    // track when currentTime > 3, so the narrow rubber-band case is only prev on index 0.
+    const hasPrevNeighbor = $derived(
+        player.queue.findIndex((t) => t.uid === player.current?.uid) !== 0,
+    );
 
     function fallbackCover(): string {
         return "linear-gradient(145deg,#3a2d63,#1a1326)";
@@ -46,11 +55,28 @@
                 ></i>
             {/if}
         </div>
+        <!-- NP-05 (D-06): a horizontal swipe on the content row slides it 1:1 and snaps, or slides
+             off + swaps the track on commit/flick — the lighter mini-player surface, NOT a peeking
+             multi-cover carousel. The node-tested coverSwipe drives node.style.transform itself, so
+             no local slideX binding is needed (same idiom as NowPlaying's .cover-strip). Direction
+             matches the cover: drag left→right = prev, right→left = next, same 0.28×width commit +
+             0.5px/ms flick + prev-only boundary rubber-band. coverSwipe NEVER setPointerCapture-s on
+             pointerdown and arms a one-shot trailing-click suppressor only on a committed swipe, so a
+             sub-slop tap still reaches onclick={handleOpen} (tap-to-expand, D-07) while a committed
+             swipe never replays it. Attached to .np-open ONLY — the .np-prog loader rail above sits
+             OUTSIDE this button and stays visually pinned while the content slides (UI-SPEC §5). -->
         <button
             class="np-open"
             aria-label={t("nowbar.openNowPlaying")}
             disabled={resolving}
             onclick={handleOpen}
+            use:coverSwipe={{
+                onprev: () => player.prev(),
+                onnext: () => player.next(),
+                hasPrev: hasPrevNeighbor,
+                hasNext: true,
+                enabled: !resolving,
+            }}
         >
             <span
                 class="np-art"
@@ -242,6 +268,14 @@
         cursor: pointer;
         text-align: left;
         color: inherit;
+    }
+    /* NP-05 reduced-motion: coverSwipe sets the spring-back/commit `transition` inline on .np-open,
+       so collapse it to instant here (the track change still happens, only the slide animation is
+       removed — UI-SPEC §5 / mirrors NowPlaying's .cover-strip reduced-motion override). */
+    @media (prefers-reduced-motion: reduce) {
+        .np-open {
+            transition: none !important;
+        }
     }
     .np-art {
         width: 44px;

@@ -55,6 +55,7 @@ A user on their phone can search a song, tap it, and have it play instantly with
 - ✓ Text-size sliders widened to 50–200% with live demo text from current track; accent setting hover state wired via derived `--color-primary-hover` — Validated in Phase 17
 - ✓ Sleep timer (5/10/15/30/45/60 min or end-of-track) from the track menu — global timer sheet, nowbar + now-playing active indicator with live countdown, cancel/change; volume-fade-then-pause on writable platforms, instant-pause on iOS; expiry never triggers failover/skip/loop-guard — Validated in Phase 18: Sleep Timer (device-only fade/lock-screen behaviors tracked in 18-HUMAN-UAT.md)
 - ✓ Track menu rework: always-visible action buttons with background resolve-then-act (pure gate helper, in-flight dedupe, graceful failure / no stuck spinner), 2-row marquee header with top-right like/close, Remix (seed → force-generated genre up-next preserving manual pins), and a long-press focus/tap-highlight fix (global tap-highlight reset + `@media (hover: hover)` guards + blur-on-longpress across all 6 trigger sites) — Validated in Phase 19: Track Menu Rework (device-only contracts — marquee re-measure, resolve-then-act visual flow, iOS/Android stuck-highlight — pending a `/gsd:verify-work 19` device pass)
+- ✓ Now-playing surface gestures: reusable `coverSwipe` horizontal action (0.28×width proportional commit, 0.5px/ms flick, prev-boundary rubber-band, Pitfall-7-safe capture-only-in-move), wired into a 3-cover NowPlaying carousel (tap-collapse + axis arbitration with the existing vertical collapse) and a lighter nowbar mini-player slide-and-snap (tap-to-expand preserved, loader rail pinned); plus an NP-04 notch-flush top loader and NP-02 sheet scroll containment — Validated in Phase 20: Now-Playing Surface & Gestures (gesture feel is device-only — 14 checks tracked in 20-HUMAN-UAT.md; two commit/transition reset blockers found in code review and fixed)
 
 ### Active
 
@@ -129,4 +130,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-11 after Phase 19 complete (Track Menu Rework)*
+*Last updated: 2026-06-11 after Phase 20 complete (Now-Playing Surface & Gestures)*

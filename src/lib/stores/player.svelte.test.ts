@@ -1455,3 +1455,180 @@ describe('sleep timer expiry — Phase-18 blocker (never enters the failure mach
 		}
 	});
 });
+
+/**
+ * GLN-6: Android background persistence. attach() registers visibilitychange/pagehide/freeze
+ * listeners that flush the EXACT current position to localStorage IMMEDIATELY (bypassing the 2s
+ * persistThrottled window), so a process eviction / tab freeze never persists a stale (pre-roll)
+ * currentTime → the "restores to 0" bug. The DESKTOP-verifiable invariant — an immediate
+ * localStorage write of the exact currentTime on hide — is what these tests prove; the real
+ * Android resume-from-saved-position is device-dependent and verified separately on hardware.
+ *
+ * In the node vitest project document/window are normally undefined, so we install minimal
+ * event-registry stubs so attach() registers the listeners and a test can dispatch them.
+ */
+describe('player.flushPersist — immediate position flush on hide/freeze/pagehide (GLN-6)', () => {
+	const STATE_KEY = 'openmusic:player:v1';
+	type Reg = {
+		_h: Map<string, Array<(e?: unknown) => void>>;
+		addEventListener(t: string, cb: (e?: unknown) => void): void;
+		fire(t: string, e?: unknown): void;
+	};
+	function makeRegistry(extra: Record<string, unknown> = {}): Reg {
+		const h = new Map<string, Array<(e?: unknown) => void>>();
+		return {
+			...extra,
+			_h: h,
+			addEventListener(t: string, cb: (e?: unknown) => void) {
+				const arr = h.get(t) ?? [];
+				arr.push(cb);
+				h.set(t, arr);
+			},
+			fire(t: string, e?: unknown) {
+				for (const cb of h.get(t) ?? []) cb(e);
+			}
+		} as Reg;
+	}
+
+	const flushPersist = () => (player as unknown as { flushPersist(): void })['flushPersist']();
+	const persistTimer = () =>
+		(player as unknown as { persistTimer: ReturnType<typeof setTimeout> | null })['persistTimer'];
+
+	beforeEach(() => {
+		memStore.clear();
+		player.queue = [];
+		player.current = mk('netease', 'bg', 'Artist', 'Background Song');
+		player.currentTime = 0;
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.stubGlobal('localStorage', localStorageMock); // re-establish the module-level stub
+	});
+
+	it('flushPersist() writes the EXACT element currentTime immediately (syncs from the element first)', () => {
+		const el = makeFakeAudio();
+		el.currentTime = 30.5; // element is ahead of the throttled player.currentTime (still 0)
+		player.attach(el as unknown as HTMLAudioElement);
+
+		flushPersist();
+
+		const raw = localStorage.getItem(STATE_KEY);
+		expect(raw).toBeTruthy();
+		const saved = JSON.parse(raw as string);
+		expect(saved.currentTime).toBe(30.5); // synced from the live element, not the stale 0
+		expect(saved.current.uid).toBe(player.current?.uid);
+	});
+
+	it('flushPersist() cancels a pending throttled write so it cannot later clobber with a staler value', () => {
+		const el = makeFakeAudio();
+		el.currentTime = 12;
+		player.attach(el as unknown as HTMLAudioElement);
+		// Arm the throttled timer (mirrors a recent timeupdate), then flush.
+		(player as unknown as { persistThrottled(): void })['persistThrottled']();
+		expect(persistTimer()).not.toBeNull();
+
+		flushPersist();
+
+		expect(persistTimer()).toBeNull(); // throttled write cancelled
+		expect(JSON.parse(localStorage.getItem(STATE_KEY) as string).currentTime).toBe(12);
+	});
+
+	it('a visibilitychange to hidden flushes the exact position immediately (attach-registered listener)', () => {
+		const doc = makeRegistry({ hidden: false });
+		const win = makeRegistry();
+		vi.stubGlobal('document', doc);
+		vi.stubGlobal('window', win);
+
+		const el = makeFakeAudio();
+		player.attach(el as unknown as HTMLAudioElement);
+		el.currentTime = 47.25; // user is 47s in when the tab is backgrounded
+		(doc as unknown as { hidden: boolean }).hidden = true;
+
+		doc.fire('visibilitychange');
+
+		const saved = JSON.parse(localStorage.getItem(STATE_KEY) as string);
+		expect(saved.currentTime).toBe(47.25); // immediate, exact — not the last 2s-throttled value
+	});
+
+	it('a visibilitychange while still VISIBLE does NOT flush (only hidden flushes)', () => {
+		const doc = makeRegistry({ hidden: false });
+		const win = makeRegistry();
+		vi.stubGlobal('document', doc);
+		vi.stubGlobal('window', win);
+
+		const el = makeFakeAudio();
+		player.attach(el as unknown as HTMLAudioElement);
+		el.currentTime = 5;
+		// document.hidden stays false (tab still visible) → no flush.
+		doc.fire('visibilitychange');
+
+		expect(localStorage.getItem(STATE_KEY)).toBeNull();
+	});
+
+	it('a pagehide event flushes the exact position immediately', () => {
+		const doc = makeRegistry({ hidden: false });
+		const win = makeRegistry();
+		vi.stubGlobal('document', doc);
+		vi.stubGlobal('window', win);
+
+		const el = makeFakeAudio();
+		player.attach(el as unknown as HTMLAudioElement);
+		el.currentTime = 88;
+
+		win.fire('pagehide');
+
+		expect(JSON.parse(localStorage.getItem(STATE_KEY) as string).currentTime).toBe(88);
+	});
+
+	it('a freeze event flushes the exact position immediately (Page Lifecycle API)', () => {
+		const doc = makeRegistry({ hidden: true });
+		const win = makeRegistry();
+		vi.stubGlobal('document', doc);
+		vi.stubGlobal('window', win);
+
+		const el = makeFakeAudio();
+		player.attach(el as unknown as HTMLAudioElement);
+		el.currentTime = 61;
+
+		doc.fire('freeze');
+
+		expect(JSON.parse(localStorage.getItem(STATE_KEY) as string).currentTime).toBe(61);
+	});
+
+	it('a pageshow(persisted) re-syncs currentTime + playing from the element without autoplaying', () => {
+		const doc = makeRegistry({ hidden: false });
+		const win = makeRegistry();
+		vi.stubGlobal('document', doc);
+		vi.stubGlobal('window', win);
+
+		const el = makeFakeAudio();
+		el.paused = false; // element is actually playing after a bfcache restore
+		player.attach(el as unknown as HTMLAudioElement);
+		el.currentTime = 19;
+		player.currentTime = 0; // stale UI state from before the freeze
+		player.playing = false;
+
+		win.fire('pageshow', { persisted: true });
+
+		expect(player.currentTime).toBe(19); // re-synced from the live element
+		expect(player.playing).toBe(true); // reflects el.paused === false
+		expect(el.play).not.toHaveBeenCalled(); // never autoplays
+	});
+
+	it('a pageshow that is NOT persisted (normal load) does not re-sync', () => {
+		const doc = makeRegistry({ hidden: false });
+		const win = makeRegistry();
+		vi.stubGlobal('document', doc);
+		vi.stubGlobal('window', win);
+
+		const el = makeFakeAudio();
+		player.attach(el as unknown as HTMLAudioElement);
+		el.currentTime = 99;
+		player.currentTime = 3;
+
+		win.fire('pageshow', { persisted: false });
+
+		expect(player.currentTime).toBe(3); // untouched — full restore() handles a normal load
+	});
+});

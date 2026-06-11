@@ -274,6 +274,22 @@ class Player {
 		}, 2000);
 	}
 
+	/**
+	 * GLN-6: flush the EXACT current playback position to localStorage IMMEDIATELY, bypassing the 2s
+	 * persistThrottled() window. Called from the visibilitychange(hidden)/pagehide/freeze lifecycle
+	 * listeners so an Android process eviction / tab freeze never persists a stale (pre-roll)
+	 * currentTime — the likely root cause of "restores to 0". Syncs currentTime from the live element
+	 * FIRST (the throttled write may be up to ~2s behind), cancels any pending throttled write so it
+	 * can't later clobber, then writes synchronously. Idempotent + never-throws (persist is guarded). */
+	private flushPersist() {
+		if (this.audio) this.currentTime = this.audio.currentTime || 0;
+		if (this.persistTimer) {
+			clearTimeout(this.persistTimer);
+			this.persistTimer = null;
+		}
+		this.persist();
+	}
+
 	/** Restore the last played track + queue + progress + shuffle/repeat from localStorage.
 	 *  Called once from the layout on mount. Doesn't autoplay — restored audio is paused
 	 *  with audio.currentTime seeded; the user must tap play (browser autoplay policy).
@@ -666,6 +682,29 @@ class Player {
 	attach(el: HTMLAudioElement) {
 		this.audio = el;
 		el.setAttribute('referrerpolicy', 'no-referrer');
+
+		// GLN-6: page-lifecycle persistence. attach() runs client-side from the root layout, but guard
+		// document/window so a stray SSR/test call never throws. On hide/freeze/navigation-away, flush
+		// the EXACT current position immediately (bypassing the 2s throttle) so an Android process
+		// eviction / tab freeze can never persist a stale currentTime → "restores to 0". On a bfcache
+		// restore (pageshow persisted) the audio element is live but the UI state may be stale, so
+		// re-sync currentTime/playing from the element — without autoplaying (browser policy).
+		if (typeof document !== 'undefined') {
+			document.addEventListener('visibilitychange', () => {
+				if (document.hidden) this.flushPersist();
+			});
+			// Page Lifecycle API (Chrome/Android); browsers without it simply never fire it.
+			document.addEventListener('freeze', () => this.flushPersist());
+		}
+		if (typeof window !== 'undefined') {
+			// Covers bfcache eviction / navigation away on mobile Safari + Chrome.
+			window.addEventListener('pagehide', () => this.flushPersist());
+			window.addEventListener('pageshow', (e: PageTransitionEvent) => {
+				if (!e.persisted || !this.audio) return; // only a bfcache restore needs the re-sync
+				this.currentTime = this.audio.currentTime || 0;
+				this.playing = !this.audio.paused;
+			});
+		}
 		el.addEventListener('play', () => {
 			// `play` fires the instant `paused` flips false (inside audio.play(), at
 			// readyState HAVE_NOTHING — before a single byte loads). It is a UI-STATE signal

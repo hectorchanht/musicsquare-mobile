@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Resilient Playback & UX Polish
-status: verifying
-stopped_at: Completed 19-03-PLAN.md
-last_updated: "2026-06-11T05:39:19.696Z"
+status: ready_to_plan
+stopped_at: Phase 19 complete (3/3) — ready to discuss Phase 20
+last_updated: 2026-06-11T06:09:07.326Z
 last_activity: 2026-06-11
 progress:
   total_phases: 9
   completed_phases: 4
   total_plans: 13
-  completed_plans: 13
+  completed_plans: 25
   percent: 44
 ---
 
@@ -21,21 +21,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-10)
 
 **Core value:** A user on their phone can search a song, tap it, and have it play instantly with a smooth, native-app-like experience — and keep playing when the screen locks.
-**Current focus:** Phase 19 — track-menu-rework
+**Current focus:** Phase 20 — now playing surface & gestures
 
 ## Current Position
 
-Phase: 19 (track-menu-rework) — READY FOR VERIFICATION
-Plan: 3 of 3
-Status: 19-03 complete (MENU-03/D-12 long-press release fix — global tap-highlight reset + @media (hover: hover) guards + blur-on-longpress at all 6 trigger sites; longpress.ts untouched) — all 3 plans done
-Last activity: 2026-06-11 -- 19-03 complete (app.css + 6 trigger files; pnpm check 0/0, 626 tests green; device-pass iOS Safari + Android Chrome deferred)
+Phase: 20
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-06-11
 Next: /gsd:verify-work phase 19 (device-pass the two non-node-testable contracts — MENU-02 marquee re-measure + MENU-03 stuck-state — before sign-off)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 13
+- Total plans completed: 16
 - Average duration: 7 min
 - Total execution time: 0.1 hours
 
@@ -48,6 +48,7 @@ Next: /gsd:verify-work phase 19 (device-pass the two non-node-testable contracts
 | 16 | 3 | - | - |
 | 17 | 4 | - | - |
 | 18 | 3 | - | - |
+| 19 | 3 | - | - |
 
 **Recent Trend:**
 

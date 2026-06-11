@@ -224,3 +224,21 @@ node_modules/
 # Vite timestamp artifacts
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# ===================== Capacitor / Android (Phase 999.1 native) =====================
+# Android build intermediates — only source (manifest, build.gradle, gradle wrapper)
+# is committed; everything generated/build-time is ignored. android/ also ships its
+# own Capacitor-generated .gitignore; these root entries are the belt-and-suspenders
+# layer and add the signing-material patterns (NEVER commit keystores).
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/app/release/
+# Capacitor copies the static web build into the platform on every sync — generated.
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+*.apk
+*.aab
+*.keystore
+*.jks

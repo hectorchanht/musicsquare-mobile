@@ -16,9 +16,12 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test:unit": "vitest",
 		"test": "vitest --run",
-		"gen": "wrangler types"
+		"gen": "wrangler types",
+		"cap:sync": "npx cap sync android"
 	},
 	"devDependencies": {
+		"@capacitor/android": "8.4.0",
+		"@capacitor/cli": "8.4.0",
 		"@cloudflare/workers-types": "4.20260605.1",
 		"@sveltejs/adapter-cloudflare": "7.2.8",
 		"@sveltejs/adapter-static": "3.0.10",
@@ -40,6 +43,10 @@
 	},
 	"packageManager": "pnpm@8.15.5+sha1.a58c038faac410c947dbdb93eb30994037d0fce2",
 	"dependencies": {
+		"@capacitor/app": "^8.1.0",
+		"@capacitor/core": "8.4.0",
+		"@capacitor/splash-screen": "^8.0.1",
+		"@capacitor/status-bar": "^8.0.2",
 		"@lucide/svelte": "^1.17.0"
 	}
 }

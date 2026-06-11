@@ -10,6 +10,7 @@
 // when unsupported. The throw-prone artwork/position/state logic lives in the pure,
 // node-tested media-session.ts; this store is a thin caller of those helpers.
 import { browser } from '$app/environment';
+import { Capacitor } from '@capacitor/core';
 import { ensureTrackDetails } from '$lib/services/catalog';
 import { tryFallback } from '$lib/services/fallback';
 import { buildDiversePicks } from '$lib/services/picks';
@@ -17,6 +18,10 @@ import { buildSimilarQueue } from '$lib/services/similar';
 import { buildOfflineQueue } from '$lib/services/downloads-queue';
 import { dedupeBest, sameSongKey } from '$lib/services/dedupe';
 import { buildArtwork, safePositionState, playbackStateFor } from '$lib/services/media-session';
+import {
+	createNativeMediaSession,
+	type PlayerMediaSession
+} from '$lib/services/native-media-session';
 import { getCachedCoverByUid, getCachedCover } from '$lib/services/cover-cache';
 import { resolveCoverForTrack } from '$lib/services/cover-backfill';
 import { resolveStub } from '$lib/services/discovery';
@@ -531,13 +536,31 @@ class Player {
 	private removedUids = new Set<string>();
 
 	/**
-	 * Single SSR + feature-detection guard for the Media Session API (MS-05, T-kyf-03).
-	 * Returns `navigator.mediaSession` only when running client-side on a browser that
-	 * supports it; null otherwise. EVERY Media Session call goes through this accessor
-	 * and early-returns when it is null, so nothing crashes under SSR or on unsupported
-	 * browsers (e.g. iOS Safari prior to support).
+	 * Lazily-built native Media Session adapter (D-04/D-05). Created once on first native
+	 * `ms` access so the `@jofr/capacitor-media-session` import has no effect on the web
+	 * bundle's runtime path. Null on web (the accessor returns navigator.mediaSession there).
 	 */
-	private get ms(): MediaSession | null {
+	private nativeMs: PlayerMediaSession | null = null;
+
+	/**
+	 * Single guard for the Media Session surface (MS-05, T-kyf-03, D-05). EVERY Media Session
+	 * call goes through this accessor and early-returns when null, so nothing crashes under SSR
+	 * or on unsupported browsers.
+	 *
+	 * - **Native (Capacitor/Android WebView)**: the System WebView has NO `navigator.mediaSession`,
+	 *   so the web wiring is a silent no-op there (no notification, no lock-screen controls, and the
+	 *   OS kills backgrounded audio). Return the native adapter, which bridges the exact subset of
+	 *   the Web MediaSession surface the player uses onto the jofr plugin (which starts the
+	 *   `mediaPlayback` foreground service and renders the system media UI). The player still does
+	 *   the two things the plugin requires — explicit `playbackState = 'playing'` on every metadata
+	 *   write + all transport action handlers registered in attach() — so they take effect natively.
+	 * - **Web**: return `navigator.mediaSession` exactly as before (feature-detected; web unchanged).
+	 */
+	private get ms(): PlayerMediaSession | null {
+		if (Capacitor.isNativePlatform()) {
+			this.nativeMs ??= createNativeMediaSession();
+			return this.nativeMs;
+		}
 		return typeof navigator !== 'undefined' && 'mediaSession' in navigator
 			? navigator.mediaSession
 			: null;

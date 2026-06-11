@@ -241,7 +241,9 @@ Plans:
 **Surface note (CONTEXT 10-CONTEXT.md D-01 supersedes the original LFSRC-01/02 wording above):** Phase 10 was rescoped to **LFSRC-03 (best-match scoring) only**. **LFSRC-02** (criterion #1) shipped early in Phase 9 as `resolveStub` (`src/lib/services/discovery.ts`) — the existing `searchAll` + `dedupeBest` re-search resolver with graceful miss — so no new resolver work happens here. **LFSRC-01 / criterion #4** (a formal `'lastfm'` SourceId + registry parity) is **dropped to backlog / satisfied-by-pattern**: `resolveStub` IS the resolver, so registering a `'lastfm'` source in the unified search bar adds little for the cost of widening `SourceId`/`SOURCES` — criterion #4 is therefore **N/A** under this drop. **Criterion #2's duration sanity check is dropped (D-04)** (would need Last.fm duration plumbed through the discovery shape for low value); criterion #2 as delivered = normalized artist+title scoring (`scoreMatch`: variant-keyword penalty over cover/karaoke/live/instrumental + CJK 翻唱/伴奏/现场…, matchKey similarity) with dedupeBest preferredSource/quality as the final tie-break — not a blind first result. Criterion #3 (graceful miss / never breaks the surface) is preserved unchanged. The original criteria are kept above for traceability; D-01 supersedes them.
 
 **Plans**: 1 plan
+
 - [ ] 10-01-PLAN.md — Upgrade resolveStub to a scored best-match pick (scoreMatch helper: variant-keyword penalty + matchKey similarity, dedupeBest tie-break) + reconcile LFSRC traceability (D-01)
+
 **Research flag**: Re-search resolver path (the v1.1 scope) needs no extra research. NOTE: GD Studio `ytmusic` is OUT of v1.1 (deferred — LFSRC-FB-01). If it is ever pulled in, it warrants its own `--research-phase` feasibility spike (`s`-checksum host/version drift, 50 req/5 min cap, instance failover, Western-catalog match rate).
 **Security note**: Isolate the resolver behind `Promise.allSettled` + `AbortSignal.timeout` so a slow/empty resolve can never stall the shared fan-out or break the working 4-source experience; score matches to avoid wrong-song playback (PITFALLS Pitfall 7 / threat T-lfm-04, scoped to the deferred ytmusic path).
 
@@ -403,10 +405,12 @@ Plans:
   5. The text-size setting spans 50%–200% with demo text reading "example {artist or song name}" per the type being sized, the accent-color setting visibly applies to the UI (dead wiring fixed), and artist/album pages show Deezer info, degrading gracefully when unavailable
 
 **Plans**: 4 plans (2 waves)
+
 - [x] 17-01-PLAN.md — Per-context up-next sourcing engine + auto-expand fix + all Phase-17 i18n keys (QUEUE-01/02/03)
 - [x] 17-02-PLAN.md — Queue management: horizontal swipe-remove + clear-all + removedUids exclusion (QUEUE-05)
 - [x] 17-03-PLAN.md — Settings polish: text-size 50–200% + dynamic demo text + accent-hover derivation (UX-03/07)
 - [x] 17-04-PLAN.md — Deezer artist/album enrichment routes + merge + page sections (ENRICH-04)
+
 **UI hint**: yes
 **Research flag**: LOW — config/`defaults.ts` + `settings.svelte.ts` changes batched; recommendation-loop (recently-played ring buffer) and queue-mutation race (`manualUids`) are documented pitfalls.
 
@@ -461,6 +465,7 @@ Plans:
 
 - [x] 19-02-PLAN.md — TrackMenu rework: 2-row marquee header + top-right like/close + header-only skeleton, always-visible buttons + gated resolve-then-act (inline spinner/dedupe/graceful-fail), Sparkles Remix row (MENU-01/02, QUEUE-04)
 - [x] 19-03-PLAN.md — Long-press release: global tap-highlight reset + `@media (hover:hover)` guards + blur-on-longpress across 6 trigger sites (MENU-03)
+
 **UI hint**: yes
 **Research flag**: LOW-MEDIUM — most constraint-dense UI change in the milestone: the overlay `$effect` must stay `open`-only-dep with `untrack()` (history-stack invariant), act-on-stub must be gated, marquee re-measure + double-action dedupe handled. No `--research-phase`, but plan carefully against the documented overlay invariant.
 
@@ -489,6 +494,7 @@ Plans:
 
 - [x] 20-03-PLAN.md — Cover 3-cover carousel via `coverSwipe` + prev-boundary rubber-band + tap-cover-collapses-in-half + axis-arbitration with `npTop*` vertical collapse (checkpoint: human-verify) (NP-01/NP-03) — depends on 20-01, 20-02 (same file)
 - [x] 20-04-PLAN.md — Nowbar `.np-open` slide-and-snap via `coverSwipe` + tap-to-expand preserved + loader rail pinned (checkpoint: human-verify) (NP-05) — depends on 20-01
+
 **UI hint**: yes
 **Research flag**: LOW-MEDIUM — the cover-swipe vs sheet-collapse gesture collision (Pitfall 7) is the highest-risk interaction: never `setPointerCapture` on `pointerdown`, commit axis in `pointermove` after slop, sub-slop movement must still reach `onclick`. Reuses the existing slop/velocity idiom; no new gesture library.
 
@@ -518,6 +524,7 @@ Plans:
 - [ ] 21-03-PLAN.md — Player resolvedCover field (sync from cache + async tier chain, generation-guarded MediaSession re-fire) + NowPlaying/Nowbar repoint (checkpoint: human-verify) (COVER-01) — depends on 21-02
 - [ ] 21-04-PLAN.md — Search page wiring: score+sort per partial inside race guards, use:lazyCover on result rows, autofocus verify-and-harden (checkpoint: human-verify) (SRCH-01/02/03, COVER-02) — depends on 21-01, 21-02
 - [ ] 21-05-PLAN.md — lazyCover wired into library/album/artist track lists (checkpoint: human-verify) (COVER-02) — depends on 21-02
+
 **UI hint**: yes
 **Research flag**: LOW — `IntersectionObserver` cover-in-view + name-key cache (key by `uid` first to avoid collisions) are documented; scoring is pure logic.
 
@@ -617,6 +624,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 **Plans:** 5 plans
 
 Decided context (assessment 2026-06-11, full doc: `~/.claude/plans/i-m-planning-to-make-fluffy-star.md`):
+
 - **Distribution:** sideload-only — Android signed APK via GitHub Releases, iOS Xcode sideload/AltStore. Store submission ruled out (Apple Guideline 5.2.3 / Google Play IP policy — unofficial music-source aggregation + downloads is near-certain rejection). Skip store-compliance scope entirely.
 - **API extraction (no-regret, could pull forward):** port ~17 `/api/*` routes + `src/lib/proxy/` to standalone Hono Cloudflare Worker (`musicsquare-api` repo), wrangler CI auto-deploy, secrets via `wrangler secret`, CORS allowlist incl. `capacitor://localhost` + `http://localhost`. Frontend gains single `API_BASE` config (empty = same-origin web, worker URL = native).
 - **Dual-build, single frontend codebase:** `svelte.config.js` switches adapter by env — default `adapter-cloudflare` (web unchanged), `BUILD_TARGET=native` → `adapter-static` SPA fallback.
@@ -626,8 +634,13 @@ Decided context (assessment 2026-06-11, full doc: `~/.claude/plans/i-m-planning-
 - When promoted: reverse the native-apps exclusion in PROJECT.md/REQUIREMENTS.md.
 
 Plans:
+
 - [ ] 999.1-01-PLAN.md — API_BASE fetch seam (D-03) + Capacitor-origin CORS via hooks.server.ts (D-02); web byte-identical [wave 1]
 - [ ] 999.1-02-PLAN.md — dual-adapter build switch (D-01) + Capacitor Android scaffold (D-12); first foreground-playing debug APK [wave 2]
 - [ ] 999.1-03-PLAN.md — blob-store filesystem platform-switch (D-10) + public-Music vs app-private storage decision (D-11) [wave 3]
 - [ ] 999.1-04-PLAN.md — background audio: plugin Cap-8 compat spike + native media-session bridge + FGS (D-04/D-05/D-06); device-gated [wave 4]
 - [ ] 999.1-05-PLAN.md — GitHub Actions signed-APK release pipeline + Obtainium versioning (D-07/D-08/D-09) [wave 5]
+
+**Cross-cutting constraints:**
+
+- The existing ~626-test suite stays green and pnpm check passes (web must not regress)

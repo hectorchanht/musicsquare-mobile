@@ -4,12 +4,12 @@ milestone: v1.2
 milestone_name: Resilient Playback & UX Polish
 status: executing
 stopped_at: Phase 22 context gathered
-last_updated: "2026-06-11T16:08:17.244Z"
-last_activity: 2026-06-11 -- Phase 21 execution started
+last_updated: "2026-06-11T16:18:35.011Z"
+last_activity: 2026-06-11 -- Phase 999.1 planning complete
 progress:
   total_phases: 10
   completed_phases: 5
-  total_plans: 25
+  total_plans: 28
   completed_plans: 21
   percent: 50
 ---
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-06-10)
 
 Phase: 21 (search-cover-pipeline-polish) — EXECUTING
 Plan: 1 of 5
-Status: Executing Phase 21
-Last activity: 2026-06-11 -- Phase 21 execution started
+Status: Ready to execute
+Last activity: 2026-06-11 -- Phase 999.1 planning complete
 Next: /gsd:verify-work phase 19 (device-pass the two non-node-testable contracts — MENU-02 marquee re-measure + MENU-03 stuck-state — before sign-off)
 
 ## Performance Metrics

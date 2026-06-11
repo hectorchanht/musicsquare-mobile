@@ -21,6 +21,7 @@
 import type { SourceAdapter, Track } from './types';
 import { makeUid } from './types';
 import { inferQualityFromUrl } from '../services/lrc';
+import { apiFetch } from '../services/api-base';
 
 // ---- Upstream JSON shapes (only fields we read; all optional — untrusted) ----------------
 
@@ -71,9 +72,9 @@ export const fivesing: SourceAdapter = {
 
 	async search(keyword: string, page: number, signal: AbortSignal): Promise<Track[]> {
 		const pg = Math.max(1, page || 1);
-		const url = `/api/fivesing/search?keyword=${encodeURIComponent(keyword)}&page=${pg}&pagesize=20`;
+		const path = `/api/fivesing/search?keyword=${encodeURIComponent(keyword)}&page=${pg}&pagesize=20`;
 
-		const res = await fetch(url, { signal });
+		const res = await apiFetch(path, { signal });
 		const json = (await res.json()) as FsSearchResponse | null;
 
 		// Contract-drift guard: 5sing's `list` is the anchor. Missing → throw so the fan-out
@@ -124,9 +125,9 @@ export const fivesing: SourceAdapter = {
 		}
 		// The numeric songid for the upstream `getSongUrl` — strip the type prefix back off.
 		const numericId = track.songid.replace(/^(fc|bz|yc)-/, '');
-		const url = `/api/fivesing/url?songid=${encodeURIComponent(numericId)}&songtype=${encodeURIComponent(songtype)}`;
+		const path = `/api/fivesing/url?songid=${encodeURIComponent(numericId)}&songtype=${encodeURIComponent(songtype)}`;
 
-		const res = await fetch(url, { signal });
+		const res = await apiFetch(path, { signal });
 		const j = (await res.json()) as FsUrlResponse | null;
 		if (!j || j.code !== 1000 || !j.data) {
 			throw new Error('fivesing: detail failed');

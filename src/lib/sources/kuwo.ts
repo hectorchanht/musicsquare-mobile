@@ -12,6 +12,7 @@
 import type { SourceAdapter, Track } from './types';
 import { makeUid } from './types';
 import { inferQualityFromUrl } from '../services/lrc';
+import { apiFetch } from '../services/api-base';
 import { settings, type DefaultQuality } from '$lib/stores/settings.svelte';
 
 // Kuwo search row shape from the kw-api endpoint (fields we read).
@@ -53,11 +54,11 @@ export const kuwo: SourceAdapter = {
 	async search(keyword: string, page: number, signal: AbortSignal): Promise<Track[]> {
 		// Pagination by limit-multiplication, mirroring netease (page→limit cap).
 		const requestLimit = Math.max(1, page || 1) * Math.max(1, 10);
-		const url = `/api/kuwo/search?name=${encodeURIComponent(keyword)}&page=1&limit=${encodeURIComponent(
+		const path = `/api/kuwo/search?name=${encodeURIComponent(keyword)}&page=1&limit=${encodeURIComponent(
 			requestLimit
 		)}`;
 
-		const res = await fetch(url, { signal });
+		const res = await apiFetch(path, { signal });
 		const json = (await res.json()) as KuwoSearchResponse | null;
 
 		// Contract-drift guard (legacy:2129 returned 0; we THROW so the fan-out records a
@@ -101,9 +102,9 @@ export const kuwo: SourceAdapter = {
 		// (acceptable per the honest defaultQualityNote).
 		// WR-07: an explicit per-call quality (download path) wins over the streaming pref.
 		const level = (quality ?? settings.defaultQuality) === '128' ? '128k' : 'zp';
-		const url = `/api/kuwo/detail?id=${encodeURIComponent(track.songid)}&type=song&level=${encodeURIComponent(level)}&format=json`;
+		const path = `/api/kuwo/detail?id=${encodeURIComponent(track.songid)}&type=song&level=${encodeURIComponent(level)}&format=json`;
 
-		const res = await fetch(url, { signal });
+		const res = await apiFetch(path, { signal });
 		const j = (await res.json()) as KuwoDetailResponse | null;
 		// Preserve the legacy throw on code!==200 / missing data (legacy:2402) — the one
 		// detail fetcher that already threw, kept verbatim.

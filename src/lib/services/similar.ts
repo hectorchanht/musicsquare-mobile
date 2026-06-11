@@ -13,6 +13,7 @@ import { dedupeBest } from '$lib/services/dedupe';
 import { deezerRelatedArtists } from '$lib/services/deezer';
 import { settings } from '$lib/stores/settings.svelte';
 import { cached } from '$lib/services/ttl-cache';
+import { apiFetch } from '$lib/services/api-base';
 import type { Track } from '$lib/sources/types';
 
 const SIMILAR_ARTIST_COUNT = 8; // how many similar artists to search (top N)
@@ -30,7 +31,7 @@ export async function getSimilarArtists(artist: string): Promise<string[]> {
 	if (!clean) return [];
 	return cached(`lf:similar:${clean}|${SIMILAR_ARTIST_COUNT}`, TTL_SIMILAR, async () => {
 		try {
-			const res = await fetch(
+			const res = await apiFetch(
 				`/api/similar?artist=${encodeURIComponent(clean)}&limit=${SIMILAR_ARTIST_COUNT}`
 			);
 			const data = (await res.json()) as { artists?: string[] };

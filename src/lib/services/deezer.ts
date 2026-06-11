@@ -24,6 +24,7 @@
 //    slow/hung response can never pile up against the CAP=3 + total-max backfill pool.
 
 import { cached } from './ttl-cache';
+import { apiUrl } from './api-base';
 
 const PROXY_PATH = '/api/deezer/search';
 const CHART_PATH = '/api/deezer/chart';
@@ -93,7 +94,7 @@ export async function deezerChart(limit = 18, signal?: AbortSignal): Promise<Dee
 	if (signal?.aborted) return EMPTY_CHART;
 	return cached(`dz:chart:${limit}`, TTL_RELATED, async () => {
 		const url = `${CHART_PATH}?${new URLSearchParams({ limit: String(limit) }).toString()}`;
-		const res = await fetch(url, { signal: combinedSignal(signal) }); // abort/timeout REJECT
+		const res = await fetch(apiUrl(url), { signal: combinedSignal(signal) }); // abort/timeout REJECT
 		if (!res.ok) throw new Error(String(res.status));
 		const data = (await res.json()) as Partial<DeezerChartResult>;
 		return { tracks: data.tracks ?? [], artists: data.artists ?? [] };
@@ -128,7 +129,7 @@ function combinedSignal(caller?: AbortSignal): AbortSignal {
  * exported callers map the rejection to null OUTSIDE the cache.
  */
 async function fetchDeezerOrThrow(term: string, signal?: AbortSignal): Promise<DeezerCover> {
-	const res = await fetch(buildDeezerSearchUrl(term), { signal: combinedSignal(signal) });
+	const res = await fetch(apiUrl(buildDeezerSearchUrl(term)), { signal: combinedSignal(signal) });
 	if (!res.ok) throw new Error(String(res.status));
 	return (await res.json()) as DeezerCover;
 }
@@ -191,7 +192,7 @@ export async function deezerSearchTopN(
 	// (never pinned for the TTL) and maps to [] outside, so the next call retries.
 	return cached(`dz:search:${clean}|${limit}`, TTL_SEARCH, async () => {
 		const url = `${PROXY_PATH}?${new URLSearchParams({ q: clean, limit: String(limit) }).toString()}`;
-		const res = await fetch(url, { signal: combinedSignal(signal) }); // abort/timeout REJECT
+		const res = await fetch(apiUrl(url), { signal: combinedSignal(signal) }); // abort/timeout REJECT
 		if (!res.ok) throw new Error(String(res.status));
 		const data = (await res.json()) as DeezerCover;
 		return data.results ?? [];
@@ -215,7 +216,7 @@ export async function deezerRelatedArtists(
 	// WR-03: failure rejects inside cached() (never pinned) → [] outside (retry next call).
 	return cached(`dz:related:${clean}|${limit}`, TTL_RELATED, async () => {
 		const url = `${RELATED_PATH}?${new URLSearchParams({ artist: clean, limit: String(limit) }).toString()}`;
-		const res = await fetch(url, { signal: combinedSignal(signal) }); // abort/timeout REJECT
+		const res = await fetch(apiUrl(url), { signal: combinedSignal(signal) }); // abort/timeout REJECT
 		if (!res.ok) throw new Error(String(res.status));
 		const data = (await res.json()) as { artists?: string[] };
 		return Array.isArray(data?.artists) ? data!.artists! : [];
@@ -263,7 +264,7 @@ export async function deezerArtist(
 	// so the next visit retries instead of hiding the Deezer section all session.
 	return cached(`dz:artist:${clean}`, TTL_ARTIST, async () => {
 		const url = `${ARTIST_PATH}?${new URLSearchParams({ name: clean }).toString()}`;
-		const res = await fetch(url, { signal: combinedSignal(signal) }); // abort/timeout REJECT
+		const res = await fetch(apiUrl(url), { signal: combinedSignal(signal) }); // abort/timeout REJECT
 		if (!res.ok) throw new Error(String(res.status));
 		return (await res.json()) as DeezerArtistInfo;
 	}).catch(() => null); // never throws → caller leaves section absent (D-14)
@@ -290,7 +291,7 @@ export async function deezerAlbum(
 		const params = new URLSearchParams({ title: cleanTitle });
 		if (cleanArtist) params.set('artist', cleanArtist);
 		const url = `${ALBUM_PATH}?${params.toString()}`;
-		const res = await fetch(url, { signal: combinedSignal(signal) }); // abort/timeout REJECT
+		const res = await fetch(apiUrl(url), { signal: combinedSignal(signal) }); // abort/timeout REJECT
 		if (!res.ok) throw new Error(String(res.status));
 		return (await res.json()) as DeezerAlbumInfo;
 	}).catch(() => null); // never throws → caller leaves section absent (D-14)

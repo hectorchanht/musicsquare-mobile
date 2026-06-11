@@ -16,6 +16,7 @@
 import type { SourceAdapter, Track } from './types';
 import { makeUid } from './types';
 import { inferQualityFromUrl } from '../services/lrc';
+import { apiFetch } from '../services/api-base';
 
 // Upstream `results[]` row shape — only the fields we read; all optional (untrusted JSON).
 interface JmResult {
@@ -48,9 +49,9 @@ export const jamendo: SourceAdapter = {
 		// "first page = 20 rows" idiom. The proxy fills client_id; we never send it from the
 		// client (defense-in-depth even though it's a public id).
 		const offset = Math.max(0, ((page || 1) - 1) * 20);
-		const url = `/api/jamendo/search?search=${encodeURIComponent(keyword)}&limit=20&offset=${offset}`;
+		const path = `/api/jamendo/search?search=${encodeURIComponent(keyword)}&limit=20&offset=${offset}`;
 
-		const res = await fetch(url, { signal });
+		const res = await apiFetch(path, { signal });
 		const json = (await res.json()) as JmResponse | null;
 
 		// Contract-drift guard: success envelope is `{ headers: { code: 0 }, results: [] }`.

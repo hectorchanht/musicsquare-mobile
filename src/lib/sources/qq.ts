@@ -13,6 +13,7 @@
 import type { SourceAdapter, Track } from './types';
 import { makeUid } from './types';
 import { inferQualityFromUrl } from '../services/lrc';
+import { apiFetch } from '../services/api-base';
 import { settings, type DefaultQuality } from '$lib/stores/settings.svelte';
 
 // QQ search row shape from the tang endpoint (fields we read).
@@ -127,9 +128,9 @@ export const qq: SourceAdapter = {
 	async search(keyword: string, page: number, signal: AbortSignal): Promise<Track[]> {
 		// Pagination by limit-multiplication, mirroring netease (page→limit cap).
 		const requestLimit = Math.max(1, page || 1) * Math.max(1, 10);
-		const url = `/api/qq/search?msg=${encodeURIComponent(keyword)}&type=json`;
+		const path = `/api/qq/search?msg=${encodeURIComponent(keyword)}&type=json`;
 
-		const res = await fetch(url, { signal });
+		const res = await apiFetch(path, { signal });
 		const json: unknown = await res.json();
 
 		// 兼容：既支持直接数组，也支持 { data: [...] } 这种包装 — PORTED VERBATIM (legacy:2055).
@@ -195,8 +196,8 @@ export const qq: SourceAdapter = {
 				throw new Error('qq detail error (missing mid)');
 			}
 
-			const url = `/api/qq/detail?msg=${encodeURIComponent(msg)}&type=json&mid=${encodeURIComponent(mid)}`;
-			const res = await fetch(url, { signal });
+			const path = `/api/qq/detail?msg=${encodeURIComponent(msg)}&type=json&mid=${encodeURIComponent(mid)}`;
+			const res = await apiFetch(path, { signal });
 			const d = (await res.json()) as QQDetailItem | null;
 
 			// 基本校验：必须是对象且有 song_mid (legacy:2352-2355). On a poisoned/empty body we

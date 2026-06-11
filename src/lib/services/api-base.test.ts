@@ -31,7 +31,9 @@ describe('apiUrl — VITE_API_BASE branch', () => {
 describe('apiFetch — single fetch funnel through apiUrl', () => {
 	it('calls global fetch exactly once with the apiUrl()-prefixed URL and the passed init', async () => {
 		vi.stubEnv('VITE_API_BASE', 'https://base.example');
-		const spy = vi.fn(async () => new Response('{}', { status: 200 }));
+		const spy = vi.fn(
+			async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('{}', { status: 200 })
+		);
 		vi.stubGlobal('fetch', spy);
 
 		const init: RequestInit = { method: 'POST', headers: { 'content-type': 'application/json' } };
@@ -44,7 +46,9 @@ describe('apiFetch — single fetch funnel through apiUrl', () => {
 
 	it('uses the same-origin relative URL when the base is empty', async () => {
 		vi.stubEnv('VITE_API_BASE', '');
-		const spy = vi.fn(async () => new Response('{}', { status: 200 }));
+		const spy = vi.fn(
+			async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('{}', { status: 200 })
+		);
 		vi.stubGlobal('fetch', spy);
 
 		await apiFetch('/api/x');

@@ -6,6 +6,7 @@
 	import { dedupeBestWithDeezer } from '$lib/services/dedupe-deezer';
 	import { scoreMatch } from '$lib/services/score-match';
 	import { computeSetContext } from '$lib/services/score-context';
+	import { lazyCover } from '$lib/actions/lazyCover';
 	import { enrichArtist } from '$lib/services/lastfm';
 	import { deezerArtistCover, deezerSearchTopN, type DeezerHit } from '$lib/services/deezer';
 	import {
@@ -34,6 +35,11 @@
 	let q = $state('');
 	let queryInputEl = $state<HTMLInputElement | null>(null);
 	let results = $state<Track[]>([]);
+	// SRCH-02 / COVER-02: lazily-resolved covers keyed by track.uid. lazyCover fires onResolved
+	// with a SOLID https URL (Plan 02 isSolidCover gate) when a row scrolls into view and its
+	// cover is empty/broken; reassigning the object triggers a reactive repaint of that row's
+	// .art background-image. The resolve helper never refetches (cache-first + in-flight dedupe).
+	let resolvedCovers = $state<Record<string, string>>({});
 	let loading = $state(false);
 	let searched = $state(false);
 	let someFailed = $state(false);
@@ -498,7 +504,11 @@
 		{#each results as t (t.uid)}
 			<li>
 				<button class="row" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); menuTrack = t; menuOpen = true; }} onclick={() => { player.play(t); player.setListQueue(results, 'search'); }}>
-					<span class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></span>
+					<span
+						class="art"
+						use:lazyCover={{ track: t, onResolved: (uid, url) => { resolvedCovers = { ...resolvedCovers, [uid]: url }; } }}
+						style:background-image={(resolvedCovers[t.uid] ?? t.cover) ? `url(${resolvedCovers[t.uid] ?? t.cover})` : fallbackCover(t)}
+					></span>
 					<span class="meta">
 						<span class="r-title">{names.dnTitle(t.title)}</span>
 						<span class="r-artist">{names.dnArtist(t.artist)}</span>

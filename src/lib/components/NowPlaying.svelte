@@ -652,6 +652,18 @@
 	style:transform={dragY ? `translateY(${dragY}px)` : undefined}
 	style:transition={dragging ? 'none' : 'transform 0.28s cubic-bezier(.22,1,.36,1)'}
 >
+	<!-- NP-04: top running-line loader. The indeterminate variant ONLY (always `indet`, only
+	     the sliver — no determinate seek `<i style:width>`, that one is the Nowbar's seek progress).
+	     Reuses the nowbar's `np-prog indet` + `sliver` class names verbatim so it inherits the
+	     shared `np-indet` keyframe. Mounted as the FIRST child of `.np`, full-bleed under
+	     `env(safe-area-inset-top)`, above the cover and `.bar`. DEFAULT per 20-UI-SPEC §6:
+	     render in ALL sheet states (unconditional `{#if player.loading}`). The suppress-in-full
+	     fallback (`&& sheetState !== 'full'`) is NOT applied — no visual duplication with the
+	     embedded Nowbar's own `.np-prog` is expected (the Nowbar's bar sits at its own top edge
+	     inside the flow, while this loader is absolutely pinned to the notch-safe top of `.np`). -->
+	{#if player.loading}
+		<div class="np-top-loader np-prog indet"><i class="sliver"></i></div>
+	{/if}
 	{#if sheetState === 'full'}
 		<!-- mtv-followup: reuse the existing docked Nowbar as the sticky top bar when the
 		     subnav sheet is fully open. Same cover/title/artist/play layout as the
@@ -829,6 +841,51 @@
 	   gap above the header (.bar). The header and .np-top follow immediately, neither carries a
 	   top margin. Bottom safe-area inset is preserved; only the TOP is flush. */
 	.np { position: fixed; inset: 0; z-index: 50; background: var(--color-bg); display: flex; flex-direction: column; padding: 0 18px env(safe-area-inset-bottom); overflow: hidden; }
+	/* NP-04: top running-line loader. .np-prog / .np-prog.indet / .sliver + the np-indet
+	   keyframe + reduced-motion override are copied byte-for-byte from Nowbar.svelte so the
+	   loader is visually identical to the nowbar's indeterminate bar. .np-top-loader pins it
+	   full-bleed at the notch-safe top edge of .np: top:env(safe-area-inset-top), left/right:0
+	   (padding on .np does not offset an absolutely-positioned child's left/right:0, so it
+	   spans the full width), z-index:60 sits above the cover and .bar (within the z-index:50
+	   .np) yet below any modal. */
+	/* Two-class selector so `top` wins over .np-prog's `top: 0` regardless of source order
+	   (equal-specificity single-class rules would let the later .np-prog override it). */
+	.np-top-loader.np-prog { top: env(safe-area-inset-top); z-index: 60; }
+	.np-prog {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: 3px;
+		background: rgba(255, 255, 255, 0.12);
+	}
+	.np-prog > i {
+		display: block;
+		height: 100%;
+		background: var(--color-primary);
+		transition: width 0.25s linear;
+	}
+	.np-prog.indet {
+		overflow: hidden;
+	}
+	.np-prog.indet > i.sliver {
+		width: 35%;
+		transition: none;
+		animation: np-indet 1.1s ease-in-out infinite;
+	}
+	@keyframes np-indet {
+		0% {
+			transform: translateX(-110%);
+		}
+		100% {
+			transform: translateX(310%);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.np-prog.indet > i.sliver {
+			animation-duration: 2.2s;
+		}
+	}
 	.bar { display: flex; align-items: center; justify-content: space-between; }
 	.icon { background: none; border: none; color: var(--color-text); cursor: pointer; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; }
 	.icon:hover { background: var(--color-surface-2); }

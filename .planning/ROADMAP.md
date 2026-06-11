@@ -510,8 +510,8 @@ Plans:
 
 **Wave 1**
 
-- [ ] 21-01-PLAN.md — Scoring brain: Track.duration field + QQ plumbing, new pure score-context.ts (cross-source artist map), scoreMatch extended with 試聽 penalty + short-title/artist boosts behind an additive ctx arg + D-07 regression guard (SRCH-01)
-- [ ] 21-02-PLAN.md — Cover foundation: uid-first cover-cache layer, iTunes 1200px bump, shared single-item resolve helper, new lazyCover action (IntersectionObserver + Image() broken-URL probe + cache-first) (COVER-02, SRCH-02)
+- [x] 21-01-PLAN.md — Scoring brain: Track.duration field + QQ plumbing, new pure score-context.ts (cross-source artist map), scoreMatch extended with 試聽 penalty + short-title/artist boosts behind an additive ctx arg + D-07 regression guard (SRCH-01)
+- [x] 21-02-PLAN.md — Cover foundation: uid-first cover-cache layer, iTunes 1200px bump, shared single-item resolve helper, new lazyCover action (IntersectionObserver + Image() broken-URL probe + cache-first) (COVER-02, SRCH-02)
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -603,7 +603,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 | 18. Sleep Timer | 3/3 | Complete    | 2026-06-11 |
 | 19. Track Menu Rework | 3/3 | Complete    | 2026-06-11 |
 | 20. Now-Playing Surface & Gestures | 4/4 | Complete    | 2026-06-11 |
-| 21. Search & Cover Pipeline Polish | 0/5 | Planned | - |
+| 21. Search & Cover Pipeline Polish | 2/5 | In Progress|  |
 | 22. Lyrics Polish | 0/TBD | Not started | - |
 | 23. UX Audit & Homepage/Artist Polish | 0/TBD | Not started | - |
 | 24. Offline App-Shell & Sharing/SEO | 0/TBD | Not started | - |

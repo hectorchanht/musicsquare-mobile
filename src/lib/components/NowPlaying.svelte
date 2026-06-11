@@ -305,9 +305,12 @@
 		src.src = forTrack.cover;
 	}
 
-	// Effective now-playing cover: the swapped hi-res Last.fm art when adopted, else
-	// the source cover (never a placeholder).
-	const effectiveCover = $derived(swappedCover ?? player.current?.cover ?? null);
+	// Effective now-playing cover: the swapped hi-res Last.fm art when adopted (a strictly-larger
+	// upgrade, so it still wins), else the single player.resolvedCover field (COVER-01 / D-09) —
+	// which already encompasses track.cover, the uid/name cache, AND the async tier-chain resolve,
+	// so a no-cover-source track shows resolved art here once the chain lands. Null → the seeded
+	// gradient fallback below (D-12); never a placeholder.
+	const effectiveCover = $derived(swappedCover ?? player.resolvedCover ?? null);
 
 	// ---- Cover carousel (NP-01 / D-01) ----
 	// A rigid 3-cell strip [prev | current | next] laid out edge-to-edge (no gutter): each cell is

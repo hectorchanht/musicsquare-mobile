@@ -79,10 +79,15 @@
                 enabled: !resolving,
             }}
         >
+            <!-- COVER-01 (D-09): the single player.resolvedCover field is the primary art source —
+                 it is set synchronously on play() from track/cache and reactively updated when the
+                 async tier chain lands, so a no-cover-source track shows resolved art here once the
+                 chain settles. While still resolving an optimistic stub (current null, pendingTrack
+                 set), fall back to the tapped np.cover, then to the seeded gradient (D-12). -->
             <span
                 class="np-art"
-                style:background-image={np?.cover
-                    ? `url(${np.cover})`
+                style:background-image={(player.resolvedCover ?? np?.cover)
+                    ? `url(${player.resolvedCover ?? np?.cover})`
                     : fallbackCover()}
             ></span>
             <span class="np-meta">

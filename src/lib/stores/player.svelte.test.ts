@@ -31,6 +31,18 @@ vi.mock('$lib/services/blob-store', () => ({
 // end-of-queue / ensureAhead tests keep their behaviour (they already assert "adds nothing").
 vi.mock('$lib/services/similar', () => ({ buildSimilarQueue: vi.fn(async () => []) }));
 vi.mock('$lib/services/picks', () => ({ buildDiversePicks: vi.fn(async () => []) }));
+// COVER-01 (21-03): mock the two cover-cache sync reads (uid layer then name layer) so the
+// resolvedCover sync-set read order is observable, and the single-item async resolve helper so the
+// tier-chain land + generation guard can be driven with a deferred promise. importOriginal keeps
+// every OTHER export (setCachedCover, clearCoverCache, …) real so unrelated suites are untouched.
+vi.mock('$lib/services/cover-cache', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('$lib/services/cover-cache')>();
+	return { ...actual, getCachedCoverByUid: vi.fn(() => null), getCachedCover: vi.fn(() => null) };
+});
+vi.mock('$lib/services/cover-backfill', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('$lib/services/cover-backfill')>();
+	return { ...actual, resolveCoverForTrack: vi.fn(async () => null) };
+});
 
 const memStore = new Map<string, string>();
 const localStorageMock: Storage = {
@@ -55,6 +67,8 @@ import { tryFallback } from '$lib/services/fallback';
 import { blobStore } from '$lib/services/blob-store';
 import { buildSimilarQueue } from '$lib/services/similar';
 import { buildDiversePicks } from '$lib/services/picks';
+import { getCachedCoverByUid, getCachedCover } from '$lib/services/cover-cache';
+import { resolveCoverForTrack } from '$lib/services/cover-backfill';
 
 const mockResolve = vi.mocked(resolveStub);
 const mockEnsure = vi.mocked(ensureTrackDetails);
@@ -62,6 +76,9 @@ const mockTryFallback = vi.mocked(tryFallback);
 const mockBlobGet = vi.mocked(blobStore.get);
 const mockSimilar = vi.mocked(buildSimilarQueue);
 const mockPicks = vi.mocked(buildDiversePicks);
+const mockUidCover = vi.mocked(getCachedCoverByUid);
+const mockNameCover = vi.mocked(getCachedCover);
+const mockResolveCover = vi.mocked(resolveCoverForTrack);
 
 function mk(source: SourceId, songid: string, artist: string, title: string): Track {
 	return {
@@ -81,6 +98,25 @@ function mk(source: SourceId, songid: string, artist: string, title: string): Tr
 		keyword: 'x',
 		displayIndex: 1
 	};
+}
+
+// COVER-01: a module-scope fake MediaMetadata (hoisted to avoid the Svelte nested-class perf
+// warning). Each instance exposes `.artwork` like the real one and pushes itself into whichever log
+// the active resolvedCover suite points `coverMetadataSink` at, so a test can assert a FRESH object
+// was assigned on the async cover land (Pitfall 4).
+let coverMetadataSink: Array<{ artwork: unknown[] }> = [];
+class FakeMediaMetadata {
+	title: string;
+	artist: string;
+	album: string;
+	artwork: unknown[];
+	constructor(init: { title: string; artist: string; album: string; artwork: unknown[] }) {
+		this.title = init.title;
+		this.artist = init.artist;
+		this.album = init.album;
+		this.artwork = init.artwork;
+		coverMetadataSink.push(this);
+	}
 }
 
 /** A deferred promise so a test can control exactly WHEN a resolve settles. */
@@ -1023,6 +1059,153 @@ describe('player.play — generation guard against stale slow resolves (CR-02)',
 		await flush();
 		expect(player.current?.uid).toBe(resolvedB.uid); // still B — A discarded
 		expect(el.src).toBe('https://cdn/b.mp3');
+	});
+});
+
+describe('player.resolvedCover — single-field artwork guarantee (COVER-01 / D-09)', () => {
+	// resolvedCover is the ONE field that NowPlaying, Nowbar, and MediaSession all read (D-09). On
+	// play() entry it is set SYNCHRONOUSLY from track.cover ?? uid-cache ?? name-cache ?? null; on a
+	// total sync miss the Plan-02 single-item resolve helper runs and, generation-guarded, sets it +
+	// re-fires MediaSession metadata via a NEW MediaMetadata object (Pitfall 4). A fake MediaSession
+	// + MediaMetadata global (absent in node) lets us assert the OS-art repaint.
+	let el: ReturnType<typeof makeFakeAudio>;
+	// Records every MediaMetadata constructed so a test can assert a FRESH object was assigned.
+	let metadataLog: Array<{ artwork: unknown[] }>;
+	let fakeMediaSession: {
+		metadata: unknown;
+		playbackState: string;
+		setPositionState: () => void;
+		setActionHandler: () => void;
+	};
+
+	beforeEach(() => {
+		(player.play as unknown as { mockRestore(): void }).mockRestore?.();
+		mockEnsure.mockReset();
+		mockUidCover.mockReset().mockReturnValue(null);
+		mockNameCover.mockReset().mockReturnValue(null);
+		mockResolveCover.mockReset().mockResolvedValue(null);
+		player.current = null;
+		player.queue = [];
+		player.error = null;
+		player.loading = false;
+		(player as unknown as { resolvedCover: string | null }).resolvedCover = null;
+
+		metadataLog = [];
+		coverMetadataSink = metadataLog; // point the module-level FakeMediaMetadata at this run's log
+		fakeMediaSession = {
+			metadata: null,
+			playbackState: 'none',
+			setPositionState: () => {},
+			setActionHandler: () => {} // attach() wires transport handlers — accept + ignore them
+		};
+		vi.stubGlobal('navigator', { onLine: true, mediaSession: fakeMediaSession });
+		vi.stubGlobal('MediaMetadata', FakeMediaMetadata);
+		el = makeFakeAudio();
+		player.attach(el as unknown as HTMLAudioElement);
+		vi.spyOn(library, 'isDownloaded').mockReturnValue(false);
+		vi.spyOn(library, 'adoptCover').mockImplementation(() => {});
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	const rc = () => (player as unknown as { resolvedCover: string | null }).resolvedCover;
+
+	it('sets resolvedCover === track.cover SYNCHRONOUSLY on play() entry (no await)', () => {
+		const t = { ...stub('netease', 'A', 'Artist', 'Song'), cover: 'https://cdn/has-cover.jpg' };
+		mockEnsure.mockReturnValue(new Promise(() => {})); // never settles — prove the set is sync
+		void player.play(t);
+		expect(rc()).toBe('https://cdn/has-cover.jpg');
+		// uid/name cache must NOT be consulted when the track already carries a cover.
+		expect(mockUidCover).not.toHaveBeenCalled();
+	});
+
+	it('falls back to the uid-cache hit when track.cover is null (uid BEFORE name)', () => {
+		mockUidCover.mockReturnValue('https://cdn/uid-cached.jpg');
+		mockNameCover.mockReturnValue('https://cdn/name-cached.jpg');
+		const t = { ...stub('netease', 'B', 'Artist', 'Song'), cover: null };
+		mockEnsure.mockReturnValue(new Promise(() => {}));
+		void player.play(t);
+		expect(rc()).toBe('https://cdn/uid-cached.jpg'); // uid layer wins over name layer (D-13)
+	});
+
+	it('falls back to the name-cache hit when track.cover and uid-cache both miss', () => {
+		mockUidCover.mockReturnValue(null);
+		mockNameCover.mockReturnValue('https://cdn/name-cached.jpg');
+		const t = { ...stub('netease', 'C', 'Artist', 'Song'), cover: null };
+		mockEnsure.mockReturnValue(new Promise(() => {}));
+		void player.play(t);
+		expect(rc()).toBe('https://cdn/name-cached.jpg');
+	});
+
+	it('is null synchronously on a total miss, then === the async-resolved SOLID URL', async () => {
+		const t = { ...stub('netease', 'D', 'Artist', 'Song'), cover: null };
+		const resolved: Track = { ...mk('netease', 'D', 'Artist', 'Song'), cover: null, audioUrl: 'https://cdn/d.mp3' };
+		mockEnsure.mockResolvedValue(resolved);
+		const dCover = deferred<string | null>();
+		mockResolveCover.mockReturnValue(dCover.promise);
+
+		void player.play(t);
+		expect(rc()).toBeNull(); // synchronous total miss — gradient shows until the chain lands
+
+		await flush();
+		expect(mockResolveCover).toHaveBeenCalled(); // the async tier chain fired on the miss
+		dCover.resolve('https://cdn/resolved-async.jpg');
+		await flush();
+		expect(rc()).toBe('https://cdn/resolved-async.jpg');
+	});
+
+	it('the async land assigns a FRESH MediaMetadata whose artwork derives from resolvedCover (Pitfall 4)', async () => {
+		const t = { ...stub('netease', 'E', 'Artist', 'Song'), cover: null };
+		const resolved: Track = { ...mk('netease', 'E', 'Artist', 'Song'), cover: null, audioUrl: 'https://cdn/e.mp3' };
+		mockEnsure.mockResolvedValue(resolved);
+		mockResolveCover.mockResolvedValue('https://cdn/fresh-art.jpg');
+
+		void player.play(t);
+		await flush();
+		// The network-path write produced metadata #0 (favicon, cover was null). The async land must
+		// produce a NEW MediaMetadata object (#1) — not mutate #0's artwork in place.
+		expect(metadataLog.length).toBeGreaterThanOrEqual(2);
+		const landed = metadataLog[metadataLog.length - 1] as { artwork: Array<{ src: string }> };
+		expect(landed).not.toBe(metadataLog[0]); // a genuinely fresh object
+		expect(fakeMediaSession.metadata).toBe(landed); // ms.metadata points at the fresh object
+		expect(landed.artwork.some((a) => a.src === 'https://cdn/fresh-art.jpg')).toBe(true);
+	});
+
+	it('a superseded play()s async cover land does NOT overwrite the newer track (generation guard)', async () => {
+		const tA = { ...stub('netease', 'GA', 'Artist A', 'Song A'), cover: null };
+		const tB = { ...stub('qq', 'GB', 'Artist B', 'Song B'), cover: 'https://cdn/b-has-cover.jpg' };
+		const resolvedA: Track = { ...mk('netease', 'GA', 'Artist A', 'Song A'), cover: null, audioUrl: 'https://cdn/a.mp3' };
+		const resolvedB: Track = { ...mk('qq', 'GB', 'Artist B', 'Song B'), cover: 'https://cdn/b-has-cover.jpg', audioUrl: 'https://cdn/b.mp3' };
+
+		const dEnsureA = deferred<Track>();
+		mockEnsure.mockReturnValueOnce(dEnsureA.promise).mockReturnValueOnce(Promise.resolve(resolvedB));
+		const dCoverA = deferred<string | null>();
+		mockResolveCover.mockReturnValue(dCoverA.promise);
+
+		void player.play(tA); // gen → 1; resolvedCover null sync, fires the async chain under gen 1
+		void player.play(tB); // gen → 2; supersedes A, resolvedCover = B's cover synchronously
+		dEnsureA.resolve(resolvedA);
+		await flush();
+		expect(rc()).toBe('https://cdn/b-has-cover.jpg'); // B's cover, not A's pending resolve
+
+		// A's slow cover lands LAST — the gen guard must discard it.
+		dCoverA.resolve('https://cdn/a-stale-art.jpg');
+		await flush();
+		expect(rc()).toBe('https://cdn/b-has-cover.jpg'); // still B — stale A art discarded
+	});
+
+	it('switching tracks repoints resolvedCover (no stale cover from the prior track)', async () => {
+		const t1 = { ...stub('netease', 'S1', 'Artist', 'Song 1'), cover: 'https://cdn/cover-1.jpg' };
+		const t2 = { ...stub('qq', 'S2', 'Artist', 'Song 2'), cover: 'https://cdn/cover-2.jpg' };
+		mockEnsure.mockResolvedValueOnce({ ...mk('netease', 'S1', 'Artist', 'Song 1'), cover: 'https://cdn/cover-1.jpg', audioUrl: 'https://cdn/1.mp3' });
+		await player.play(t1);
+		expect(rc()).toBe('https://cdn/cover-1.jpg');
+
+		mockEnsure.mockResolvedValueOnce({ ...mk('qq', 'S2', 'Artist', 'Song 2'), cover: 'https://cdn/cover-2.jpg', audioUrl: 'https://cdn/2.mp3' });
+		await player.play(t2);
+		expect(rc()).toBe('https://cdn/cover-2.jpg'); // repointed — no stale cover-1
 	});
 });
 

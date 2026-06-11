@@ -17,6 +17,8 @@ import { buildSimilarQueue } from '$lib/services/similar';
 import { buildOfflineQueue } from '$lib/services/downloads-queue';
 import { dedupeBest, sameSongKey } from '$lib/services/dedupe';
 import { buildArtwork, safePositionState, playbackStateFor } from '$lib/services/media-session';
+import { getCachedCoverByUid, getCachedCover } from '$lib/services/cover-cache';
+import { resolveCoverForTrack } from '$lib/services/cover-backfill';
 import { resolveStub } from '$lib/services/discovery';
 import { blobStore } from '$lib/services/blob-store';
 import { settings } from '$lib/stores/settings.svelte';
@@ -153,6 +155,17 @@ class Player {
 	private pendingKey = '';
 	/** Monotonic generation: a newer playStub bumps it so a stale resolve's result is discarded. */
 	private pendingGen = 0;
+
+	/**
+	 * The ONE cover field every now-playing surface reads (COVER-01 / D-09). Set SYNCHRONOUSLY on
+	 * play() entry from `track.cover ?? uid-cache ?? name-cache ?? null` so the OS + UI get the
+	 * best-known art immediately. On a sync miss the Plan-02 single-item resolve helper runs and,
+	 * generation-guarded, sets this + re-fires a FRESH MediaMetadata so the lock screen repaints
+	 * (Pitfall 4). NowPlaying, Nowbar, and buildArtwork(MediaSession) all read this — one field,
+	 * three surfaces. Null = total miss; surfaces fall back to their seeded gradient and MediaSession
+	 * keeps /favicon.svg via buildArtwork (D-12). It IS `$state` so the two component surfaces
+	 * reactively repaint when the async land assigns it. */
+	resolvedCover = $state<string | null>(null);
 
 	/** Full-screen now-playing overlay open? */
 	expanded = $state(false);
@@ -1252,6 +1265,13 @@ class Player {
 		this.current = track;
 		this.currentTime = 0;
 		this.duration = 0;
+		// COVER-01 / D-09: set the ONE cover field SYNCHRONOUSLY from the best-known source so the
+		// nowbar/now-playing surfaces AND the first MediaMetadata write below paint real art with no
+		// flicker. Read order is uid-cache BEFORE name-cache (D-13 two-layer) and BEFORE null; a total
+		// miss leaves null and the async tier chain (further down) takes over. Repointing this on
+		// every entry also clears any stale cover from the prior track.
+		this.resolvedCover =
+			track.cover ?? getCachedCoverByUid(track.uid) ?? getCachedCover(track.artist, track.title) ?? null;
 		// Bump the play-generation so any older in-flight fallback bails (gte). Skipped on a
 		// fallback continuation — the fallback IS the continuation of the user's original intent
 		// and must not invalidate itself.
@@ -1293,7 +1313,7 @@ class Player {
 							title: names.dnTitle(track.title),
 							artist: names.dnArtist(track.artist),
 							album: track.album,
-							artwork: buildArtwork(track.cover)
+							artwork: buildArtwork(this.resolvedCover)
 						});
 						ms.playbackState = 'playing';
 					}
@@ -1330,7 +1350,13 @@ class Player {
 			// Cover-chain: a resolve that landed a cover shares it with every same-song
 			// library entry + the cover-cache, so home/library tiles stop rendering
 			// gradients for songs whose art the player has already fetched.
-			if (resolved.cover) library.adoptCover(resolved);
+			if (resolved.cover) {
+				library.adoptCover(resolved);
+				// COVER-01: ensureTrackDetails resolved a cover the sync set missed (the search stub
+				// had none) — adopt it into the single field so the network-path MediaMetadata write
+				// below and both UI surfaces show real art without waiting on the async tier chain.
+				if (!this.resolvedCover) this.resolvedCover = resolved.cover;
+			}
 			if (!resolved.audioUrl) {
 				// Cross-source fallback (gte): try other enabled sources before surfacing the
 				// error. On success, runFallback() calls play() again with fromFallback:true.
@@ -1352,7 +1378,7 @@ class Player {
 					title: names.dnTitle(resolved.title),
 					artist: names.dnArtist(resolved.artist),
 					album: resolved.album,
-					artwork: buildArtwork(resolved.cover)
+					artwork: buildArtwork(this.resolvedCover)
 				});
 				ms.playbackState = 'playing';
 			}
@@ -1387,6 +1413,12 @@ class Player {
 					/* rejection owned by the stall watchdog — see comment above */
 				});
 			}
+			// COVER-01 / D-09: the playing track still has NO art (sync read missed AND the resolve
+			// did not carry a cover). Fire the Plan-02 single-item tier chain off the audio critical
+			// path — best-effort, never-throw, generation-guarded — so the nowbar/now-playing/lock
+			// screen pick up a real cover when one exists, and keep the gradient/favicon when it does
+			// not (D-12). Non-blocking: playback never waits on it (T-21-07 accept).
+			if (!this.resolvedCover) void this.resolveCoverAsync(resolved, myGen);
 			// Fresh play -> per-context sourcing branch (Phase 17, D-03/D-04). 'generated'
 			// (global default) regenerates the auto portion from genre-similar songs; 'same-list'
 			// keeps the snapshot the caller passed via setQueue (search results / liked list /
@@ -1408,6 +1440,40 @@ class Player {
 			this.error = e instanceof Error ? e.message : String(e);
 		} finally {
 			this.loading = false;
+		}
+	}
+
+	/**
+	 * Best-effort async cover land for the playing track (COVER-01 / D-09). Runs the Plan-02
+	 * single-item resolve helper (Deezer → iTunes → CN tier chain; never throws; writes both cache
+	 * layers on a SOLID https hit) for a track that arrived with NO art. On a SOLID result, and ONLY
+	 * if a newer play() has not superseded this one (generation guard, Pitfall 4 + CR-02):
+	 *   - set `this.resolvedCover` so both UI surfaces repaint reactively, and
+	 *   - re-fire MediaSession by assigning a BRAND-NEW MediaMetadata object (never mutate artwork in
+	 *     place, A2/Pitfall 4) so the OS lock screen repaints — keeping playbackState correct.
+	 * On a miss (or a supersede) nothing is written: the gradient + /favicon.svg stand (D-12). This
+	 * runs off the audio critical path; playback never waits on it (T-21-07 accept).
+	 */
+	private async resolveCoverAsync(resolved: Track, myGen: number) {
+		let url: string | null = null;
+		try {
+			url = await resolveCoverForTrack(resolved);
+		} catch {
+			url = null; // resolveCoverForTrack never throws, but stay defensive — never reject.
+		}
+		if (myGen !== this.playGen) return; // a newer play() superseded — discard the stale art (T-21-06)
+		if (!url) return; // total miss — keep the seeded gradient + favicon (D-12)
+		this.resolvedCover = url;
+		const ms = this.ms;
+		if (ms) {
+			// A FRESH MediaMetadata so the OS repaints the lock-screen art (never an in-place mutate).
+			ms.metadata = new MediaMetadata({
+				title: names.dnTitle(resolved.title),
+				artist: names.dnArtist(resolved.artist),
+				album: resolved.album,
+				artwork: buildArtwork(this.resolvedCover)
+			});
+			ms.playbackState = playbackStateFor(!!this.current, this.playing);
 		}
 	}
 

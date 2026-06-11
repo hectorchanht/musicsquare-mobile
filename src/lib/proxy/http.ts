@@ -10,8 +10,10 @@
 const ALLOWED_ORIGIN_PATTERNS: RegExp[] = [
 	/^https:\/\/openmusic\.pages\.dev$/, // deployed app (D-06)
 	/^https:\/\/[a-z0-9-]+\.openmusic\.pages\.dev$/, // CF preview deploys
-	/^http:\/\/localhost(:\d+)?$/, // local dev
-	/^http:\/\/127\.0\.0\.1(:\d+)?$/
+	/^http:\/\/localhost(:\d+)?$/, // local dev (also covers Capacitor http androidScheme)
+	/^http:\/\/127\.0\.0\.1(:\d+)?$/,
+	/^https:\/\/localhost$/, // Capacitor Android default (server.androidScheme 'https' → WebView origin https://localhost) (D-02)
+	/^capacitor:\/\/localhost$/ // future iOS Capacitor WebView origin — harmless to allow now (D-02)
 ];
 
 function isAllowedOrigin(origin: string | null): origin is string {

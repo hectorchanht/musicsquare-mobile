@@ -1,8 +1,10 @@
 // Lyrics translation proxy (NEW feature endpoint — not part of the music data layer).
 // POST { lines: string[], to: LyricsLang } -> { translated: string[] }.
 // Server-side calls an unofficial Google translate endpoint (no key), batches the
-// lines in one request, and falls back to the originals on any failure. Same-origin
-// only (the app fetches its own /api/translate), so no CORS handling needed.
+// lines in one request, and falls back to the originals on any failure. CORS is handled
+// CENTRALLY by src/hooks.server.ts (allowlisted Access-Control-Allow-Origin + OPTIONS 204
+// for every /api/* route, incl. the native Capacitor origin) — this handler needs no
+// per-route CORS logic of its own.
 import type { RequestHandler } from './$types';
 
 const LANG_MAP: Record<string, string> = {

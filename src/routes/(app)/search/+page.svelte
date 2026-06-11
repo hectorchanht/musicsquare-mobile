@@ -4,6 +4,8 @@
 	import { searchAll } from '$lib/services/catalog';
 	import { dedupeBest } from '$lib/services/dedupe';
 	import { dedupeBestWithDeezer } from '$lib/services/dedupe-deezer';
+	import { scoreMatch } from '$lib/services/score-match';
+	import { computeSetContext } from '$lib/services/score-context';
 	import { enrichArtist } from '$lib/services/lastfm';
 	import { deezerArtistCover, deezerSearchTopN, type DeezerHit } from '$lib/services/deezer';
 	import {
@@ -185,6 +187,19 @@
 		return `linear-gradient(145deg, hsl(${h} 55% 32%), hsl(${(h + 40) % 360} 55% 18%))`;
 	}
 
+	// SRCH-01 / D-01 + D-02: full score-based re-sort of the (already-deduped) result set.
+	// Computes the per-set context ONCE (cross-source artist map + query length), then sorts a
+	// COPY descending by scoreMatch. Per researcher Q2/A4, the raw trimmed keyword is fed into
+	// BOTH the artist and title query slots: the similarity term degrades to token-overlap (still
+	// useful) while the new short-title / artist-frequency boosts + the sub-60s 試聽 penalty are
+	// the dominant search-list signals. scoreMatch is deterministic, so equal scores keep
+	// dedupeBest's appearance order (the tie-break) — the sort is stable in practice.
+	function rankList(rows: Track[], query: string): Track[] {
+		const ctx = computeSetContext(rows, query);
+		const qObj = { artist: query, title: query };
+		return [...rows].sort((a, b) => scoreMatch(qObj, b, ctx) - scoreMatch(qObj, a, ctx));
+	}
+
 	async function run(e?: Event) {
 		e?.preventDefault();
 		const kw = q.trim();
@@ -219,10 +234,12 @@
 			// query's partials.
 			const { interleaved, perSource } = await searchAll(kw, 1, {}, ac.signal, (partial) => {
 				if (myAc.signal.aborted || kw !== q.trim()) return;
-				results = dedupeBest(partial.interleaved, settings.preferredSource);
+				// SRCH-01/D-02: re-sort by score INSIDE the race guard (Pitfall 3 — a superseded
+				// partial returns above before ever reaching here).
+				results = rankList(dedupeBest(partial.interleaved, settings.preferredSource), kw);
 			});
-			// Final value is authoritative — re-derive from the complete superset.
-			results = dedupeBest(interleaved, settings.preferredSource);
+			// Final value is authoritative — re-derive from the complete superset, then re-sort.
+			results = rankList(dedupeBest(interleaved, settings.preferredSource), kw);
 			someFailed = perSource.some((p) => p.status === 'error');
 			// kyf: derive artist tiles from the settled result set (race-guarded inside).
 			void refreshArtistTiles(kw, results);
@@ -236,7 +253,8 @@
 			// groups where >1 CN source returned the same song. Aborts on supersede.
 			void dedupeBestWithDeezer(interleaved, settings.preferredSource, ac.signal).then((boosted) => {
 				if (myAc.signal.aborted || kw !== q.trim()) return;
-				results = boosted;
+				// SRCH-01/D-02: re-rank the Deezer-boosted set inside the supersede guard.
+				results = rankList(boosted, kw);
 				persistSession();
 			});
 		} catch (err) {
@@ -272,7 +290,9 @@
 		const myMoreAc = moreAc; // capture for the dwell ownership guard below
 		try {
 			const { interleaved } = await searchAll(kw, next, {}, moreAc.signal);
-			const merged = dedupeBest(interleaved, settings.preferredSource);
+			// SRCH-01/D-02: re-sort the cumulative superset by score. rankList is pure; the
+			// race guard below still prevents a superseded batch from assigning to `results`.
+			const merged = rankList(dedupeBest(interleaved, settings.preferredSource), kw);
 			// Race guard: user searched something else mid-fetch — bail without touching state.
 			if (kw !== q.trim()) return;
 			if (merged.length <= results.length) {

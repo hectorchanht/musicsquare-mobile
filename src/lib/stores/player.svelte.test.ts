@@ -278,6 +278,8 @@ describe('player.prefetchNext — pre-resolve next track for gapless-ish play', 
 	// prefetchNext is private + fired from the real play(); drive it directly (bracket access)
 	// after seeding current + queue, so timing stays deterministic regardless of play()'s stub.
 	const prefetch = () => (player as unknown as { prefetchNext(): Promise<void> })['prefetchNext']();
+	const primeNext = () => (player as unknown as { primeNext(): Promise<void> })['primeNext']();
+	const ensureAhead = () => (player as unknown as { ensureAhead(): Promise<void> })['ensureAhead']();
 
 	it("pre-resolves the next track's details and writes resolved back into the queue", async () => {
 		const cur = mk('netease', '0', 'A', 'Now');
@@ -382,6 +384,48 @@ describe('player.prefetchNext — pre-resolve next track for gapless-ish play', 
 		el.fire('ended');
 
 		expect(playSpy).toHaveBeenCalledWith(next);
+	});
+
+	it('next() waits for an already in-flight ensureAhead grow before advancing', async () => {
+		const cur = mk('netease', '0', 'A', 'Now');
+		const grown = mk('qq', '1', 'B', 'Grown Next');
+		player.queue = [cur];
+		player.current = cur;
+
+		const d = deferred<Track[]>();
+		mockPicks.mockReset().mockReturnValue(d.promise);
+		const grow = ensureAhead();
+
+		const playSpy = player.play as unknown as ReturnType<typeof vi.fn>;
+		playSpy.mockClear();
+		player.next();
+		await flush();
+		expect(playSpy).not.toHaveBeenCalled();
+
+		d.resolve([grown]);
+		await grow;
+		await flush();
+
+		expect(player.queue.map((t) => t.uid)).toEqual([cur.uid, grown.uid]);
+		expect(playSpy).toHaveBeenCalledWith(grown);
+	});
+
+	it('primeNext grows an exhausted queue, then pre-resolves the newly added next track', async () => {
+		const cur = mk('netease', '0', 'A', 'Now');
+		const next = stub('qq', '1', 'B', 'Next');
+		const resolved: Track = { ...next, detailsLoaded: true, audioUrl: 'https://cdn/next.mp3' };
+		player.queue = [cur];
+		player.current = cur;
+		mockPicks.mockReset().mockResolvedValue([next]);
+		mockEnsure.mockResolvedValue(resolved);
+
+		await primeNext();
+		await flush();
+
+		expect(mockPicks).toHaveBeenCalledTimes(1);
+		expect(mockEnsure).toHaveBeenCalledWith(next, expect.any(AbortSignal));
+		expect(player.queue.map((t) => t.uid)).toEqual([cur.uid, next.uid]);
+		expect(player.queue[1].audioUrl).toBe('https://cdn/next.mp3');
 	});
 });
 
@@ -1017,6 +1061,21 @@ describe('player.queueContext — context-threaded setQueue/playStub (Phase 17 Q
 		expect(player.queue.map((t) => t.uid)).toEqual([seed.uid, pinned.uid, freshAuto.uid]);
 		expect(player.queue.some((t) => t.uid === staleAuto.uid)).toBe(false);
 	});
+
+	it('regenerate keeps the exact current seed anchored when dedupeBest prefers another source', async () => {
+		const seed = mk('qq', 'SEED-Q', 'Adele', 'Hello');
+		const preferredVariant = mk('netease', 'SEED-N', 'Adele', 'Hello');
+		const freshAuto = mk('joox', 'NEW', 'D', 'FreshGenerated');
+		player.current = seed;
+		player.queue = [seed];
+		mockSimilar.mockReset().mockResolvedValue([preferredVariant, freshAuto]);
+
+		await (player as unknown as { regenerate(t: Track): Promise<void> }).regenerate(seed);
+
+		expect(player.queue[0]).toBe(seed);
+		expect(player.queue.some((t) => t.uid === preferredVariant.uid)).toBe(false);
+		expect(player.queue.map((t) => t.uid)).toEqual([seed.uid, freshAuto.uid]);
+	});
 });
 
 describe('player.setListQueue — current-anchored queue install (album-and-next-song-bug)', () => {
@@ -1193,7 +1252,7 @@ describe('player.play — auto-expand fresh-only guard + per-context branch (Pha
 		await player.play(stub('netease', 'G', 'Artist', 'Song'), { fresh: true });
 		await flush();
 		expect(regenSpy).toHaveBeenCalledTimes(1);
-		expect(aheadSpy).not.toHaveBeenCalled();
+		expect(aheadSpy).toHaveBeenCalledTimes(1); // after regenerate, prime the next slot
 	});
 
 	it("a fresh play in a 'same-list' context does NOT regenerate (snapshot survives)", async () => {

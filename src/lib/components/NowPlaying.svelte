@@ -325,13 +325,12 @@
 	const ci = $derived(player.queue.findIndex((tk) => tk.uid === player.current?.uid));
 	const prevCover = $derived(ci > 0 ? player.queue[ci - 1] : null);
 	const nextCover = $derived(ci >= 0 && ci + 1 < player.queue.length ? player.queue[ci + 1] : null);
-	// hasPrev/hasNext are false EXACTLY at a true queue boundary (no neighbor cell). player.prev()
-	// restarts the song when currentTime > 3, so a non-boundary prev is always safe to fire; the
-	// cases that must rubber-band (D-02) are prev on index 0 and next at the last queued track.
-	// hasNext is derived symmetrically from nextCover (NOT hardcoded true), so an end-of-queue next
-	// swipe rubber-bands instead of committing into a possibly no-op async ensureAhead() (WR-01).
+	// hasPrev is false at the first queued track; player.prev() restarts the song when currentTime
+	// > 3, so that is the only prev rubber-band case. hasNext intentionally stays true whenever
+	// there is a current track: player.next() owns end-of-queue growth, so a left swipe should commit
+	// and let the store top up instead of resisting at the visual boundary.
 	const hasPrevNeighbor = $derived(prevCover !== null && ci !== 0);
-	const hasNextNeighbor = $derived(nextCover !== null);
+	const hasNextNeighbor = $derived(!!player.current);
 	// Cell background: current cell uses the effective (possibly Last.fm-swapped) cover; the prev/next
 	// neighbors use their own source cover (or the deterministic gradient fallback). null → 'none'.
 	const cellBg = (tk: Track | null) =>
@@ -872,7 +871,7 @@
 								class:over={i === dragOver && i !== dragFrom}
 								style:transform={i === dragFrom && rowDragY ? `translateY(${rowDragY}px)` : undefined}
 							>
-								<button class="row q-row" class:playing={track.uid === player.current?.uid} use:swipeRemove={{ onremove: () => player.removeFromQueue(track.uid), enabled: track.uid !== player.current?.uid }} use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => player.play(track, { fresh: true })}>
+								<button class="row q-row" class:playing={track.uid === player.current?.uid} use:swipeRemove={{ onremove: () => player.removeFromQueue(track.uid), enabled: track.uid !== player.current?.uid }} use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => player.play(track)}>
 									<span class="r-title">{names.dnTitle(track.title)}</span>
 									<span class="r-artist">{names.dnArtist(track.artist)}</span>
 								</button>

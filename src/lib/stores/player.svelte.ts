@@ -487,6 +487,7 @@ class Player {
 
 	private audio: HTMLAudioElement | null = null;
 	private growing = false;
+	private growPromise: Promise<void> | null = null;
 	/**
 	 * uid of the track whose details are currently being pre-resolved by prefetchNext().
 	 * A plain field (NOT $state) — it must not trigger reactivity; it is a pure in-flight
@@ -916,6 +917,17 @@ class Player {
 		this.persist();
 	}
 
+	private queueWithAnchor(tracks: Track[], anchor: Track): Track[] {
+		const deduped = dedupeBest(tracks, settings.preferredSource);
+		let idx = deduped.findIndex((t) => t.uid === anchor.uid);
+		if (idx < 0) idx = deduped.findIndex((t) => sameSongKey(t, anchor));
+		if (idx >= 0) {
+			deduped[idx] = anchor;
+			return deduped;
+		}
+		return [anchor, ...deduped.filter((t) => t.uid !== anchor.uid)];
+	}
+
 	/**
 	 * Install an explicit ordered LIST as the up-next queue while GUARANTEEING the currently
 	 * playing track is a member of it (album-and-next-song-bug fix). The single-tap album path and
@@ -942,18 +954,7 @@ class Player {
 			return;
 		}
 		this.queueGen++; // WR-06: an explicit queue supersedes any in-flight regenerate result
-		const deduped = dedupeBest(tracks, settings.preferredSource);
-		let idx = deduped.findIndex((t) => t.uid === current.uid);
-		if (idx < 0) idx = deduped.findIndex((t) => sameSongKey(t, current));
-		if (idx >= 0) {
-			// Re-anchor: keep the EXACT current object (its resolved audioUrl/lrc) in place so playback
-			// is uninterrupted and indexOf(current) is valid.
-			deduped[idx] = current;
-			this.queue = deduped;
-		} else {
-			// current isn't in its own list — keep it a member at the front so next() still works.
-			this.queue = [current, ...deduped.filter((t) => t.uid !== current.uid)];
-		}
+		this.queue = this.queueWithAnchor(tracks, current);
 		this.queueContext = context;
 		this.persist();
 	}
@@ -1010,10 +1011,17 @@ class Player {
 	 * Append more diverse picks when the queue is within 2 of the end, so playback
 	 * never runs short. Guarded against re-entry (growing flag) and dry sources.
 	 */
-	private async ensureAhead() {
-		if (this.growing) return;
-		const i = this.indexOf(this.current);
-		if (i < 0 || this.queue.length - i > 2) return;
+	private ensureAhead(): Promise<void> {
+		if (this.growPromise) return this.growPromise;
+		const current = this.current;
+		if (!current) return Promise.resolve();
+		let i = this.indexOf(current);
+		if (i < 0 && this.queue.length) {
+			this.queue = this.queueWithAnchor(this.queue, current);
+			this.persist();
+			i = this.indexOf(current);
+		}
+		if (i < 0 || this.queue.length - i > 2) return Promise.resolve();
 		this.growing = true;
 		// album-and-next-song-bug fix: snapshot the queue generation (mirrors regenerate's WR-06).
 		// A fresh single-tap album play fires ensureAhead against the optimistic one-track queue;
@@ -1022,18 +1030,22 @@ class Player {
 		// GENERATED picks onto the explicit album queue, re-introducing the "up-next still generated"
 		// bug. Discard the grow if an explicit queue landed meanwhile.
 		const myQueueGen = this.queueGen;
-		try {
-			// Union removedUids (Phase 17, D-10/QUEUE-02): swiped-away songs stay excluded from the
-			// auto-grow picks, not just from the current queue snapshot.
-			const have = new Set([...this.queue.map((t) => t.uid), ...this.removedUids]);
-			const more = await buildDiversePicks(8, have);
-			if (myQueueGen !== this.queueGen) return; // an explicit setQueue/setListQueue superseded
-			if (more.length) this.queue = dedupeBest([...this.queue, ...more], settings.preferredSource);
-		} catch {
-			/* sources dry — leave the queue as-is */
-		} finally {
-			this.growing = false;
-		}
+		this.growPromise = (async () => {
+			try {
+				// Union removedUids (Phase 17, D-10/QUEUE-02): swiped-away songs stay excluded from the
+				// auto-grow picks, not just from the current queue snapshot.
+				const have = new Set([...this.queue.map((t) => t.uid), ...this.removedUids]);
+				const more = await buildDiversePicks(8, have);
+				if (myQueueGen !== this.queueGen) return; // an explicit setQueue/setListQueue superseded
+				if (more.length) this.queue = this.queueWithAnchor([...this.queue, ...more], current);
+			} catch {
+				/* sources dry — leave the queue as-is */
+			} finally {
+				this.growing = false;
+				this.growPromise = null;
+			}
+		})();
+		return this.growPromise;
 	}
 
 	private indexOf(track: Track | null): number {
@@ -1098,6 +1110,11 @@ class Player {
 				this.prefetchController = null;
 			}
 		}
+	}
+
+	private async primeNext() {
+		await this.ensureAhead();
+		await this.prefetchNext();
 	}
 
 	/**
@@ -1244,8 +1261,7 @@ class Player {
 					// offline-blob path so the ended→next auto-advance into a downloaded queue still
 					// prefetches (a no-op resolve for an already-downloaded next track; a real resolve
 					// when the next entry is a network track). Best-effort, non-blocking.
-					void this.ensureAhead();
-					void this.prefetchNext();
+					void this.primeNext();
 					return;
 				}
 			}
@@ -1328,18 +1344,13 @@ class Player {
 				// exclusion budget BEFORE regenerate so previously-removed songs are eligible again.
 				this.removedUids.clear();
 				if (settings.effectiveUpnextMode(this.queueContext) === 'generated') {
-					void this.regenerate(resolved);
+					void this.regenerate(resolved).then(() => this.primeNext());
 				} else {
-					void this.ensureAhead();
+					void this.primeNext();
 				}
 			} else {
-				void this.ensureAhead();
+				void this.primeNext();
 			}
-			// Pre-resolve the NEXT track so next()/track-end starts instantly. Best-effort,
-			// non-blocking (like ensureAhead/regenerate above). Fired AFTER ensureAhead so a
-			// freshly-grown tail exists to be prefetched on the next play()/tick; prefetchNext
-			// itself never grows the queue.
-			void this.prefetchNext();
 		} catch (e) {
 			this.error = e instanceof Error ? e.message : String(e);
 		} finally {
@@ -1370,7 +1381,7 @@ class Player {
 			]);
 			const auto = await buildSimilarQueue(seed, exclude);
 			if (myQueueGen !== this.queueGen) return; // WR-06: superseded by an explicit setQueue()
-			this.queue = dedupeBest([seed, ...manualEntries, ...auto], settings.preferredSource);
+			this.queue = this.queueWithAnchor([seed, ...manualEntries, ...auto], seed);
 		} catch {
 			/* leave queue as-is */
 		}

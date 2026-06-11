@@ -27,19 +27,14 @@
     const np = $derived(player.current ?? player.pendingTrack);
     const resolving = $derived(!player.current && !!player.pendingTrack);
 
-    // NP-05 boundaries (D-02): rubber-band a prev swipe on the first track and a next swipe at the
-    // last queued track. hasPrev is false exactly at queue index 0; hasNext is false when there is no
-    // track after the current one — both derived symmetrically (mirrors the NowPlaying carousel
-    // lookup) rather than hardcoding hasNext:true, so an end-of-queue next swipe rubber-bands instead
-    // of committing into a possibly no-op async ensureAhead() (WR-01). player.prev() restarts the
-    // track when currentTime > 3, so the prev rubber-band case is only index 0.
+    // NP-05 boundaries (D-02): rubber-band a prev swipe on the first track, but always allow a
+    // next swipe while a current track exists. player.next() owns queue growth, so an end-of-queue
+    // left swipe must commit and let the store top up instead of resisting at the visual boundary.
     const npIndex = $derived(
         player.queue.findIndex((t) => t.uid === player.current?.uid),
     );
     const hasPrevNeighbor = $derived(npIndex !== 0);
-    const hasNextNeighbor = $derived(
-        npIndex >= 0 && npIndex + 1 < player.queue.length,
-    );
+    const hasNextNeighbor = $derived(!!player.current);
 
     function fallbackCover(): string {
         return "linear-gradient(145deg,#3a2d63,#1a1326)";
@@ -66,7 +61,7 @@
              multi-cover carousel. The node-tested coverSwipe drives node.style.transform itself, so
              no local slideX binding is needed (same idiom as NowPlaying's .cover-strip). Direction
              matches the cover: drag left→right = prev, right→left = next, same 0.28×width commit +
-             0.5px/ms flick + boundary rubber-band (prev on first track, next on last). coverSwipe NEVER setPointerCapture-s on
+             0.5px/ms flick + boundary rubber-band only for prev at the first track. coverSwipe NEVER setPointerCapture-s on
              pointerdown and arms a one-shot trailing-click suppressor only on a committed swipe, so a
              sub-slop tap still reaches onclick={handleOpen} (tap-to-expand, D-07) while a committed
              swipe never replays it. Attached to .np-open ONLY — the .np-prog loader rail above sits

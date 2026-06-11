@@ -135,11 +135,11 @@ Milestone v1.2. Music never stops + offline downloads + broad UX polish. Researc
 
 ### Now Playing
 
-- [ ] **NP-01**: Swiping the cover left→right plays previous, right→left plays next — axis-locked so the sheet's vertical collapse and plain taps keep working
-- [ ] **NP-02**: In the half-open state, scrolling the panel never scrolls the page behind it — scroll always applies to the front layer
-- [ ] **NP-03**: In the half-open state, tapping the cover closes the subnav panel
-- [ ] **NP-04**: A loading "running line" indicator (like the nowbar's) shows at the very top of the now-playing view while a track is loading
-- [ ] **NP-05**: Horizontal swipe on the nowbar mini-player changes track (AUD-05)
+- [x] **NP-01**: Swiping the cover left→right plays previous, right→left plays next — axis-locked so the sheet's vertical collapse and plain taps keep working
+- [x] **NP-02**: In the half-open state, scrolling the panel never scrolls the page behind it — scroll always applies to the front layer
+- [x] **NP-03**: In the half-open state, tapping the cover closes the subnav panel
+- [x] **NP-04**: A loading "running line" indicator (like the nowbar's) shows at the very top of the now-playing view while a track is loading
+- [x] **NP-05**: Horizontal swipe on the nowbar mini-player changes track (AUD-05)
 
 ### Search
 
@@ -327,11 +327,11 @@ Each v1.2 requirement maps to exactly one phase (16–24). See `.planning/ROADMA
 | MENU-02 | Phase 19 | Complete |
 | MENU-03 | Phase 19 | Complete |
 | QUEUE-04 | Phase 19 | Complete |
-| NP-01 | Phase 20 | Pending |
-| NP-02 | Phase 20 | Pending |
-| NP-03 | Phase 20 | Pending |
-| NP-04 | Phase 20 | Pending |
-| NP-05 | Phase 20 | Pending |
+| NP-01 | Phase 20 | Complete |
+| NP-02 | Phase 20 | Complete |
+| NP-03 | Phase 20 | Complete |
+| NP-04 | Phase 20 | Complete |
+| NP-05 | Phase 20 | Complete |
 | SRCH-01 | Phase 21 | Pending |
 | SRCH-02 | Phase 21 | Pending |
 | SRCH-03 | Phase 21 | Pending |

@@ -5,7 +5,10 @@ import {
 	setCachedCover,
 	artistCoverCacheKey,
 	getCachedArtistCover,
-	setCachedArtistCover
+	setCachedArtistCover,
+	uidCoverCacheKey,
+	getCachedCoverByUid,
+	setCachedCoverByUid
 } from './cover-cache';
 import { matchKey } from './match-key';
 
@@ -183,5 +186,89 @@ describe('cover-cache — artist-only cover key (quick-260606-v7k)', () => {
 		});
 		expect(getCachedArtistCover('A')).toBeNull();
 		expect(() => setCachedArtistCover('A', 'https://x')).not.toThrow();
+	});
+});
+
+describe('cover-cache — uid cover key (D-13 two-layer, Pitfall 7 colon form)', () => {
+	let store: MemStorage;
+	const originalLocalStorage = (globalThis as { localStorage?: Storage }).localStorage;
+
+	beforeEach(() => {
+		store = new MemStorage();
+		Object.defineProperty(globalThis, 'localStorage', {
+			value: store,
+			configurable: true,
+			writable: true
+		});
+	});
+	afterEach(() => {
+		Object.defineProperty(globalThis, 'localStorage', {
+			value: originalLocalStorage,
+			configurable: true,
+			writable: true
+		});
+	});
+
+	it('uidCoverCacheKey is the pinned `uid:` + raw COLON uid form (no hyphen mangling)', () => {
+		// Pitfall 7: the key embeds the raw colon-delimited uid exactly as makeUid emitted it.
+		expect(uidCoverCacheKey('netease:12345')).toBe('uid:netease:12345');
+	});
+
+	it('set → get round-trips a URL by uid (D-13)', () => {
+		setCachedCoverByUid('netease:12345', 'https://cdn.example/uid.jpg');
+		expect(getCachedCoverByUid('netease:12345')).toBe('https://cdn.example/uid.jpg');
+	});
+
+	it('reading with the hyphen form MISSES (colon-delimited uid is stored verbatim — Pitfall 7)', () => {
+		setCachedCoverByUid('netease:12345', 'https://cdn.example/uid.jpg');
+		// The hyphen form is a different key entirely — no silent delimiter coercion.
+		expect(getCachedCoverByUid('netease-12345')).toBeNull();
+	});
+
+	it('get returns null for an unknown uid', () => {
+		expect(getCachedCoverByUid('netease:99999')).toBeNull();
+	});
+
+	it('D-13 read order: uid-first hit wins; falls back to the name entry when uid is absent', () => {
+		// uid present → uid hit
+		setCachedCoverByUid('netease:12345', 'https://cdn.example/by-uid.jpg');
+		setCachedCover('Jay Chou', 'Dao Xiang', 'https://cdn.example/by-name.jpg');
+		const readOrder = (uid: string, artist: string, title: string) =>
+			getCachedCoverByUid(uid) ?? getCachedCover(artist, title);
+		expect(readOrder('netease:12345', 'Jay Chou', 'Dao Xiang')).toBe(
+			'https://cdn.example/by-uid.jpg'
+		);
+		// uid absent → name fallback
+		expect(readOrder('netease:00000', 'Jay Chou', 'Dao Xiang')).toBe(
+			'https://cdn.example/by-name.jpg'
+		);
+		// both absent → null
+		expect(readOrder('netease:00000', 'Nobody', 'Nothing')).toBeNull();
+	});
+
+	it('setCachedCoverByUid with an empty / whitespace url is a no-op (get still null)', () => {
+		setCachedCoverByUid('netease:12345', '');
+		expect(getCachedCoverByUid('netease:12345')).toBeNull();
+		setCachedCoverByUid('netease:12345', '   ');
+		expect(getCachedCoverByUid('netease:12345')).toBeNull();
+	});
+
+	it('uid + name + artist entries coexist disjointly in the same flat record', () => {
+		setCachedCoverByUid('netease:12345', 'https://cdn.example/uid.jpg');
+		setCachedCover('Jay Chou', 'Dao Xiang', 'https://cdn.example/name.jpg');
+		setCachedArtistCover('Jay Chou', 'https://cdn.example/artist.jpg');
+		expect(getCachedCoverByUid('netease:12345')).toBe('https://cdn.example/uid.jpg');
+		expect(getCachedCover('Jay Chou', 'Dao Xiang')).toBe('https://cdn.example/name.jpg');
+		expect(getCachedArtistCover('Jay Chou')).toBe('https://cdn.example/artist.jpg');
+	});
+
+	it('returns null gracefully when storage is unavailable (no throw)', () => {
+		Object.defineProperty(globalThis, 'localStorage', {
+			value: undefined,
+			configurable: true,
+			writable: true
+		});
+		expect(getCachedCoverByUid('netease:1')).toBeNull();
+		expect(() => setCachedCoverByUid('netease:1', 'https://x')).not.toThrow();
 	});
 });

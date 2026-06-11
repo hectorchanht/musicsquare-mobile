@@ -58,11 +58,11 @@ describe('buildItunesSearchUrl — URL build + encoding', () => {
 	});
 });
 
-describe('upgradeArtwork — 100x100bb → 600x600bb', () => {
-	it('upgrades a standard artworkUrl100 to 600x600bb', () => {
+describe('upgradeArtwork — 100x100bb → 1200x1200bb', () => {
+	it('upgrades a standard artworkUrl100 to 1200x1200bb (D-11)', () => {
 		const u = 'https://is1-ssl.mzstatic.com/image/thumb/abc/100x100bb.jpg';
 		expect(upgradeArtwork(u)).toBe(
-			'https://is1-ssl.mzstatic.com/image/thumb/abc/600x600bb.jpg'
+			'https://is1-ssl.mzstatic.com/image/thumb/abc/1200x1200bb.jpg'
 		);
 	});
 
@@ -90,7 +90,7 @@ describe('itunesSongCover — entity=song resolve', () => {
 		vi.stubGlobal('fetch', fetchMock);
 
 		const out = await itunesSongCover('Ariana Grande', 'thank u, next');
-		expect(out).toBe('https://cdn.example/600x600bb.jpg');
+		expect(out).toBe('https://cdn.example/1200x1200bb.jpg');
 		// The requested URL is an entity=song iTunes search of `${artist} ${title}`.
 		const called = new URL(fetchMock.mock.calls[0][0]);
 		expect(called.origin + called.pathname).toBe('https://itunes.apple.com/search');
@@ -160,7 +160,7 @@ describe('itunesArtistCover — artist image via album-by-artistTerm', () => {
 		vi.stubGlobal('fetch', fetchMock);
 
 		const out = await itunesArtistCover('Taylor Swift');
-		expect(out).toBe('https://cdn.example/art/600x600bb.jpg');
+		expect(out).toBe('https://cdn.example/art/1200x1200bb.jpg');
 		const called = new URL(fetchMock.mock.calls[0][0]);
 		expect(called.searchParams.get('entity')).toBe('album');
 		expect(called.searchParams.get('attribute')).toBe('artistTerm');

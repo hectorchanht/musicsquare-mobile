@@ -477,7 +477,18 @@ Plans:
   4. A loading "running line" indicator shows at the very top of the now-playing view while a track is loading
   5. A horizontal swipe on the nowbar mini-player changes track
 
-**Plans**: TBD
+**Plans**: 4 plans (2 waves)
+Plans:
+
+**Wave 1**
+
+- [ ] 20-01-PLAN.md — `coverSwipe` action (reusable horizontal prev/next swipe: 0.28×-width proportional commit, 0.5px/ms flick, boundary rubber-band, no-capture-on-pointerdown) + node tests (NP-01/NP-05)
+- [ ] 20-02-PLAN.md — NP top running-line loader (reuse nowbar `.np-prog.indet`) + `.panel` `overscroll-behavior-y: contain` (NP-02/NP-04)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 20-03-PLAN.md — Cover 3-cover carousel via `coverSwipe` + prev-boundary rubber-band + tap-cover-collapses-in-half + axis-arbitration with `npTop*` vertical collapse (checkpoint: human-verify) (NP-01/NP-03) — depends on 20-01, 20-02 (same file)
+- [ ] 20-04-PLAN.md — Nowbar `.np-open` slide-and-snap via `coverSwipe` + tap-to-expand preserved + loader rail pinned (checkpoint: human-verify) (NP-05) — depends on 20-01
 **UI hint**: yes
 **Research flag**: LOW-MEDIUM — the cover-swipe vs sheet-collapse gesture collision (Pitfall 7) is the highest-risk interaction: never `setPointerCapture` on `pointerdown`, commit axis in `pointermove` after slop, sub-slop movement must still reach `onclick`. Reuses the existing slop/velocity idiom; no new gesture library.
 
@@ -579,7 +590,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 | 17. Up-Next Sourcing + Settings Plumbing | 4/4 | Complete    | 2026-06-10 |
 | 18. Sleep Timer | 3/3 | Complete    | 2026-06-11 |
 | 19. Track Menu Rework | 3/3 | Complete    | 2026-06-11 |
-| 20. Now-Playing Surface & Gestures | 0/TBD | Not started | - |
+| 20. Now-Playing Surface & Gestures | 0/4 | Planned | - |
 | 21. Search & Cover Pipeline Polish | 0/TBD | Not started | - |
 | 22. Lyrics Polish | 0/TBD | Not started | - |
 | 23. UX Audit & Homepage/Artist Polish | 0/TBD | Not started | - |

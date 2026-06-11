@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Resilient Playback & UX Polish
 status: executing
-stopped_at: Phase 21 context gathered
-last_updated: "2026-06-11T14:03:15.031Z"
-last_activity: 2026-06-11 -- Phase 21 planning complete
+stopped_at: Phase 999.1 context gathered (Android quick-APK slice)
+last_updated: "2026-06-11T14:09:51.724Z"
+last_activity: 2026-06-11 -- Phase 21 execution started
 progress:
   total_phases: 10
   completed_phases: 5
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-10)
 
 **Core value:** A user on their phone can search a song, tap it, and have it play instantly with a smooth, native-app-like experience — and keep playing when the screen locks.
-**Current focus:** Phase 21 — search & cover pipeline polish
+**Current focus:** Phase 21 — search-cover-pipeline-polish
 
 ## Current Position
 
-Phase: 21
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-06-11 -- Phase 21 planning complete
+Phase: 21 (search-cover-pipeline-polish) — EXECUTING
+Plan: 1 of 5
+Status: Executing Phase 21
+Last activity: 2026-06-11 -- Phase 21 execution started
 Next: /gsd:verify-work phase 19 (device-pass the two non-node-testable contracts — MENU-02 marquee re-measure + MENU-03 stuck-state — before sign-off)
 
 ## Performance Metrics
@@ -207,6 +207,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-11T12:28:09.866Z
-Stopped at: Phase 21 context gathered
+Last session: 2026-06-11T14:09:51.716Z
+Stopped at: Phase 999.1 context gathered (Android quick-APK slice)
 Resume: plan Phase 16 (`/gsd:plan-phase 16`). Phase 16 is the resilience-core dependency root; everything else builds on its `queueContext` / 2-state repeat / skip-loop guard.

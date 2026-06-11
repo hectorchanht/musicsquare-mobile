@@ -339,11 +339,18 @@
 			await tick();
 			window.scrollTo(0, searchSession.scrollY);
 		}
-		// RHX-01: mount-time-only focus on an EMPTY query so the mobile keyboard rises.
-		// Evaluated AFTER the hasPrior restore above — a restored prior query makes `q`
-		// non-empty so focus is not stolen. Lives in onMount (not a $effect keyed on `q`)
-		// so clearing the input mid-session does NOT re-grab focus.
-		if (!q.trim()) queryInputEl?.focus();
+		// RHX-01 / SRCH-03: mount-time-only focus on an EMPTY query so the mobile keyboard
+		// rises. Evaluated AFTER the hasPrior restore above — a restored prior query makes `q`
+		// non-empty so focus is not stolen (D-17). Lives in onMount (NOT a $effect keyed on
+		// `q`) so clearing the input mid-session does NOT re-grab focus.
+		// D-19: also set inputFocused = true so the recent-searches list opens on a fresh empty
+		// visit even if the programmatic .focus() does not synchronously fire the onfocus
+		// handler. iOS keyboard restriction accepted (D-18) — success = focused input (ring +
+		// caret); no gesture-chained nav hack.
+		if (!q.trim()) {
+			queryInputEl?.focus();
+			inputFocused = true;
+		}
 	});
 
 	// D-02: on navigate-away, capture the live set + current scroll so a tab return restores it.

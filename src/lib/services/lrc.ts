@@ -185,35 +185,82 @@ export function reorderPairs(lines: LyricLine[]): LyricLine[] {
  * untouched. The returned entries carry `fromParen: true` for clauses that were extracted
  * out of their parent so the renderer can optionally hide their translations.
  *
- * Conventions:
- * - Both ASCII `()` and full-width `（）` parens are recognised.
- * - A line that is ALREADY only a parenthesised clause (e.g. `(我們可以...)`) is treated as a
- *   normal line — no split, no `fromParen` flag.
- * - Multiple parens in one line produce multiple sibling entries.
- * - The order is preserved: parent (parens stripped) first, then each clause in order.
+ * Conventions (D-07/D-08/D-09):
+ * - All 9 bracket pairs are recognised: （） () 【】 [] ［］ 「」 『』 〈〉 《》. Each open is
+ *   matched to its OWN matching close (no cross-pairing — Pitfall 4). Timestamps are already
+ *   stripped by parseLRC, so bare `[]` is safe here.
+ * - A clause is split out as `{ fromParen: true }` ONLY when its dominant script DIFFERS from
+ *   the line's main (de-bracketed) text. A same-script clause (backing vocals `(oh oh)`,
+ *   `「真的」`) is left INLINE and is never emitted as `fromParen` — the structural never-drop
+ *   guarantee (LYR-05): an original lyric can never be hidden because it is never extracted.
+ * - A line that is ALREADY only a bracketed clause / section marker (e.g. `[Chorus]`, `【副歌】`,
+ *   `(我們可以...)`) — i.e. nothing remains after removing the split clauses — passes through as a
+ *   normal line (no split, no `fromParen`).
+ * - Multiple mismatched clauses in one line produce multiple sibling entries.
+ * - Order is preserved: parent (mismatched clauses removed) first, then each split clause in order.
  */
+// Pair-aware bracket regex: each open bracket is matched to its OWN close (Pitfall 4 —
+// avoids （…】 cross-pairing that a single character class would allow).
+const BRACKET_RE =
+	/（([^）]*)）|\(([^)]*)\)|【([^】]*)】|\[([^\]]*)\]|［([^］]*)］|「([^」]*)」|『([^』]*)』|〈([^〉]*)〉|《([^》]*)》/g;
+
 export function splitParenLines(lines: LyricLine[]): LyricLine[] {
 	const out: LyricLine[] = [];
-	const parenRe = /[(（]([^()（）]+)[)）]/g;
 	for (const line of lines) {
-		const matches = [...line.text.matchAll(parenRe)];
+		BRACKET_RE.lastIndex = 0;
+		const matches = [...line.text.matchAll(BRACKET_RE)];
 		if (!matches.length) {
 			out.push(line);
 			continue;
 		}
-		const stripped = line.text.replace(parenRe, '').replace(/\s+/g, ' ').trim();
-		// If the WHOLE line is one paren clause + nothing else, don't split — render as-is.
+		// Script of the main body = the line with ALL brackets removed (for the mismatch gate).
+		const mainText = line.text.replace(BRACKET_RE, '').replace(/\s+/g, ' ').trim();
+		const mainScript = dominantScript(mainText);
+
+		// Decide per match: a clause whose script DIFFERS from the main body is split out;
+		// a same-script clause is kept inline (never dropped).
+		const splitOut: string[] = [];
+		const toRemove: string[] = [];
+		for (const m of matches) {
+			// The inner capture is whichever alternation group matched (others are undefined).
+			const inner = (m.slice(1).find((g) => g !== undefined) ?? '').trim();
+			if (!inner) continue;
+			if (dominantScript(inner) !== mainScript) {
+				splitOut.push(inner);
+				toRemove.push(m[0]); // the full bracketed span, to strip from the main line
+			}
+		}
+
+		// Build `stripped` = original text minus ONLY the mismatched clauses that were split out.
+		// Same-script clauses survive inside `stripped` (never-drop).
+		let strippedRaw = line.text;
+		for (const span of toRemove) {
+			strippedRaw = strippedRaw.replace(span, '');
+		}
+		const stripped = strippedRaw.replace(/\s+/g, ' ').trim();
+
+		// Whole-line bracket / section marker (nothing left after removing split clauses) → keep
+		// the original line as-is (D-09). Also covers the no-mismatch case where toRemove is empty.
 		if (!stripped) {
 			out.push(line);
 			continue;
 		}
+
 		out.push({ time: line.time, text: stripped });
-		for (const m of matches) {
-			const inner = (m[1] ?? '').trim();
-			if (inner) out.push({ time: line.time, text: inner, fromParen: true });
+		for (const inner of splitOut) {
+			out.push({ time: line.time, text: inner, fromParen: true });
 		}
 	}
 	return out;
+}
+
+/**
+ * Pure seek-math helper (LYR-01): the fraction `time / duration` to pass to the player's
+ * fraction-based seek, or `null` when the duration is unusable (≤ 0 or non-finite). DOM-free
+ * and store-free so the seek math is node-testable; the component multiplies/guards via this.
+ */
+export function lineSeekFraction(time: number, duration: number): number | null {
+	return duration > 0 && Number.isFinite(duration) ? time / duration : null;
 }
 
 /**

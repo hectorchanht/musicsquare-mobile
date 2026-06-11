@@ -19,16 +19,20 @@ vi.mock('@capacitor/core', () => ({
 }));
 
 // --- native write backend (capacitor-blob-writer default export) ---
-const writeBlob = vi.fn(async () => 'file:///data/downloads/x');
-vi.mock('capacitor-blob-writer', () => ({ default: (opts: unknown) => writeBlob(opts) }));
+const writeBlob = vi.fn((_opts: { path: string; blob: Blob; directory: string; recursive: boolean }) =>
+	Promise.resolve('file:///data/downloads/x')
+);
+vi.mock('capacitor-blob-writer', () => ({ default: (opts: unknown) => writeBlob(opts as never) }));
 
 // --- native read/delete backend (@capacitor/filesystem) ---
-const readFile = vi.fn();
-const deleteFile = vi.fn();
+const readFile = vi.fn((_opts: { path: string; directory: string }) =>
+	Promise.resolve<{ data: string | Blob }>({ data: '' })
+);
+const deleteFile = vi.fn((_opts: { path: string; directory: string }) => Promise.resolve());
 vi.mock('@capacitor/filesystem', () => ({
 	Filesystem: {
-		readFile: (opts: unknown) => readFile(opts),
-		deleteFile: (opts: unknown) => deleteFile(opts)
+		readFile: (opts: unknown) => readFile(opts as never),
+		deleteFile: (opts: unknown) => deleteFile(opts as never)
 	},
 	Directory: { Data: 'DATA', External: 'EXTERNAL' }
 }));

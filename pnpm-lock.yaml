@@ -16,6 +16,9 @@ dependencies:
   '@capacitor/core':
     specifier: 8.4.0
     version: 8.4.0
+  '@capacitor/filesystem':
+    specifier: 8.1.2
+    version: 8.1.2(@capacitor/core@8.4.0)
   '@capacitor/splash-screen':
     specifier: ^8.0.1
     version: 8.0.1(@capacitor/core@8.4.0)
@@ -25,6 +28,9 @@ dependencies:
   '@lucide/svelte':
     specifier: ^1.17.0
     version: 1.17.0(svelte@5.56.2)
+  capacitor-blob-writer:
+    specifier: 1.1.20
+    version: 1.1.20(@capacitor/core@8.4.0)(@capacitor/filesystem@8.1.2)
 
 devDependencies:
   '@capacitor/android':
@@ -116,6 +122,15 @@ packages:
     dependencies:
       tslib: 2.8.1
 
+  /@capacitor/filesystem@8.1.2(@capacitor/core@8.4.0):
+    resolution: {integrity: sha512-doaaMfGoFR2hWU6aV6u83I+5ZsGyJVq+Gz4r9lMpJzUKMm1eMu0hLnFdV1aXZlU9FlK/RndFrVD8oRZfNOqWgQ==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+    dependencies:
+      '@capacitor/core': 8.4.0
+      '@capacitor/synapse': 1.0.4
+    dev: false
+
   /@capacitor/splash-screen@8.0.1(@capacitor/core@8.4.0):
     resolution: {integrity: sha512-c/ew/Z3eA7z8l06WoRAtzVF16VwYYrExmHmfGq1Cg675pVzaC/yuucB8/1xG1vhEfnW4fZ1KhSf/kzR1RiVYgg==}
     peerDependencies:
@@ -130,6 +145,10 @@ packages:
       '@capacitor/core': '>=8.0.0'
     dependencies:
       '@capacitor/core': 8.4.0
+    dev: false
+
+  /@capacitor/synapse@1.0.4:
+    resolution: {integrity: sha512-/C1FUo8/OkKuAT4nCIu/34ny9siNHr9qtFezu4kxm6GY1wNFxrCFWjfYx5C1tUhVGz3fxBABegupkpjXvjCHrw==}
     dev: false
 
   /@cloudflare/kv-asset-handler@0.5.0:
@@ -1231,6 +1250,16 @@ packages:
   /buffer-crc32@0.2.13:
     resolution: {integrity: sha512-VO9Ht/+p3SN7SKWqcrgEzjGbRSJYTx+Q1pTQC0wrWqHx0vpJraQ6GtHx8tvcg1rlK1byhU5gccxgOgj7B0TDkQ==}
     dev: true
+
+  /capacitor-blob-writer@1.1.20(@capacitor/core@8.4.0)(@capacitor/filesystem@8.1.2):
+    resolution: {integrity: sha512-SxYR64Zzb4MB2Ntb0IXJFWlhX6YPTlHiOjXWLqv/pVpa6fU+xFwmGp8+KdDsWRzLAAF71QmTkpMoV0PcT3LgTw==}
+    peerDependencies:
+      '@capacitor/core': '>=3.0.0'
+      '@capacitor/filesystem': '>=1.0.0'
+    dependencies:
+      '@capacitor/core': 8.4.0
+      '@capacitor/filesystem': 8.1.2(@capacitor/core@8.4.0)
+    dev: false
 
   /chai@6.2.2:
     resolution: {integrity: sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg==}

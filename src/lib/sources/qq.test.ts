@@ -149,6 +149,34 @@ describe('qq.resolve', () => {
 		expect(calledUrl).toContain('mid=002Neh8l0RJHcS');
 	});
 
+	// SRCH-01: QQ detail carries the track length in SECONDS as `song_play_time`. Map it
+	// onto Track.duration so the 試聽 sub-60s penalty (Plan 04) is demonstrable end-to-end.
+	it('maps numeric song_play_time (seconds) onto Track.duration', async () => {
+		settings.defaultQuality = 'lossless';
+		vi.stubGlobal('fetch', mockFetchOnce(detailFixture));
+		const out = await qq.resolve(stubTrack(), ac.signal);
+		expect(out.duration).toBe(detailFixture.song_play_time);
+		expect(typeof out.duration).toBe('number');
+	});
+
+	// D-03: a missing/zero play-time must yield `undefined` (NOT 0) so scoreMatch never
+	// penalizes it as a sub-60s clip.
+	it('leaves duration undefined when song_play_time is missing (NOT 0)', async () => {
+		settings.defaultQuality = 'lossless';
+		const noTime = { ...detailFixture, song_play_time: undefined };
+		vi.stubGlobal('fetch', mockFetchOnce(noTime));
+		const out = await qq.resolve(stubTrack(), ac.signal);
+		expect(out.duration).toBeUndefined();
+	});
+
+	it('leaves duration undefined when song_play_time is 0 (0 = unknown, never penalized)', async () => {
+		settings.defaultQuality = 'lossless';
+		const zeroTime = { ...detailFixture, song_play_time: 0 };
+		vi.stubGlobal('fetch', mockFetchOnce(zeroTime));
+		const out = await qq.resolve(stubTrack(), ac.signal);
+		expect(out.duration).toBeUndefined();
+	});
+
 	// quality priority fallthrough: when sq/pq absent, hq is chosen.
 	it('falls through to hq when sq and pq are absent', async () => {
 		settings.defaultQuality = 'lossless'; // pin: legacy top-tier-first order

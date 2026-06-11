@@ -955,7 +955,11 @@
 	.subnav { display: flex; justify-content: space-around; padding-bottom: 6px; touch-action: none; user-select: none; -webkit-user-select: none; }
 	.subnav button { background: none; border: none; color: var(--color-text-muted); font-size: 13px; min-height: 40px; padding: 8px 12px; cursor: pointer; border-bottom: 2px solid transparent; }
 	.subnav button.active { color: var(--color-text); border-bottom-color: var(--color-primary); }
-	.panel { flex: 1; overflow-y: auto; }
+	/* NP-02: contain over-scroll/bounce to the panel edges so half-open scroll never chains to
+	   the page behind the sheet. NO touch-action: none — the panel keeps its pan-y scroll (the
+	   browser owns vertical scrolling here). iOS <16 lacks overscroll-behavior support, so it is
+	   best-effort there; no JS scroll-lock workaround is added in this phase. */
+	.panel { flex: 1; overflow-y: auto; overscroll-behavior-y: contain; }
 	.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 	.row { width: 100%; text-align: left; background: none; border: none; padding: 8px 6px; border-radius: 8px; cursor: pointer; display: flex; flex-direction: column; }
 	/* MENU-03 / D-12: hover-capable devices only — touch otherwise latches this :hover

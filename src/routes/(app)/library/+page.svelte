@@ -12,6 +12,7 @@
 	import { mapWithConcurrency } from '$lib/services/discovery';
 	import { t } from '$lib/i18n';
 	import { longpress } from '$lib/actions/longpress';
+	import { lazyCover } from '$lib/actions/lazyCover';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import type { Track } from '$lib/sources/types';
 	import type { QueueContext } from '$lib/config/defaults';
@@ -73,6 +74,15 @@
 		const h = (name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 47) % 360;
 		return `linear-gradient(145deg, hsl(${h} 55% 32%), hsl(${(h + 40) % 360} 55% 18%))`;
 	}
+	// COVER-02 D-14: track-row covers resolve lazily on scroll-into-view via use:lazyCover,
+	// repainting through this reactive uid→url map (mirrors the favCovers reactive-map idiom).
+	// Values are SOLID https URLs only (Plan 02 gate) — safe for the existing background-image
+	// render path, no widening of the injection surface (T-0bb-01).
+	let resolvedCovers = $state<Record<string, string>>({});
+	function onCoverResolved(uid: string, url: string) {
+		resolvedCovers = { ...resolvedCovers, [uid]: url };
+	}
+
 	let menuTrack = $state<Track | null>(null);
 	let menuOpen = $state(false);
 	function openMenu(t: Track) { menuTrack = t; menuOpen = true; }
@@ -158,7 +168,7 @@
 			{#each library.liked as track (track.uid)}
 				<li>
 					<button class="row" class:edit-row={editMode} use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => rowAction(track, library.liked)}>
-						<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
+						<span class="art" use:lazyCover={{ track, onResolved: onCoverResolved }} style:background-image={(resolvedCovers[track.uid] ?? track.cover) ? `url(${resolvedCovers[track.uid] ?? track.cover})` : fallbackCover(track)}></span>
 						<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
 						{#if editMode}<Trash2 size={16} />{:else}<Play size={16} />{/if}
 					</button>
@@ -183,7 +193,7 @@
 						{#each pl.tracks as track (track.uid)}
 							<li>
 								<button class="row" class:edit-row={editMode} use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => rowAction(track, pl.tracks, pl.id)}>
-									<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
+									<span class="art" use:lazyCover={{ track, onResolved: onCoverResolved }} style:background-image={(resolvedCovers[track.uid] ?? track.cover) ? `url(${resolvedCovers[track.uid] ?? track.cover})` : fallbackCover(track)}></span>
 									<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
 									{#if editMode}<Trash2 size={16} />{:else}<Play size={16} />{/if}
 								</button>
@@ -200,7 +210,7 @@
 			{#each library.downloads as track (track.uid)}
 				<li>
 					<button class="row" class:edit-row={editMode} use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => rowAction(track, library.downloads)}>
-						<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
+						<span class="art" use:lazyCover={{ track, onResolved: onCoverResolved }} style:background-image={(resolvedCovers[track.uid] ?? track.cover) ? `url(${resolvedCovers[track.uid] ?? track.cover})` : fallbackCover(track)}></span>
 						<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
 						{#if editMode}<Trash2 size={16} />{:else}<Play size={16} />{/if}
 					</button>
@@ -231,7 +241,7 @@
 				{@const track = entry as Track}
 				<li>
 					<button class="row" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => playEntry(track)}>
-						<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
+						<span class="art" use:lazyCover={{ track, onResolved: onCoverResolved }} style:background-image={(resolvedCovers[track.uid] ?? track.cover) ? `url(${resolvedCovers[track.uid] ?? track.cover})` : fallbackCover(track)}></span>
 						<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
 						<Play size={16} />
 					</button>

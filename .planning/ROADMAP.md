@@ -546,7 +546,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 22-01-PLAN.md — Pure lrc.ts: dominantScript + reorderPairs + widened script-aware splitParenLines + lineSeekFraction, with fixtures (LYR-04, LYR-05, LYR-01 seek math)
+- [x] 22-01-PLAN.md — Pure lrc.ts: dominantScript + reorderPairs + widened script-aware splitParenLines + lineSeekFraction, with fixtures (LYR-04, LYR-05, LYR-01 seek math)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -621,7 +621,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 | 19. Track Menu Rework | 3/3 | Complete    | 2026-06-11 |
 | 20. Now-Playing Surface & Gestures | 4/4 | Complete    | 2026-06-11 |
 | 21. Search & Cover Pipeline Polish | 2/5 | In Progress|  |
-| 22. Lyrics Polish | 0/TBD | Not started | - |
+| 22. Lyrics Polish | 1/2 | In Progress|  |
 | 23. UX Audit & Homepage/Artist Polish | 0/TBD | Not started | - |
 | 24. Offline App-Shell & Sharing/SEO | 0/TBD | Not started | - |
 

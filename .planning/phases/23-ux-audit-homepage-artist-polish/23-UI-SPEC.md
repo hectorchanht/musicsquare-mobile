@@ -1,7 +1,8 @@
 ---
 phase: 23-ux-audit-homepage-artist-polish
 title: UX Audit & Homepage/Artist Polish — UI Design Contract
-status: draft
+status: approved
+reviewed_at: 2026-06-12
 design_system: existing (vanilla SvelteKit + CSS custom properties; NO shadcn/Tailwind)
 created: 2026-06-12
 sources:
@@ -59,6 +60,10 @@ margin `14px 0 8px`. Phase-23 additions follow the same scale. Exceptions allowe
 
 - **Touch targets:** every interactive control (swipe-action zones, ⋮ option icon, section-title row,
   compact rows) must be **≥ 44px** in the touch dimension even when the visual is smaller (pad to reach it).
+- **Grandfathered pre-existing values:** `14px` section-header top-margin, the toast's
+  `top: calc(env(safe-area-inset-top,0px) + 14px)` offset, and the toast's `10px 16px` padding are
+  carried over byte-identical from the existing codebase — Phase 23 does not change them. All
+  **net-new** spacing introduced in Phase 23 must come from the declared multiples-of-4 scale.
 - Compact-row vertical rhythm is `8px` row gap (see §4).
 
 ### Radius (existing)

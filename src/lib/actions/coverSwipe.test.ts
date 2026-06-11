@@ -31,9 +31,11 @@ function makeNode(width = 300) {
 	const handlers = new Map<string, (e: PointerEvent) => void>();
 	const style: Record<string, string> = {};
 	const captureCalls: number[] = [];
+	const releaseCalls: number[] = [];
 	const node = {
 		style,
 		setPointerCapture: vi.fn((id: number) => captureCalls.push(id)),
+		releasePointerCapture: vi.fn((id: number) => releaseCalls.push(id)),
 		getBoundingClientRect: () => ({ width }) as DOMRect,
 		addEventListener(type: string, cb: (e: PointerEvent) => void) {
 			handlers.set(type, cb);
@@ -46,6 +48,7 @@ function makeNode(width = 300) {
 		node: node as unknown as HTMLElement,
 		style,
 		captureCalls,
+		releaseCalls,
 		fire(type: string, e: PointerEvent) {
 			handlers.get(type)?.(e);
 		},
@@ -291,5 +294,79 @@ describe('coverSwipe — horizontal axis-locked prev/next swipe (Phase 20 NP-01/
 		// The transition:none MUST be cleared on yield, else a vertical-collapse gesture that starts
 		// on this node permanently defeats the host's CSS settle + reduced-motion transition.
 		expect(m.style.transition).toBe('');
+	});
+
+	it('reports the CLAMPED rubber-band offset to ondrag at a boundary, not the raw dx (WR-02)', () => {
+		const ondrag = vi.fn();
+		const m = mount(opts({ ondrag, hasPrev: false }), 300); // maxPull = 0.18 × 300 = 54
+		m.fire('pointerdown', pe(100, 50, 0));
+		m.fire('pointermove', pe(112, 50, 16)); // commit horizontal RIGHT (prev) at a true boundary
+		m.fire('pointermove', pe(300, 50, 200)); // raw dx 200, but resisting → damped well below maxPull
+		const lastDx = ondrag.mock.calls.at(-1)?.[0] as number;
+		const appliedTx = Number(/translateX\(([-\d.]+)px\)/.exec(m.style.transform ?? '')?.[1]);
+		// ondrag must equal the value WRITTEN to transform (the damped offset), never the raw 200 —
+		// a host driving its own surface off ondrag must not disagree with the node at a boundary.
+		expect(lastDx).toBeCloseTo(appliedTx, 5);
+		expect(lastDx).toBeLessThan(54);
+		expect(lastDx).toBeLessThan(200);
+	});
+
+	it('enabled flipped to false mid-drag (via update) ABORTS the gesture: releases capture, resets, no commit (WR-03)', () => {
+		const o = opts({ enabled: true });
+		const m = mount(o);
+		m.fire('pointerdown', pe(100, 50, 0));
+		m.fire('pointermove', pe(200, 50, 16)); // commit + capture, dx 100 (would commit on release)
+		expect(m.captureCalls).toEqual([1]);
+		// Host disables the action mid-swipe (e.g. a track resolve starts → enabled:!resolving flips).
+		m.action?.update?.({ ...o, enabled: false });
+		expect(m.releaseCalls).toEqual([1]); // capture released
+		expect(m.style.transform).toBe(''); // live transform dropped
+		expect(m.style.transition).toBe('');
+		// Subsequent move/up are inert (dragging cleared) — no track change fires.
+		m.fire('pointermove', pe(260, 50, 32));
+		m.fire('pointerup', pe(260, 50, 48));
+		expect(o.onprev).not.toHaveBeenCalled();
+		expect(o.onnext).not.toHaveBeenCalled();
+	});
+
+	it('releases the pointer capture on a normal committed release (WR-04)', () => {
+		const o = opts();
+		const m = mount(o);
+		m.fire('pointerdown', pe(100, 50, 0));
+		m.fire('pointermove', pe(112, 52, 16)); // commit + capture
+		m.fire('pointermove', pe(200, 54, 400)); // dx 100 > commitDist 84
+		expect(m.captureCalls).toEqual([1]);
+		m.fire('pointerup', pe(200, 54, 700));
+		expect(o.onprev).toHaveBeenCalledTimes(1);
+		expect(m.releaseCalls).toEqual([1]); // explicitly released, not left to UA auto-release
+	});
+
+	it('the trailing-click suppressor self-expires ~350ms after a click-less touch commit (WR-05)', () => {
+		vi.useFakeTimers();
+		try {
+			const o = opts();
+			const m = mount(o);
+			m.fire('pointerdown', pe(100, 50, 0));
+			m.fire('pointermove', pe(112, 52, 16)); // commit + capture
+			m.fire('pointermove', pe(200, 54, 400)); // dx 100 > commitDist 84
+			m.fire('pointerup', pe(200, 54, 700)); // commit → suppressor armed (touch produces no click)
+			expect(m.has('click')).toBe(true); // armed
+			vi.advanceTimersByTime(350);
+			// Self-expired, so a genuine LATER tap on this tap-target is not swallowed.
+			expect(m.has('click')).toBe(false);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('destroy() mid-drag releases a held capture and resets the surface (WR-03/WR-04)', () => {
+		const m = mount(opts());
+		m.fire('pointerdown', pe(100, 50, 0));
+		m.fire('pointermove', pe(200, 50, 16)); // commit + capture (NowPlaying can unmount mid-drag)
+		expect(m.captureCalls).toEqual([1]);
+		m.action?.destroy?.();
+		expect(m.releaseCalls).toEqual([1]); // capture released on unmount
+		expect(m.style.transform).toBe('');
+		expect(m.style.touchAction).toBe('');
 	});
 });

@@ -314,9 +314,9 @@
 	// `position:absolute` at left -100% / 0 / +100% so the strip's RESTING transform is translateX(0)
 	// (the current cell fills the cover). use:coverSwipe is attached to the strip element itself, so
 	// the action's own live `translateX(dx)` IS the 1:1 lockstep follow (UI-SPEC §1) — no separate
-	// transform to drive; ondrag is still wired (below) only to expose the live dx if needed and to
-	// keep the strip's CSS commit-settle transition `transform 0.32s cubic-bezier(.22,1,.36,1)` in
-	// sync (it is overridden to `none` by the action while dragging, then restored on release).
+	// transform to drive and no `ondrag` needed here (the action writes node.style.transform itself).
+	// The strip's CSS commit-settle transition `transform 0.32s cubic-bezier(.22,1,.36,1)` is
+	// overridden to `none` by the action while dragging, then restored on release/commit.
 	//
 	// Neighbors are derived from the PUBLIC player.queue by uid (indexOf is private in the store),
 	// mirroring the PATTERNS neighbor-lookup. On commit the coverSwipe action calls player.prev()/
@@ -325,12 +325,13 @@
 	const ci = $derived(player.queue.findIndex((tk) => tk.uid === player.current?.uid));
 	const prevCover = $derived(ci > 0 ? player.queue[ci - 1] : null);
 	const nextCover = $derived(ci >= 0 && ci + 1 < player.queue.length ? player.queue[ci + 1] : null);
-	// hasPrev is false EXACTLY at the true boundary: index 0 (no prev neighbor). player.prev() itself
-	// restarts the song when currentTime > 3, so a non-boundary prev is always safe to fire; the only
-	// case that must rubber-band (D-02) is prev on index 0 (where prevCover === null). hasNext stays
-	// true — ensureAhead() keeps a neighbor, so next rarely resists (nextCover is almost always set).
+	// hasPrev/hasNext are false EXACTLY at a true queue boundary (no neighbor cell). player.prev()
+	// restarts the song when currentTime > 3, so a non-boundary prev is always safe to fire; the
+	// cases that must rubber-band (D-02) are prev on index 0 and next at the last queued track.
+	// hasNext is derived symmetrically from nextCover (NOT hardcoded true), so an end-of-queue next
+	// swipe rubber-bands instead of committing into a possibly no-op async ensureAhead() (WR-01).
 	const hasPrevNeighbor = $derived(prevCover !== null && ci !== 0);
-	let coverDragX = $state(0); // live finger dx mirrored from the action's ondrag (debug/extension hook)
+	const hasNextNeighbor = $derived(nextCover !== null);
 	// Cell background: current cell uses the effective (possibly Last.fm-swapped) cover; the prev/next
 	// neighbors use their own source cover (or the deterministic gradient fallback). null → 'none'.
 	const cellBg = (tk: Track | null) =>
@@ -775,9 +776,8 @@
 			use:coverSwipe={{
 				onprev: () => player.prev(),
 				onnext: () => player.next(),
-				ondrag: (dx) => (coverDragX = dx),
 				hasPrev: hasPrevNeighbor,
-				hasNext: true
+				hasNext: hasNextNeighbor
 			}}
 		>
 			<div class="cover-cell prev" style:background-image={cellBg(prevCover)}></div>

@@ -50,6 +50,8 @@ export const coverSwipe: Action<HTMLElement, CoverSwipeOpts> = (node, opts) => {
 	let dragging = false;
 	let captured = false;
 	let resisting = false; // true once a committed gesture is pulling against a true boundary
+	let pointerId: number | null = null; // set at capture so up()/destroy() can releasePointerCapture (WR-04)
+	let suppressTimer: ReturnType<typeof setTimeout> | null = null; // self-expiry for the click suppressor (WR-05)
 	let startX = 0;
 	let startY = 0;
 	let dx = 0;
@@ -69,23 +71,57 @@ export const coverSwipe: Action<HTMLElement, CoverSwipeOpts> = (node, opts) => {
 		node.style.transition = '';
 	}
 
+	// Defensively release a held pointer capture (WR-04). Browsers auto-release on
+	// pointerup/pointercancel, but an enabled:false update or a destroy() mid-drag can skip up();
+	// without this the capture + dragging/captured flags dangle and the strip freezes mid-drag.
+	function releaseCapture() {
+		if (captured && pointerId !== null) {
+			try {
+				node.releasePointerCapture(pointerId);
+			} catch {
+				/* already released by the UA — fine */
+			}
+		}
+		captured = false;
+		pointerId = null;
+	}
+
+	// Drop the one-shot trailing-click suppressor AND its self-expiry timer together (WR-05).
+	function disarmSuppressor() {
+		node.removeEventListener('click', suppressClick, true);
+		if (suppressTimer !== null) {
+			clearTimeout(suppressTimer);
+			suppressTimer = null;
+		}
+	}
+
+	// Abort an in-flight gesture cleanly: enabled flipped false mid-drag, or destroy() during a
+	// drag (NowPlaying unmounts on player.collapse()). Release capture, drop the live
+	// transform/transition, clear state — NO prev/next fires (WR-03/WR-04).
+	function cancelGesture() {
+		releaseCapture();
+		dragging = false;
+		resisting = false;
+		resetTransform();
+	}
+
 	// Swallow the trailing click after a COMMITTED horizontal drag. setPointerCapture retargets the
 	// click to this node, and on mouse input a click fires after every mousedown→mouseup regardless
 	// of travel — without this, a committed swipe would change the track AND then fire the host's
 	// tap-to-collapse / tap-to-expand onclick. Armed in up() only when the gesture captured;
-	// self-removes after one click; disarmed on the next pointerdown so a touch release that never
-	// produces a click can't swallow a LATER genuine tap.
+	// self-removes after one click, after a 350ms safety timeout (a touch commit often produces NO
+	// trailing click, WR-05), or on the next pointerdown.
 	function suppressClick(e: MouseEvent) {
 		e.stopPropagation();
 		e.preventDefault();
-		node.removeEventListener('click', suppressClick, true);
+		disarmSuppressor();
 	}
 
 	function down(e: PointerEvent) {
 		if (!enabled) return;
-		// A new gesture starts clean: drop a stale suppressor from a prior committed drag whose
-		// trailing click never fired (touch input suppresses it natively).
-		node.removeEventListener('click', suppressClick, true);
+		// A new gesture starts clean: drop a stale suppressor (+ its timer) from a prior committed
+		// drag whose trailing click never fired (touch input suppresses it natively).
+		disarmSuppressor();
 		dragging = true;
 		captured = false;
 		resisting = false;
@@ -107,6 +143,12 @@ export const coverSwipe: Action<HTMLElement, CoverSwipeOpts> = (node, opts) => {
 
 	function move(e: PointerEvent) {
 		if (!dragging) return;
+		// enabled can flip false mid-drag (Nowbar passes enabled:!resolving, and a track resolve can
+		// start mid-swipe). Abort cleanly rather than keep dragging a now-disabled surface (WR-03).
+		if (!enabled) {
+			cancelGesture();
+			return;
+		}
 		const ddx = e.clientX - startX;
 		const ddy = e.clientY - startY;
 		if (!captured) {
@@ -124,21 +166,23 @@ export const coverSwipe: Action<HTMLElement, CoverSwipeOpts> = (node, opts) => {
 			// Horizontal commit: capture HERE (not on down) so the gesture keeps flowing past the
 			// node edge while a tap (never reaching slop) leaves the click to the host.
 			node.setPointerCapture(e.pointerId);
+			pointerId = e.pointerId; // remember so up()/destroy() can release it (WR-04)
 			captured = true;
 		}
 		dx = e.clientX - startX;
 		vel.sample(e.clientX, e.timeStamp);
-		ondrag?.(dx); // report the running dx so the host can translate its carousel strip / content
 		// A prev gesture (drag RIGHT, dx > 0) at hasPrev:false, or a next gesture (drag LEFT,
 		// dx < 0) at hasNext:false, hits a true queue wall → rubber-band clamp + flick-ignored.
 		resisting = (dx > 0 && !hasPrev) || (dx < 0 && !hasNext);
-		if (resisting) {
-			// Classic iOS rubber-band: finger travel asymptotes toward maxPull, never reaching it.
-			const offset = Math.sign(dx) * maxPull * (1 - Math.exp(-Math.abs(dx) / maxPull));
-			node.style.transform = `translateX(${offset}px)`;
-		} else {
-			node.style.transform = `translateX(${dx}px)`; // 1:1 lockstep follow (UI-SPEC §1)
-		}
+		// The translate ACTUALLY applied: a damped rubber-band offset at a boundary (classic iOS
+		// asymptote toward maxPull, never reaching it), else 1:1 lockstep follow (UI-SPEC §1).
+		const applied = resisting
+			? Math.sign(dx) * maxPull * (1 - Math.exp(-Math.abs(dx) / maxPull))
+			: dx;
+		node.style.transform = `translateX(${applied}px)`;
+		// Report the value APPLIED, not the raw dx, so a host driving its own surface off ondrag
+		// never visually disagrees with the node at a boundary (WR-02).
+		ondrag?.(applied);
 	}
 
 	function up() {
@@ -146,9 +190,14 @@ export const coverSwipe: Action<HTMLElement, CoverSwipeOpts> = (node, opts) => {
 		dragging = false;
 		// A gesture that committed (captured) must NOT let its trailing click reach the host's
 		// onclick — neither after a track change nor after a spring-back (the user clearly dragged,
-		// not tapped). Capture-phase, one-shot.
-		if (captured) node.addEventListener('click', suppressClick, true);
-		captured = false;
+		// not tapped). Capture-phase, one-shot; self-expires after 350ms when a touch commit produces
+		// no trailing click (WR-05).
+		const wasCaptured = captured;
+		releaseCapture(); // explicit release (WR-04); also clears captured + pointerId
+		if (wasCaptured) {
+			node.addEventListener('click', suppressClick, true);
+			suppressTimer = setTimeout(disarmSuppressor, 350);
+		}
 		// At a TRUE BOUNDARY: ignore flick entirely and ALWAYS spring back over the heavier 0.32s
 		// cover-reflow settle — a hard flick into a wall must never commit (UI-SPEC §2).
 		if (resisting) {
@@ -192,15 +241,19 @@ export const coverSwipe: Action<HTMLElement, CoverSwipeOpts> = (node, opts) => {
 			ondrag = next.ondrag;
 			hasPrev = next.hasPrev ?? true;
 			hasNext = next.hasNext ?? true;
+			const wasEnabled = enabled;
 			enabled = next.enabled ?? true;
+			// Host disabled the action mid-drag (e.g. a resolve started) → abort the in-flight
+			// gesture so it can't strand dragging/captured + a held capture (WR-03).
+			if (wasEnabled && !enabled && dragging) cancelGesture();
 		},
 		destroy() {
 			node.removeEventListener('pointerdown', down);
 			node.removeEventListener('pointermove', move);
 			node.removeEventListener('pointerup', up);
 			node.removeEventListener('pointercancel', up);
-			node.removeEventListener('click', suppressClick, true); // drop an armed suppressor
-			resetTransform();
+			disarmSuppressor(); // drop an armed suppressor + its self-expiry timer (WR-05)
+			cancelGesture(); // release a still-held capture + reset state if unmounted mid-drag (WR-03/WR-04)
 			node.style.touchAction = '';
 		}
 	};

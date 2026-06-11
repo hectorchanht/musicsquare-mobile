@@ -27,12 +27,18 @@
     const np = $derived(player.current ?? player.pendingTrack);
     const resolving = $derived(!player.current && !!player.pendingTrack);
 
-    // NP-05 prev boundary (D-02): rubber-band a prev swipe ONLY on the first track. hasPrev is false
-    // exactly at queue index 0 (no prev neighbor) — mirrors the NowPlaying carousel neighbor lookup.
-    // hasNext stays true (ensureAhead keeps a neighbor ahead). player.prev() itself restarts the
-    // track when currentTime > 3, so the narrow rubber-band case is only prev on index 0.
-    const hasPrevNeighbor = $derived(
-        player.queue.findIndex((t) => t.uid === player.current?.uid) !== 0,
+    // NP-05 boundaries (D-02): rubber-band a prev swipe on the first track and a next swipe at the
+    // last queued track. hasPrev is false exactly at queue index 0; hasNext is false when there is no
+    // track after the current one — both derived symmetrically (mirrors the NowPlaying carousel
+    // lookup) rather than hardcoding hasNext:true, so an end-of-queue next swipe rubber-bands instead
+    // of committing into a possibly no-op async ensureAhead() (WR-01). player.prev() restarts the
+    // track when currentTime > 3, so the prev rubber-band case is only index 0.
+    const npIndex = $derived(
+        player.queue.findIndex((t) => t.uid === player.current?.uid),
+    );
+    const hasPrevNeighbor = $derived(npIndex !== 0);
+    const hasNextNeighbor = $derived(
+        npIndex >= 0 && npIndex + 1 < player.queue.length,
     );
 
     function fallbackCover(): string {
@@ -60,7 +66,7 @@
              multi-cover carousel. The node-tested coverSwipe drives node.style.transform itself, so
              no local slideX binding is needed (same idiom as NowPlaying's .cover-strip). Direction
              matches the cover: drag left→right = prev, right→left = next, same 0.28×width commit +
-             0.5px/ms flick + prev-only boundary rubber-band. coverSwipe NEVER setPointerCapture-s on
+             0.5px/ms flick + boundary rubber-band (prev on first track, next on last). coverSwipe NEVER setPointerCapture-s on
              pointerdown and arms a one-shot trailing-click suppressor only on a committed swipe, so a
              sub-slop tap still reaches onclick={handleOpen} (tap-to-expand, D-07) while a committed
              swipe never replays it. Attached to .np-open ONLY — the .np-prog loader rail above sits
@@ -74,7 +80,7 @@
                 onprev: () => player.prev(),
                 onnext: () => player.next(),
                 hasPrev: hasPrevNeighbor,
-                hasNext: true,
+                hasNext: hasNextNeighbor,
                 enabled: !resolving,
             }}
         >
@@ -146,7 +152,7 @@
         align-items: center;
         gap: 10px;
         padding: 8px 12px;
-        /*background: rgba(40, 32, 60, 0.55);*/
+        background: var(--color-bg);
         backdrop-filter: blur(14px);
         -webkit-backdrop-filter: blur(14px);
         /* Top + sides only — no bottom border so there's no double divider against the tabbar. */
@@ -156,30 +162,6 @@
         margin: 0 auto;
         z-index: 20;
         overflow: hidden;
-    }
-    .nowbar::before {
-        content: "";
-        position: absolute;
-        /* top: -10px;
-		left: -10px;
-		right: -10px;
-		bottom: -10px; */
-
-        /* Follow the bar's rounded-top / square-bottom shape so no square corner peeks past. */
-        border-radius: inherit;
-
-        /* Your background logic (e.g., using inherited or static image) */
-        background: rgba(40, 32, 60, 0.55);
-        background-repeat: no-repeat;
-        background-size: cover;
-        filter: blur(14px);
-
-        /* Crucial fixes */
-        z-index: -1; /* Keeps it behind the button text/icons */
-        pointer-events: none; /* PASSES CLICK EVENTS THROUGH TO BUTTONS */
-        -webkit-transform: translate3d(0, 0, 0);
-        transform: translateZ(0);
-        will-change: filter;
     }
 
     /* Ensure child content stays interactive and on top */

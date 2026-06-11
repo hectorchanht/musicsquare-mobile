@@ -440,6 +440,10 @@ class Settings {
 	 *  override wins, falling back to the global default. Settings stays a LEAF store — this
 	 *  resolver depends on no other store. */
 	effectiveUpnextMode(ctx: QueueContext): UpnextMode {
+		// Phase 19 (QUEUE-04 / D-06): an explicit Remix ALWAYS generates, regardless of any
+		// global 'same-list' override or per-context setting. This early return makes Remix's
+		// force-generate airtight (the 'remix' QueueContext carries no other behaviour).
+		if (ctx === 'remix') return 'generated';
 		if (!ctx) return this.upnextMode;
 		return this.upnextPerContext[ctx] ?? this.upnextMode;
 	}

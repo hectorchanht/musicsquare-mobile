@@ -100,6 +100,9 @@ export type QueueContext =
 	| 'artist'
 	| 'home-discovery'
 	| 'history'
+	// Phase 19 (QUEUE-04 / D-06): an explicit Remix forces genre-generation regardless of the
+	// user's global up-next setting. effectiveUpnextMode('remix') early-returns 'generated'.
+	| 'remix'
 	| null;
 export const UPNEXT_DEFAULTS = {
 	/** Global default sourcing mode — roadmap-locked to 'generated'. */

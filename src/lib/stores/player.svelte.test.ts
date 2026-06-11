@@ -981,6 +981,42 @@ describe('player.queueContext — context-threaded setQueue/playStub (Phase 17 Q
 		expect(raw).toBeTruthy();
 		expect(JSON.parse(raw as string)).not.toHaveProperty('queueContext');
 	});
+
+	// Phase 19 (QUEUE-04 / D-04/D-05): a Remix-context regenerate plays the seed first, keeps
+	// manual pins, and DISCARDS the prior generated tail — reusing the existing regenerate path
+	// (no new queue mechanism). We drive regenerate() directly (mirroring the D-10 regenerate
+	// tests below) with a 'remix' setup: seed + a manual-pinned entry + a stale generated tail
+	// in the queue, and a mocked buildSimilarQueue returning a FRESH auto tail.
+	it("a Remix regenerate preserves a manual-pinned uid and discards the prior generated tail (D-05)", async () => {
+		const seed = mk('netease', 'SEED', 'A', 'Seed');
+		const pinned = mk('qq', 'PIN', 'B', 'Pinned'); // user-added → survives regen
+		const staleAuto = mk('kuwo', 'OLD', 'C', 'OldGenerated'); // prior generated tail → discarded
+		const freshAuto = mk('joox', 'NEW', 'D', 'FreshGenerated'); // buildSimilarQueue's new picks
+
+		// Force-generate context (D-06): setQueue records queueContext='remix'.
+		player.setQueue([seed], 'remix');
+		expect(player.queueContext).toBe('remix');
+		expect(settings.effectiveUpnextMode(player.queueContext)).toBe('generated');
+
+		// Queue now holds the seed, a manual pin, and a stale generated track.
+		player.current = seed;
+		player.queue = [seed, pinned, staleAuto];
+		// Pin `pinned` into manualUids (addToQueue does not auto-play since current=seed≠pinned).
+		player.addToQueue(pinned);
+		const manualUids = (player as unknown as { manualUids: Set<string> }).manualUids;
+		expect(manualUids.has(pinned.uid)).toBe(true);
+		expect(manualUids.has(staleAuto.uid)).toBe(false); // never manually pinned → eligible to drop
+
+		// buildSimilarQueue yields the fresh auto tail (the staleAuto is NOT in it).
+		mockSimilar.mockReset().mockResolvedValue([freshAuto]);
+
+		await (player as unknown as { regenerate(t: Track): Promise<void> }).regenerate(seed);
+
+		// Result = dedupeBest([seed, ...manualEntries, ...auto]): seed first, manual pin kept,
+		// prior generated tail (staleAuto) gone, fresh auto appended.
+		expect(player.queue.map((t) => t.uid)).toEqual([seed.uid, pinned.uid, freshAuto.uid]);
+		expect(player.queue.some((t) => t.uid === staleAuto.uid)).toBe(false);
+	});
 });
 
 describe('player.play — auto-expand fresh-only guard + per-context branch (Phase 17 QUEUE-01/D-05)', () => {

@@ -59,6 +59,17 @@ describe('settings.effectiveUpnextMode (Phase 17 QUEUE-03)', () => {
 		expect(settings.effectiveUpnextMode('liked')).toBe('generated');
 	});
 
+	it("effectiveUpnextMode('remix') returns 'generated' even under a global 'same-list' (Phase 19 D-06)", () => {
+		// The user has globally chosen 'same-list' — an ordinary context would honour it…
+		settings.upnextMode = 'same-list';
+		expect(settings.effectiveUpnextMode(null)).toBe('same-list');
+		// …but an explicit Remix force-generates regardless (the early-return).
+		expect(settings.effectiveUpnextMode('remix')).toBe('generated');
+		// Even a (hypothetical) per-context 'same-list' override cannot defeat it.
+		settings.upnextPerContext = { ...settings.upnextPerContext, remix: 'same-list' };
+		expect(settings.effectiveUpnextMode('remix')).toBe('generated');
+	});
+
 	it('resetPlayback() restores upnextPerContext to {} and upnextMode to generated', () => {
 		settings.upnextMode = 'same-list';
 		settings.upnextPerContext = { liked: 'same-list', search: 'same-list' };

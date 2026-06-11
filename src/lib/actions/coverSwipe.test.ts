@@ -266,4 +266,30 @@ describe('coverSwipe — horizontal axis-locked prev/next swipe (Phase 20 NP-01/
 		m.fire('pointerup', pe(200, 50, 700));
 		expect(o.onprev).toHaveBeenCalledTimes(1);
 	});
+
+	it('a COMMITTED drag clears the inline transform so the swapped cover is not left frozen off-centre (CR-01)', () => {
+		const o = opts();
+		const m = mount(o);
+		m.fire('pointerdown', pe(100, 50, 0));
+		m.fire('pointermove', pe(112, 52, 16)); // commit horizontal
+		m.fire('pointermove', pe(200, 54, 400)); // dx 100 > commitDist 84 → live translateX(100px)
+		expect(m.style.transform).toBe('translateX(100px)'); // mid-drag 1:1 follow
+		m.fire('pointerup', pe(200, 54, 700));
+		expect(o.onprev).toHaveBeenCalledTimes(1);
+		// The strip PERSISTS across the player.prev()/next() track swap, so the action must drop its
+		// inline transform + transition:none — otherwise the new current cover renders frozen
+		// ~commitDist off-centre. Resting state returns to the host CSS translateX(0).
+		expect(m.style.transform).toBe('');
+		expect(m.style.transition).toBe('');
+	});
+
+	it('a vertical-dominant yield clears the inline transition:none set on pointerdown (CR-02)', () => {
+		const m = mount(opts());
+		m.fire('pointerdown', pe(100, 50, 0)); // down() sets transition:none for the 1:1 drag follow
+		expect(m.style.transition).toBe('none');
+		m.fire('pointermove', pe(104, 90, 16)); // |ddy| 40 > |ddx| 4 → vertical wins, action yields
+		// The transition:none MUST be cleared on yield, else a vertical-collapse gesture that starts
+		// on this node permanently defeats the host's CSS settle + reduced-motion transition.
+		expect(m.style.transition).toBe('');
+	});
 });

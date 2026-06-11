@@ -115,6 +115,10 @@ export const coverSwipe: Action<HTMLElement, CoverSwipeOpts> = (node, opts) => {
 			// Vertical wins → go passive so the host's vertical-collapse handler / scroll runs (no capture).
 			if (Math.abs(ddy) > Math.abs(ddx)) {
 				dragging = false;
+				// up() early-returns once dragging is false, so clear the transition:none set in down()
+				// HERE — otherwise a vertical-collapse gesture that STARTS on this node permanently
+				// defeats the host's CSS settle + reduced-motion transition (CR-02).
+				node.style.transition = '';
 				return;
 			}
 			// Horizontal commit: capture HERE (not on down) so the gesture keeps flowing past the
@@ -162,6 +166,12 @@ export const coverSwipe: Action<HTMLElement, CoverSwipeOpts> = (node, opts) => {
 			// logic — these are the host's player.prev()/player.next().
 			if (dx > 0) onprev();
 			else onnext();
+			// Unlike swipeRemove (whose node leaves the DOM on commit), the carousel strip / nowbar
+			// content PERSISTS across the player.prev()/next() swap. Drop the live translateX(dx) +
+			// transition:none left from the drag, or the freshly-swapped cover renders frozen
+			// ~commitDist off-centre (CR-01). resetTransform() restores the host CSS resting state
+			// (translateX(0)); the host's own transition animates the new cover into place.
+			resetTransform();
 		} else {
 			// Spring back: re-enable transitions, animate translateX → 0.
 			node.style.transition = 'transform 0.28s cubic-bezier(.22,1,.36,1)';

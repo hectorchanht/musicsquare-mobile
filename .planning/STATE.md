@@ -4,12 +4,12 @@ milestone: v1.2
 milestone_name: Resilient Playback & UX Polish
 status: executing
 stopped_at: Phase 22 context gathered
-last_updated: "2026-06-11T16:18:35.011Z"
-last_activity: 2026-06-11 -- Phase 999.1 planning complete
+last_updated: "2026-06-11T16:27:44.340Z"
+last_activity: 2026-06-11 -- Phase 22 planning complete
 progress:
   total_phases: 10
   completed_phases: 5
-  total_plans: 28
+  total_plans: 30
   completed_plans: 21
   percent: 50
 ---
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-10)
 
 **Core value:** A user on their phone can search a song, tap it, and have it play instantly with a smooth, native-app-like experience — and keep playing when the screen locks.
-**Current focus:** Phase 21 — search-cover-pipeline-polish
+**Current focus:** Phase 999.1 — v2-0-native-capacitor-migration
 
 ## Current Position
 
-Phase: 21 (search-cover-pipeline-polish) — EXECUTING
-Plan: 1 of 5
+Phase: 999.1 (v2-0-native-capacitor-migration) — EXECUTING
+Plan: 1 of 6
 Status: Ready to execute
-Last activity: 2026-06-11 -- Phase 999.1 planning complete
+Last activity: 2026-06-11 -- Phase 22 planning complete
 Next: /gsd:verify-work phase 19 (device-pass the two non-node-testable contracts — MENU-02 marquee re-measure + MENU-03 stuck-state — before sign-off)
 
 ## Performance Metrics

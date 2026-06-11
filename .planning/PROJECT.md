@@ -54,13 +54,13 @@ A user on their phone can search a song, tap it, and have it play instantly with
 - ✓ Deezer artist/album info enrichment via own-origin edge proxies with field-precedence merge beside Last.fm — Validated in Phase 17
 - ✓ Text-size sliders widened to 50–200% with live demo text from current track; accent setting hover state wired via derived `--color-primary-hover` — Validated in Phase 17
 - ✓ Sleep timer (5/10/15/30/45/60 min or end-of-track) from the track menu — global timer sheet, nowbar + now-playing active indicator with live countdown, cancel/change; volume-fade-then-pause on writable platforms, instant-pause on iOS; expiry never triggers failover/skip/loop-guard — Validated in Phase 18: Sleep Timer (device-only fade/lock-screen behaviors tracked in 18-HUMAN-UAT.md)
+- ✓ Track menu rework: always-visible action buttons with background resolve-then-act (pure gate helper, in-flight dedupe, graceful failure / no stuck spinner), 2-row marquee header with top-right like/close, Remix (seed → force-generated genre up-next preserving manual pins), and a long-press focus/tap-highlight fix (global tap-highlight reset + `@media (hover: hover)` guards + blur-on-longpress across all 6 trigger sites) — Validated in Phase 19: Track Menu Rework (device-only contracts — marquee re-measure, resolve-then-act visual flow, iOS/Android stuck-highlight — pending a `/gsd:verify-work 19` device pass)
 
 ### Active
 
 <!-- v1.2 scope. Hypotheses until shipped + validated. -->
 
 - [ ] Lyrics: touch-suspended auto-scroll, end spacer, CN highlight-ordering fix, robust bracket hiding
-- [ ] Menu modal rework: instant buttons + background resolve, 2-row marquee header, top-right like/close, remix, sleep timer, focus-state fix
 - [ ] Now-playing: cover swipe prev/next, half-open scroll containment, tap-cover closes subnav, top running-line loader
 - [ ] Search scoring tune + result cover fallback + empty-query autofocus
 - [ ] Cover fallback resolver (playing track + scroll-into-view) with name-keyed cache
@@ -129,4 +129,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-11 after Phase 18 complete (Sleep Timer)*
+*Last updated: 2026-06-11 after Phase 19 complete (Track Menu Rework)*

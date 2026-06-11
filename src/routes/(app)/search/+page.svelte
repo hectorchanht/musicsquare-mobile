@@ -30,6 +30,7 @@
 	let menuOpen = $state(false);
 
 	let q = $state('');
+	let queryInputEl = $state<HTMLInputElement | null>(null);
 	let results = $state<Track[]>([]);
 	let loading = $state(false);
 	let searched = $state(false);
@@ -312,6 +313,11 @@
 			await tick();
 			window.scrollTo(0, searchSession.scrollY);
 		}
+		// RHX-01: mount-time-only focus on an EMPTY query so the mobile keyboard rises.
+		// Evaluated AFTER the hasPrior restore above — a restored prior query makes `q`
+		// non-empty so focus is not stolen. Lives in onMount (not a $effect keyed on `q`)
+		// so clearing the input mid-session does NOT re-grab focus.
+		if (!q.trim()) queryInputEl?.focus();
 	});
 
 	// D-02: on navigate-away, capture the live set + current scroll so a tab return restores it.
@@ -345,6 +351,7 @@
 
 <form class="bar" onsubmit={run}>
 	<input
+		bind:this={queryInputEl}
 		bind:value={q}
 		placeholder={t('search.placeholder')}
 		autocomplete="off"

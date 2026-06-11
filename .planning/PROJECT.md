@@ -53,6 +53,7 @@ A user on their phone can search a song, tap it, and have it play instantly with
 - ✓ Per-context up-next sourcing (same-list vs generated, global default = generated) with `queueContext` threading; queue management (swipe-to-remove + clear with regeneration exclusion); auto-expand fixed to fresh plays only — Validated in Phase 17: Up-Next Sourcing & Settings Plumbing
 - ✓ Deezer artist/album info enrichment via own-origin edge proxies with field-precedence merge beside Last.fm — Validated in Phase 17
 - ✓ Text-size sliders widened to 50–200% with live demo text from current track; accent setting hover state wired via derived `--color-primary-hover` — Validated in Phase 17
+- ✓ Sleep timer (5/10/15/30/45/60 min or end-of-track) from the track menu — global timer sheet, nowbar + now-playing active indicator with live countdown, cancel/change; volume-fade-then-pause on writable platforms, instant-pause on iOS; expiry never triggers failover/skip/loop-guard — Validated in Phase 18: Sleep Timer (device-only fade/lock-screen behaviors tracked in 18-HUMAN-UAT.md)
 
 ### Active
 
@@ -128,4 +129,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-11 after Phase 17 complete (Up-Next Sourcing & Settings Plumbing)*
+*Last updated: 2026-06-11 after Phase 18 complete (Sleep Timer)*

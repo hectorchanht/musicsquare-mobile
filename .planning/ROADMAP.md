@@ -595,3 +595,23 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 | 22. Lyrics Polish | 0/TBD | Not started | - |
 | 23. UX Audit & Homepage/Artist Polish | 0/TBD | Not started | - |
 | 24. Offline App-Shell & Sharing/SEO | 0/TBD | Not started | - |
+
+## Backlog
+
+### Phase 999.1: v2.0 Native (Capacitor) migration (BACKLOG)
+
+**Goal:** Wrap the SvelteKit app as iOS/Android native apps via Capacitor, with sideload-only distribution. Trigger: revisit after v1.2 completes.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Decided context (assessment 2026-06-11, full doc: `~/.claude/plans/i-m-planning-to-make-fluffy-star.md`):
+- **Distribution:** sideload-only — Android signed APK via GitHub Releases, iOS Xcode sideload/AltStore. Store submission ruled out (Apple Guideline 5.2.3 / Google Play IP policy — unofficial music-source aggregation + downloads is near-certain rejection). Skip store-compliance scope entirely.
+- **API extraction (no-regret, could pull forward):** port ~17 `/api/*` routes + `src/lib/proxy/` to standalone Hono Cloudflare Worker (`musicsquare-api` repo), wrangler CI auto-deploy, secrets via `wrangler secret`, CORS allowlist incl. `capacitor://localhost` + `http://localhost`. Frontend gains single `API_BASE` config (empty = same-origin web, worker URL = native).
+- **Dual-build, single frontend codebase:** `svelte.config.js` switches adapter by env — default `adapter-cloudflare` (web unchanged), `BUILD_TARGET=native` → `adapter-static` SPA fallback.
+- **Storage: NO sqlite.** localStorage persists fine in Capacitor app container (Safari-PWA eviction problem disappears). Platform-switch `src/lib/services/blob-store.ts` backend: IndexedDB on web (unchanged) / `@capacitor/filesystem` + `capacitor-blob-writer` on native for downloaded songs.
+- **Highest risk = background audio:** iOS `UIBackgroundModes: audio` + AVAudioSession category; Android foreground service / media notification plugin. Needs dedicated research phase.
+- **Effort:** ~3–4 weeks part-time. Rough phase split: (a) API worker extraction, (b) dual-build + Capacitor shell, (c) filesystem storage, (d) background audio + media controls, (e) APK release pipeline + sideload docs.
+- When promoted: reverse the native-apps exclusion in PROJECT.md/REQUIREMENTS.md.
+
+Plans:
+- [ ] TBD (promote with /gsd:review-backlog when ready)

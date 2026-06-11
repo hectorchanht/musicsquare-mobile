@@ -56,6 +56,7 @@ import { settings } from '$lib/stores/settings.svelte';
 import {
 	getCachedCover,
 	setCachedCover,
+	setCachedCoverByUid,
 	coverCacheKey,
 	getCachedArtistCover,
 	setCachedArtistCover,
@@ -64,6 +65,7 @@ import {
 import { mapWithConcurrency } from '$lib/services/discovery';
 import { deezerSongCover, deezerArtistCover } from '$lib/services/deezer';
 import { itunesSongCover, itunesArtistCover } from '$lib/services/itunes-cover';
+import type { Track } from '$lib/sources/types';
 
 /** A cover-needing row — callers pass DiscoveryTrack rows (artist tiles are excluded). */
 export interface CoverNeed {
@@ -89,6 +91,85 @@ const DEFAULT_MAX = 400;
 /** SOLID = a non-empty https URL (the only thing safe to render as an <img src> + cache). */
 function isSolidCover(url: string | null | undefined): url is string {
 	return typeof url === 'string' && url.startsWith('https:');
+}
+
+/**
+ * Per-tier never-throw wrapper: a THROW in one tier falls through to the NEXT tier (returns null on
+ * any throw); only a SOLID https result is returned, else null (treated as a miss → fall through).
+ * Hoisted to module scope so both backfillCovers and the single-item resolveCoverForTrack reuse the
+ * SAME tier mechanics (no duplicated fetch ladder).
+ */
+async function tier(fn: () => Promise<string | null>): Promise<string | null> {
+	try {
+		const url = await fn();
+		return isSolidCover(url) ? url : null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * The shared TRACK tier chain: Deezer → (on miss) iTunes → (on miss) CN (searchAll → dedupeBest[0]).
+ * Stops at the first SOLID https cover; a non-https / empty result is a miss and falls through.
+ * Returns the SOLID URL or null on a total miss. Never throws (per-tier never-throw + backstop).
+ * This is the single source of truth for the track chain — resolveOne and resolveCoverForTrack
+ * both call it so the Deezer→iTunes→CN order + https guard live in exactly one place (D-10).
+ */
+async function resolveTrackChain(
+	artist: string,
+	title: string,
+	signal?: AbortSignal
+): Promise<string | null> {
+	if (signal?.aborted) return null;
+	try {
+		// Tier 1 — Deezer (PRIMARY). A SOLID hit is used as-is; iTunes + CN are NOT issued.
+		let cover = await tier(() => deezerSongCover(artist, title, signal));
+		if (signal?.aborted) return null;
+
+		// Tier 2 — iTunes (fires only on a Deezer miss).
+		if (!cover) {
+			cover = await tier(() => itunesSongCover(artist, title, signal));
+			if (signal?.aborted) return null;
+		}
+
+		// Tier 3 — CN (existing resolver; fires only on a Deezer+iTunes miss).
+		if (!cover) {
+			cover = await tier(async () => {
+				const r = await searchAll(`${artist} ${title}`, 1);
+				return dedupeBest(r.interleaved, settings.preferredSource)[0]?.cover ?? null;
+			});
+			if (signal?.aborted) return null;
+		}
+
+		return isSolidCover(cover) ? cover : null;
+	} catch {
+		// Backstop — a miss leaves the gradient (never a broken image / never blocks).
+		return null;
+	}
+}
+
+/**
+ * Single-item cover resolve helper (Plan 21-02, COVER-02) — the seam Plans 03/04/05 consume.
+ *
+ * Runs the SAME Deezer → iTunes(1200) → CN tier chain as backfillCovers (via resolveTrackChain,
+ * the shared `tier()` never-throw wrapper + isSolidCover https guard — NOT a new fetch ladder).
+ * Returns the first SOLID https URL or null on a total miss. NEVER throws.
+ *
+ * On a SOLID hit it writes BOTH cache layers so either lookup hits next time (D-13 two-layer):
+ *   setCachedCoverByUid(track.uid, url)  AND  setCachedCover(track.artist, track.title, url).
+ * On a miss / non-https result nothing is cached (the caller keeps the gradient — T-0bb-01).
+ */
+export async function resolveCoverForTrack(
+	track: Track,
+	signal?: AbortSignal
+): Promise<string | null> {
+	const cover = await resolveTrackChain(track.artist ?? '', track.title ?? '', signal);
+	if (isSolidCover(cover)) {
+		setCachedCoverByUid(track.uid, cover);
+		setCachedCover(track.artist, track.title, cover);
+		return cover;
+	}
+	return null;
 }
 
 /**
@@ -120,48 +201,15 @@ export async function backfillCovers(items: CoverNeed[], opts: BackfillOpts = {}
 	const work = remaining.slice(0, Math.max(0, max));
 	if (!work.length) return;
 
-	// Each tier resolver is wrapped so a THROW in one tier falls through to the NEXT tier (returns
-	// null on any throw); only a SOLID https result short-circuits the chain.
-	async function tier(fn: () => Promise<string | null>): Promise<string | null> {
-		try {
-			const url = await fn();
-			return isSolidCover(url) ? url : null;
-		} catch {
-			return null;
-		}
-	}
-
-	// (3) resolveOne: Deezer → (on miss) iTunes → (on miss) CN; stop at the first SOLID cover.
-	//     A non-https / empty result is treated as a miss and falls through. Cache + notify only a
-	//     SOLID https cover (quick-260607-0bb).
+	// (3) resolveOne: run the SHARED Deezer → iTunes → CN chain (resolveTrackChain — same tier()
+	//     never-throw + https guard); cache + notify only a SOLID https cover (quick-260607-0bb).
 	async function resolveOne(item: CoverNeed): Promise<void> {
 		if (signal?.aborted) return;
-		try {
-			// Tier 1 — Deezer (PRIMARY). A SOLID hit is used as-is; iTunes + CN are NOT issued.
-			let cover = await tier(() => deezerSongCover(item.artist, item.title, signal));
-			if (signal?.aborted) return;
-
-			// Tier 2 — iTunes (fires only on a Deezer miss).
-			if (!cover) {
-				cover = await tier(() => itunesSongCover(item.artist, item.title, signal));
-				if (signal?.aborted) return;
-			}
-
-			// Tier 3 — CN (existing resolver; fires only on a Deezer+iTunes miss).
-			if (!cover) {
-				cover = await tier(async () => {
-					const r = await searchAll(`${item.artist} ${item.title}`, 1);
-					return dedupeBest(r.interleaved, settings.preferredSource)[0]?.cover ?? null;
-				});
-				if (signal?.aborted) return;
-			}
-
-			if (isSolidCover(cover)) {
-				setCachedCover(item.artist, item.title, cover);
-				onResolved?.(coverCacheKey(item.artist, item.title), cover);
-			}
-		} catch {
-			// Backstop — a miss leaves the gradient (never a broken image / never blocks).
+		const cover = await resolveTrackChain(item.artist, item.title, signal);
+		if (signal?.aborted) return;
+		if (isSolidCover(cover)) {
+			setCachedCover(item.artist, item.title, cover);
+			onResolved?.(coverCacheKey(item.artist, item.title), cover);
 		}
 	}
 
@@ -201,16 +249,6 @@ export async function backfillArtistCovers(
 	// (2) Cap the total fan-out for a cold visit.
 	const work = remaining.slice(0, Math.max(0, max));
 	if (!work.length) return;
-
-	// Per-tier never-throw + https-only guard (same as the track path).
-	async function tier(fn: () => Promise<string | null>): Promise<string | null> {
-		try {
-			const url = await fn();
-			return isSolidCover(url) ? url : null;
-		} catch {
-			return null;
-		}
-	}
 
 	// (3) resolveOneArtist: Deezer → (on miss) iTunes; stop at the first SOLID cover; cache +
 	//     notify only a SOLID https image under the artist key.

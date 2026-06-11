@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { backfillCovers, backfillArtistCovers } from './cover-backfill';
+import { backfillCovers, backfillArtistCovers, resolveCoverForTrack } from './cover-backfill';
 import * as catalog from './catalog';
 import * as deezer from './deezer';
 import * as itunes from './itunes-cover';
 import {
 	getCachedCover,
+	getCachedCoverByUid,
 	getCachedArtistCover,
 	setCachedArtistCover,
 	artistCoverCacheKey
@@ -336,5 +337,54 @@ describe('backfillArtistCovers — Deezer → iTunes artist chain (quick-260607-
 			.mockResolvedValue('https://cdn-images.dzcdn.net/x.jpg');
 		await backfillArtistCovers(['A', 'B', 'C', 'D', 'E'], { max: 2 });
 		expect(deezerSpy).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe('resolveCoverForTrack — shared single-item resolve helper (Plan 21-02, COVER-02)', () => {
+	it('returns a SOLID https URL on a tier hit and writes BOTH cache layers', async () => {
+		vi.spyOn(deezer, 'deezerSongCover').mockResolvedValue('https://cdn-images.dzcdn.net/c.jpg');
+		const t = mk('netease', '12345', { artist: 'Drake', title: 'Hotline Bling' });
+
+		const out = await resolveCoverForTrack(t);
+		expect(out).toBe('https://cdn-images.dzcdn.net/c.jpg');
+		// BOTH layers written on a SOLID hit (D-13).
+		expect(getCachedCoverByUid('netease:12345')).toBe('https://cdn-images.dzcdn.net/c.jpg');
+		expect(getCachedCover('Drake', 'Hotline Bling')).toBe('https://cdn-images.dzcdn.net/c.jpg');
+	});
+
+	it('runs the Deezer → iTunes → CN tier order (falls through to iTunes on a Deezer miss)', async () => {
+		vi.spyOn(deezer, 'deezerSongCover').mockResolvedValue(null);
+		const itunesSpy = vi
+			.spyOn(itunes, 'itunesSongCover')
+			.mockResolvedValue('https://is1-ssl.mzstatic.com/it.jpg');
+		const searchSpy = vi.spyOn(catalog, 'searchAll');
+		const t = mk('qq', 'abc', { artist: 'Adele', title: 'Hello' });
+
+		const out = await resolveCoverForTrack(t);
+		expect(out).toBe('https://is1-ssl.mzstatic.com/it.jpg');
+		expect(itunesSpy).toHaveBeenCalled();
+		expect(searchSpy).not.toHaveBeenCalled();
+	});
+
+	it('returns null on a total miss (chain never throws), caching nothing', async () => {
+		vi.spyOn(deezer, 'deezerSongCover').mockRejectedValue(new Error('deezer'));
+		vi.spyOn(itunes, 'itunesSongCover').mockRejectedValue(new Error('itunes'));
+		vi.spyOn(catalog, 'searchAll').mockRejectedValue(new Error('cn'));
+		const t = mk('netease', 'miss', { artist: 'X', title: 'Y' });
+
+		await expect(resolveCoverForTrack(t)).resolves.toBeNull();
+		expect(getCachedCoverByUid('netease:miss')).toBeNull();
+		expect(getCachedCover('X', 'Y')).toBeNull();
+	});
+
+	it('rejects a non-https tier result (isSolidCover gate) — returns null, nothing cached', async () => {
+		vi.spyOn(deezer, 'deezerSongCover').mockResolvedValue('http://insecure/a.jpg');
+		vi.spyOn(itunes, 'itunesSongCover').mockResolvedValue(null);
+		vi.spyOn(catalog, 'searchAll').mockResolvedValue(result([]));
+		const t = mk('netease', 'ins', { artist: 'A', title: 'B' });
+
+		await expect(resolveCoverForTrack(t)).resolves.toBeNull();
+		expect(getCachedCoverByUid('netease:ins')).toBeNull();
+		expect(getCachedCover('A', 'B')).toBeNull();
 	});
 });

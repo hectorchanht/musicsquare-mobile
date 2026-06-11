@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Resilient Playback & UX Polish
 status: executing
-stopped_at: Completed 19-01-PLAN.md
-last_updated: "2026-06-11T05:22:15.788Z"
+stopped_at: Completed 19-02-PLAN.md
+last_updated: "2026-06-11T05:30:46.092Z"
 last_activity: 2026-06-11
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 13
-  completed_plans: 11
+  completed_plans: 12
   percent: 33
 ---
 
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-06-10)
 ## Current Position
 
 Phase: 19 (track-menu-rework) — EXECUTING
-Plan: 2 of 3
-Status: 19-01 complete (Wave-0 seams) — ready to execute 19-02
-Last activity: 2026-06-11 -- 19-01 complete (gate helper + 'remix' context + 15-locale i18n parity)
-Next: execute 19-02-PLAN.md (TrackMenu rework)
+Plan: 3 of 3
+Status: 19-02 complete (TrackMenu rework — 2-row marquee header, always-visible gated buttons, Remix) — ready to execute 19-03
+Last activity: 2026-06-11 -- 19-02 complete (TrackMenu.svelte reworked; overlay invariant intact; pnpm check 0/0, 626 tests green)
+Next: execute 19-03-PLAN.md (long-press release fix at trigger sites)
 
 ## Performance Metrics
 
@@ -65,6 +65,7 @@ Next: execute 19-02-PLAN.md (TrackMenu rework)
 | Phase 18 P02 | 10 min | 2 tasks | 2 files |
 | Phase 18 P03 | 12 min | 2 tasks | 6 files |
 | Phase 19 P01 | 7 min | 3 tasks | 22 files |
+| Phase 19 P02 | 10 min | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -102,6 +103,7 @@ Recent decisions affecting current work:
 - [Phase 18-03]: Sleep-timer UI is a globally-mounted SleepTimerSheet (3rd pickerOpen instance, overlay 'trackmenu-timer', open-only $effect) driven by a new sleepTimer.sheetOpen flag; TrackMenu item + nowbar moon/countdown badge + now-playing full readout all converge on the same sheet (D-08). Four i18n keys (timer.minutes a single {n} interpolation key) in all 15 dicts, no expiry-toast key (D-09). The sheet arms player.onSleepTimerSet() after set() (18-02 contract). Browser-verified (set/reopen/restart/cancel/i18n/zero-console); expiry-fade + D-03/D-04/D-05 + lock-screen deferred to device testing.
 - [Phase 19]: 19-01: D-06 force-generate = a 'remix' QueueContext enum value + a one-line effectiveUpnextMode early-return (if ctx===remix return generated); least-churn vs threading a mode param (A1). Player store unchanged — Remix reuses setQueue/play({fresh})/regenerate verbatim.
 - [Phase 19]: 19-01: MENU-01 gating extracted to PURE helper track-menu-gate.ts (isGatedReady = detailsLoaded && uid && audioUrl; shouldStartResolve = !inFlight.has(key)) so it is node-testable without a DOM; the new Set() reassign-for-reactivity stays in the component (19-02). i18n parity test widened from 3 to all 15 locales.
+- [Phase 19]: 19-02: TrackMenu rework landed as ONE atomic commit (the 3 contracts are mutually-dependent edits to one component file that won't compile in partial states); overlay $effect kept byte-unchanged (dep open-only, untrack, sole-dismiss cleanup, {#if open && track}); new Close (X) calls close() only. doDownload/doDetail refactored to gated run(resolved) callbacks; Download re-resolves at downloadQuality inside the callback (WR-07 preserved).
 
 ### Pending Todos
 
@@ -199,6 +201,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-11T05:22:15.779Z
+Last session: 2026-06-11T05:29:43.560Z
 Stopped at: Completed 19-01-PLAN.md
 Resume: plan Phase 16 (`/gsd:plan-phase 16`). Phase 16 is the resilience-core dependency root; everything else builds on its `queueContext` / 2-state repeat / skip-loop guard.

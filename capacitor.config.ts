@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
 	// (NOT the com.hectorchanht.musicsquare placeholder from RESEARCH). Changing it
 	// after the first signed release breaks update continuity (threat T-999.1-05).
 	appId: 'com.openmusic.app',
-	appName: 'MusicSquare',
+	appName: 'OpenMusic',
 	// adapter-static output (BUILD_TARGET=native pnpm build → build/index.html SPA fallback).
 	webDir: 'build',
 	android: {

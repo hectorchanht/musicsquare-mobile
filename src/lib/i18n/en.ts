@@ -248,6 +248,8 @@ const en = {
 	'menu.detailNotResolved': '(not resolved)',
 	'menu.detailUnknown': 'unknown',
 	'menu.sleepTimer': 'Sleep timer',
+	'menu.remix': 'Remix',
+	'menu.preparing': 'Preparing…',
 
 	// --- sleep timer (Phase 18, TIMER-01) ---
 	// The minutes label is a SINGLE interpolation key (mirrors skippedMany's count token)
@@ -271,6 +273,7 @@ const en = {
 	'toast.shareCopied': 'Share link copied',
 	'toast.liked': 'Liked',
 	'toast.unliked': 'Removed from liked',
+	'toast.remixing': 'Remixing from this song',
 	'toast.artistFavorited': 'Added to favourite artists',
 	'toast.artistUnfavorited': 'Removed from favourite artists',
 	'settings.sourcesAdvanced': 'Advanced — Sources',

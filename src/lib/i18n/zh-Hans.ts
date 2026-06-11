@@ -235,6 +235,8 @@ const zhHans: Dict = {
 	'menu.detailNotResolved': '（尚未解析）',
 	'menu.detailUnknown': '未知',
 	'menu.sleepTimer': '睡眠定时器',
+	'menu.remix': '重新混音',
+	'menu.preparing': '准备中…',
 
 	// --- sleep timer (Phase 18, TIMER-01) ---
 	'timer.minutes': '{n} 分钟',
@@ -256,6 +258,7 @@ const zhHans: Dict = {
 	'toast.shareCopied': '已复制分享链接',
 	'toast.liked': '已收藏',
 	'toast.unliked': '已取消收藏',
+	'toast.remixing': '正在以这首歌重新混音',
 	'toast.artistFavorited': '已加入收藏的歌手',
 	'toast.artistUnfavorited': '已从收藏的歌手中移除',
 	'settings.sourcesAdvanced': '高级 — 音乐来源',

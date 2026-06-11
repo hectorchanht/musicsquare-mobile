@@ -41,16 +41,27 @@ describe('interpolate', () => {
 });
 
 describe('dictionaries', () => {
-	it('all three locales expose IDENTICAL key sets', () => {
+	// Phase 19 (Pitfall 5 / Wave 0): the parity + no-blank checks iterate ALL 15 locales (was
+	// only en/zh-Hant/zh-Hans) so a key added only to en — e.g. the new menu.remix / toast.remixing
+	// / menu.preparing — fails CI in every locale that is missing it, self-enforcing parity for
+	// this phase AND all future ones.
+	it('every locale exposes a key set IDENTICAL to en (all 15 locales)', () => {
 		const enKeys = Object.keys(dicts.en).sort();
-		const hantKeys = Object.keys(dicts['zh-Hant']).sort();
-		const hansKeys = Object.keys(dicts['zh-Hans']).sort();
-		expect(hantKeys).toEqual(enKeys);
-		expect(hansKeys).toEqual(enKeys);
+		for (const lang of Object.keys(dicts) as Array<keyof typeof dicts>) {
+			expect(Object.keys(dicts[lang]).sort(), `${lang} key set must match en`).toEqual(enKeys);
+		}
 	});
 
-	it('has no blank values in any locale', () => {
-		for (const lang of ['en', 'zh-Hant', 'zh-Hans'] as const) {
+	it('the Phase-19 keys are present in every locale', () => {
+		for (const lang of Object.keys(dicts) as Array<keyof typeof dicts>) {
+			for (const key of ['menu.remix', 'toast.remixing', 'menu.preparing'] as const) {
+				expect(dicts[lang][key], `${lang}.${key} should exist`).toBeTruthy();
+			}
+		}
+	});
+
+	it('has no blank values in any locale (all 15 locales)', () => {
+		for (const lang of Object.keys(dicts) as Array<keyof typeof dicts>) {
 			for (const [key, val] of Object.entries(dicts[lang])) {
 				expect(val, `${lang}.${key} should not be blank`).not.toBe('');
 			}

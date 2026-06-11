@@ -40,6 +40,7 @@ const en = {
 	'search.noMore': 'No more results.',
 	'search.recent': 'Recent searches',
 	'search.clear': 'Clear',
+	'search.suggestions': 'Suggestions',
 
 	// --- settings ---
 	'settings.title': 'Settings · openmusic',

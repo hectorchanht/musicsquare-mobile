@@ -5,7 +5,14 @@
 	import { dedupeBest } from '$lib/services/dedupe';
 	import { dedupeBestWithDeezer } from '$lib/services/dedupe-deezer';
 	import { enrichArtist } from '$lib/services/lastfm';
-	import { deezerArtistCover } from '$lib/services/deezer';
+	import { deezerArtistCover, deezerSearchTopN, type DeezerHit } from '$lib/services/deezer';
+	import {
+		deriveSuggestions,
+		debounce,
+		MIN_QUERY_LEN,
+		SUGGEST_CAP,
+		type Suggestion
+	} from '$lib/search/autocomplete-logic';
 	import { mapWithConcurrency } from '$lib/services/discovery';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { player } from '$lib/stores/player.svelte';
@@ -56,6 +63,51 @@
 
 	// D-05: focus tracking for the past-search suggestion list (idle pre-query state).
 	let inputFocused = $state(false);
+
+	// ql0: typeahead suggestions (live Deezer song + artist suggestions under the bar). The
+	// pure dedupe/cap/interleave + debounce primitive live in autocomplete-logic.ts; this
+	// component owns the runes state, the AbortController, and the render. `suggestAc` is a
+	// PAGE-LOCAL transient (never lifted into searchSession — same discipline as `ac`/`moreAc`).
+	let suggestions = $state<Suggestion[]>([]);
+	let suggestAc: AbortController | null = null;
+
+	// Debounced suggestion fetch: at most one network call per ~300ms typing pause. A fresh
+	// keystroke restarts the timer (in oninput) so only the trailing pause fetches. Inside, we
+	// abort any in-flight request before issuing the next, then guard against a stale query
+	// before committing results (mirrors the run()/loadMore() race guards).
+	const fetchSuggestions = debounce((kw: string) => {
+		suggestAc?.abort();
+		suggestAc = new AbortController();
+		const sig = suggestAc.signal;
+		// deezerSearchTopN never throws (returns [] on abort/non-ok/malformed JSON), so no
+		// try/catch is needed — a failure degrades silently to no suggestions.
+		void deezerSearchTopN(kw, SUGGEST_CAP, sig).then((hits: DeezerHit[]) => {
+			if (sig.aborted || kw !== q.trim()) return; // stale-query / aborted guard
+			suggestions = deriveSuggestions(hits, kw);
+		});
+	}, 300);
+
+	// oninput handler: clear + cancel when below the min length, else (re)schedule a fetch.
+	function onSuggestInput() {
+		const kw = q.trim();
+		if (kw.length < MIN_QUERY_LEN) {
+			fetchSuggestions.cancel();
+			suggestAc?.abort();
+			suggestions = [];
+			return;
+		}
+		fetchSuggestions(kw);
+	}
+
+	// Commit a suggestion: fill the input with its query text and run the full search.
+	function pickSuggestion(s: Suggestion) {
+		q = s.title; // both kinds fill the input with their `title` (song title / artist name)
+		inputFocused = false;
+		suggestions = [];
+		fetchSuggestions.cancel();
+		suggestAc?.abort();
+		run();
+	}
 
 	// kyf + ljl-followup: artist tiles row above the song list. Every UNIQUE artist that
 	// appears in the result set becomes a tile (no count threshold, no name-match filter, no
@@ -138,6 +190,11 @@
 		if (!kw) return;
 		ac?.abort();
 		moreAc?.abort(); // cancel any in-flight load-more from a previous query
+		// ql0: committing a search closes the typeahead — cancel a pending debounced fetch,
+		// abort any in-flight suggestion request, and clear the list.
+		fetchSuggestions.cancel();
+		suggestAc?.abort();
+		suggestions = [];
 		ac = new AbortController();
 		const myAc = ac; // capture for the onPartial stale-guard (survives a later ac swap)
 		// D-05: record the user-intent query on submit (even a zero-result one, so a
@@ -292,6 +349,7 @@
 		placeholder={t('search.placeholder')}
 		autocomplete="off"
 		autocapitalize="off"
+		oninput={onSuggestInput}
 		onfocus={() => (inputFocused = true)}
 		onblur={() => {
 			// Delay closing so a suggestion tap (mousedown→click) registers before blur
@@ -328,6 +386,37 @@
 						}}
 					>
 						<span class="suggest-q">{entry.query}</span>
+					</button>
+				</li>
+			{/each}
+		</ul>
+	</div>
+{/if}
+
+<!-- ql0: live typeahead suggestions while focused with ≥2 chars and ≥1 result. The gate is
+     mutually exclusive with the recent block above (recent requires q.trim()==='' ; this
+     requires length ≥ MIN_QUERY_LEN) so the two never co-render. -->
+{#if inputFocused && q.trim().length >= MIN_QUERY_LEN && suggestions.length > 0}
+	<div class="suggest">
+		<div class="suggest-head">
+			<span class="suggest-title">{t('search.suggestions')}</span>
+		</div>
+		<ul class="list">
+			{#each suggestions as s (s.key)}
+				<li>
+					<button
+						type="button"
+						class="row suggest-row"
+						onmousedown={(e) => e.preventDefault()}
+						onclick={() => pickSuggestion(s)}
+					>
+						<span class="suggest-kind" aria-hidden="true">{s.kind === 'artist' ? '♪' : '♫'}</span>
+						<span class="suggest-meta">
+							<span class="suggest-q">{names.dnTitle(s.title)}</span>
+							{#if s.kind === 'song' && s.artist}
+								<span class="suggest-sub">{names.dnArtist(s.artist)}</span>
+							{/if}
+						</span>
 					</button>
 				</li>
 			{/each}
@@ -450,6 +539,13 @@
 	.suggest-row { padding: 10px 8px; }
 	.suggest-q {
 		font-size: 14px; color: var(--color-text);
+		white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+	}
+	/* ql0: typeahead suggestion rows — a small kind glyph + title/artist stack. */
+	.suggest-kind { flex: none; width: 18px; text-align: center; color: var(--color-text-muted); font-size: 13px; }
+	.suggest-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+	.suggest-sub {
+		font-size: 12px; color: var(--color-text-muted);
 		white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 	}
 

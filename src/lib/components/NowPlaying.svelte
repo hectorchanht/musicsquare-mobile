@@ -106,8 +106,16 @@
 	const activeLine = $derived(activeIndexAndTime.idx);
 	const activeTime = $derived(activeIndexAndTime.maxTime);
 	let lyricsEl = $state<HTMLElement | null>(null);
+	// D-11/LYR-03: trailing-spacer height (px) ≈ half the visible band, set from the anchor
+	// $effect's visHeight. A REAL element growing scrollHeight is required because browsers clamp
+	// scrollTo to content bounds — without it the last lines pin to the bottom instead of centring.
+	// NO top spacer (D-12).
+	let spacerH = $state(0);
 	let autoScroll = $state(true);
 	let idleTimer: ReturnType<typeof setTimeout> | null = null;
+	// D-10/LYR-02: how long after manual scrolling STOPS before auto-scroll resumes. Raised from
+	// the old 600ms (which snapped the view back mid-read) to ~3s.
+	const RESUME_MS = 3000;
 	// Touch-presence auto-scroll: pause WHILE a finger is down (or wheel is active), resume a
 	// short grace after release.
 	//
@@ -143,13 +151,24 @@
 	}
 	function lyricsReleased() {
 		if (idleTimer) clearTimeout(idleTimer);
-		idleTimer = setTimeout(() => (autoScroll = true), 600);
+		idleTimer = setTimeout(() => (autoScroll = true), RESUME_MS);
 	}
 	function lyricsWheel() {
 		// No release event for a wheel — pause, then schedule the same grace resume.
 		autoScroll = false;
 		if (idleTimer) clearTimeout(idleTimer);
 		lyricsReleased();
+	}
+	// Pitfall 1 / D-10: iOS momentum scrolling keeps firing `scroll` events with NO further
+	// pointer or wheel events after the finger lifts — so a timer armed at pointerup/wheel would
+	// resume auto-scroll mid-glide and snap the view back. bumpResume re-arms the RESUME_MS timer
+	// on every scroll tick while suspended, so resume only fires ~3s after scrolling TRULY stops
+	// (momentum included). It is a no-op once auto-scroll is already on, so the anchor $effect's
+	// own programmatic smooth-scroll never re-suspends itself.
+	function bumpResume() {
+		if (autoScroll) return;
+		if (idleTimer) clearTimeout(idleTimer);
+		idleTimer = setTimeout(() => (autoScroll = true), RESUME_MS);
 	}
 	// D-01/D-02/D-03: tap any lyric line to seek there. seekFraction is the only seek API and
 	// already auto-plays when paused (D-03 free — no explicit play()). lineSeekFraction guards
@@ -197,6 +216,7 @@
 		const visTop = Math.max(cRect.top, 0);
 		const visBottom = Math.min(cRect.bottom, vh);
 		const visHeight = Math.max(0, visBottom - visTop);
+		spacerH = Math.round(visHeight / 2); // D-11: end spacer ≈ half the visible band → last line can center
 		const visTopWithin = visTop - cRect.top; // visible-band top, in container-local coords
 		const TOP_PAD = 12; // breathing room when top-pinned (closed)
 		const anchorWithin =
@@ -913,7 +933,7 @@
 			{:else if tab === 'lyrics'}
 				{#if lines.length}
 					{#if translating}<p class="tr-hint">{t('nowplaying.translating')}</p>{/if}
-					<div class="lyrics" role="group" aria-label={t('nowplaying.lyrics')} bind:this={lyricsEl} onpointerdown={lyricsTouched} onwheel={lyricsWheel}>
+					<div class="lyrics" role="group" aria-label={t('nowplaying.lyrics')} bind:this={lyricsEl} onpointerdown={lyricsTouched} onwheel={lyricsWheel} onscroll={bumpResume}>
 						{#each lines as l, i (i)}
 							{#if !(l.fromParen && settings.lyricsHideParenLines)}
 								{@const hideTrForLine = l.fromParen && settings.lyricsHideParenTranslation}
@@ -937,6 +957,11 @@
 								</p>
 							{/if}
 						{/each}
+						<!-- D-11/LYR-03: end spacer ≈ half the visible band so the LAST lines can scroll up to the
+						     vertical center in half AND full sheet modes (instead of pinning to the bottom). A real
+						     element is required — browsers clamp scrollTo to content bounds, so the spacer must grow
+						     scrollHeight. NO top spacer (D-12). -->
+						<div class="lyrics-end-spacer" style:height="{spacerH}px" aria-hidden="true"></div>
 					</div>
 				{:else}<p class="empty">{t('nowplaying.noLyrics')}</p>{/if}
 			{:else}
@@ -1127,6 +1152,10 @@
 	   reader can tell "this is the embedded-translation part" at a glance. */
 	.lyrics p.paren { font-size: calc(0.9rem * var(--fs-lyrics, 1)); opacity: 0.85; }
 	.lyrics .tr { display: block; font-size: 0.82em; font-weight: 400; color: var(--color-text-muted); margin-top: 2px; }
+	/* D-11/LYR-03: end spacer — height is set inline from spacerH (≈ half the visible band) so the
+	   last lines can reach the vertical center. flex-shrink:0 keeps it from collapsing inside the
+	   flex column. */
+	.lyrics-end-spacer { width: 100%; flex-shrink: 0; }
 	.tr-hint { text-align: center; font-size: 11px; color: var(--color-primary); margin: 0 0 6px; }
 	.empty { color: var(--color-text-muted); font-size: 14px; text-align: center; padding: 24px; }
 	.np-toast { position: absolute; left: 50%; transform: translateX(-50%); top: 72px; z-index: 60; background: rgba(0,0,0,0.75); color: #fff; padding: 8px 14px; border-radius: 999px; font-size: 13px; }

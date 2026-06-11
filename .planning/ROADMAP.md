@@ -455,7 +455,7 @@ Plans:
 
 **Wave 0**
 
-- [ ] 19-01-PLAN.md — Testable seams: pure gating helper (`track-menu-gate.ts`) + test, `'remix'` force-generate context (defaults + settings early-return) + settings/player tests, 3 i18n keys × 15 dicts + 15-locale parity test (MENU-01/02, QUEUE-04)
+- [x] 19-01-PLAN.md — Testable seams: pure gating helper (`track-menu-gate.ts`) + test, `'remix'` force-generate context (defaults + settings early-return) + settings/player tests, 3 i18n keys × 15 dicts + 15-locale parity test (MENU-01/02, QUEUE-04)
 
 **Wave 1** *(blocked on 19-01)*
 
@@ -578,7 +578,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 | 16. Playback Resilience Core | 3/3 | Complete    | 2026-06-10 |
 | 17. Up-Next Sourcing + Settings Plumbing | 4/4 | Complete    | 2026-06-10 |
 | 18. Sleep Timer | 3/3 | Complete    | 2026-06-11 |
-| 19. Track Menu Rework | 0/TBD | Not started | - |
+| 19. Track Menu Rework | 1/3 | In Progress|  |
 | 20. Now-Playing Surface & Gestures | 0/TBD | Not started | - |
 | 21. Search & Cover Pipeline Polish | 0/TBD | Not started | - |
 | 22. Lyrics Polish | 0/TBD | Not started | - |

@@ -112,7 +112,7 @@ Milestone v1.2. Music never stops + offline downloads + broad UX polish. Researc
 - [x] **QUEUE-01**: Playing a song from search builds up-next from genre-similar generation by default (search results are NOT appended), and the nowbar does not auto-expand to now-playing on track change
 - [x] **QUEUE-02**: When the up-next list is exhausted, more tracks are auto-generated based on the last played song — playback flows on without user action
 - [x] **QUEUE-03**: User can configure up-next sourcing per playback context (liked / search / downloads / etc.): "same list" vs "genre-generated"; global default = generated; defaults live in the config file
-- [ ] **QUEUE-04**: "Remix" action in the track menu plays the triggering track first and seeds a genre-generated up-next from it
+- [x] **QUEUE-04**: "Remix" action in the track menu plays the triggering track first and seeds a genre-generated up-next from it
 - [x] **QUEUE-05**: User can swipe-to-remove a track from up-next and clear the whole queue (AUD-02)
 
 ### Sleep Timer
@@ -129,8 +129,8 @@ Milestone v1.2. Music never stops + offline downloads + broad UX polish. Researc
 
 ### Track Menu Modal
 
-- [ ] **MENU-01**: The menu opens instantly with all action buttons visible while song data resolves in the background; actions that need resolved data are gated resolve-then-act (`detailsLoaded && uid`) and complete gracefully once data arrives
-- [ ] **MENU-02**: Header is 2 rows (song name / artist name) with marquee handling; like button sits top-right beside a close button; the skeleton matches the new shape
+- [x] **MENU-01**: The menu opens instantly with all action buttons visible while song data resolves in the background; actions that need resolved data are gated resolve-then-act (`detailsLoaded && uid`) and complete gracefully once data arrives
+- [x] **MENU-02**: Header is 2 rows (song name / artist name) with marquee handling; like button sits top-right beside a close button; the skeleton matches the new shape
 - [ ] **MENU-03**: Opening the menu by long-press leaves NO focus/active state on the menu item under the finger
 
 ### Now Playing
@@ -323,10 +323,10 @@ Each v1.2 requirement maps to exactly one phase (16–24). See `.planning/ROADMA
 | UX-07 | Phase 17 | Complete |
 | ENRICH-04 | Phase 17 | Complete |
 | TIMER-01 | Phase 18 | Complete |
-| MENU-01 | Phase 19 | Pending |
-| MENU-02 | Phase 19 | Pending |
+| MENU-01 | Phase 19 | Complete |
+| MENU-02 | Phase 19 | Complete |
 | MENU-03 | Phase 19 | Pending |
-| QUEUE-04 | Phase 19 | Pending |
+| QUEUE-04 | Phase 19 | Complete |
 | NP-01 | Phase 20 | Pending |
 | NP-02 | Phase 20 | Pending |
 | NP-03 | Phase 20 | Pending |

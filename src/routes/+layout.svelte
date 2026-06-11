@@ -32,13 +32,14 @@
 	<meta name="description" content={DESC} />
 	<link rel="canonical" href={canonical} />
 	<!-- Open Graph -->
-	<meta property="og:type" content="website" />
 	<meta property="og:site_name" content="openmusic" />
 	<!-- GLN-4: when the active page supplies its OWN og (page.data.og from a +page.ts load — shared
 	     song / artist / album), render only the page's og:*/twitter:* so crawlers see exactly one of
-	     each property with the page-specific value. The static site-default block below is the
-	     FALLBACK for routes without per-page OG. og:type/og:site_name above stay site-wide. -->
+	     each property with the page-specific value (PageOg.svelte sets og:type=music.song). The static
+	     site-default block below is the FALLBACK for routes without per-page OG. og:site_name stays
+	     site-wide; og:type is gated below so OG pages don't emit a duplicate. -->
 	{#if !page.data?.og}
+		<meta property="og:type" content="website" />
 		<meta property="og:title" content={TITLE} />
 		<meta property="og:description" content={DESC} />
 		<meta property="og:url" content={canonical} />

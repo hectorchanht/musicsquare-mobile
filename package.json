@@ -45,8 +45,10 @@
 	"dependencies": {
 		"@capacitor/app": "^8.1.0",
 		"@capacitor/core": "8.4.0",
+		"@capacitor/filesystem": "8.1.2",
 		"@capacitor/splash-screen": "^8.0.1",
 		"@capacitor/status-bar": "^8.0.2",
-		"@lucide/svelte": "^1.17.0"
+		"@lucide/svelte": "^1.17.0",
+		"capacitor-blob-writer": "1.1.20"
 	}
 }

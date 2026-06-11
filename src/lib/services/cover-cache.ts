@@ -39,6 +39,22 @@ export function artistCoverCacheKey(artist: string): string {
 	return 'artist:' + matchKey(artist, '');
 }
 
+/**
+ * The cache key for a UID-keyed cover (Phase 21 COVER-02, D-13 two-layer cache). Pinned form:
+ * `'uid:' + uid` where `uid` is the RAW COLON-delimited Track.uid exactly as makeUid emitted it
+ * (e.g. `'netease:12345'` → `'uid:netease:12345'`). Pitfall 7: do NOT transform the delimiter to a
+ * hyphen — the uid is stored verbatim so the same song's stable identity is the cache key. The
+ * `uid:` prefix is provably disjoint from both the track key (matchKey, never starts with `uid:`)
+ * and the `artist:` key, so all three families coexist in the same flat record.
+ *
+ * READ ORDER (D-13): a caller reads `getCachedCoverByUid(uid) ?? getCachedCover(artist, title)` —
+ * uid-first (the exact song), then the {artist,title} name layer as a fallback. On a SOLID resolve
+ * the caller writes BOTH layers (setCachedCoverByUid + setCachedCover) so either lookup hits next time.
+ */
+export function uidCoverCacheKey(uid: string): string {
+	return 'uid:' + uid;
+}
+
 /** Wipe the entire cover cache (used by the Data settings tab). Never throws. */
 export function clearCoverCache(): void {
 	try {
@@ -114,4 +130,22 @@ export function getCachedArtistCover(artist: string): string | null {
  */
 export function setCachedArtistCover(artist: string, url: string): void {
 	writeKey(artistCoverCacheKey(artist), url);
+}
+
+/**
+ * Return the cached cover URL for a Track uid (D-13 uid layer), or null when absent / on corrupt /
+ * unavailable storage. Pure read — never throws. The intended read order is uid-first then the
+ * name layer: `getCachedCoverByUid(uid) ?? getCachedCover(artist, title)`.
+ */
+export function getCachedCoverByUid(uid: string): string | null {
+	return readKey(uidCoverCacheKey(uid));
+}
+
+/**
+ * Cache a cover URL under the uid key (D-13 uid layer). No-op on an empty / whitespace-only url;
+ * swallows quota / unavailable-storage errors (reuses writeKey). On a SOLID resolve the caller
+ * writes BOTH this and setCachedCover so either lookup hits next time. Disjoint from track/artist keys.
+ */
+export function setCachedCoverByUid(uid: string, url: string): void {
+	writeKey(uidCoverCacheKey(uid), url);
 }

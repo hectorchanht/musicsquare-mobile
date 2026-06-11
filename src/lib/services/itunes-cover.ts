@@ -56,14 +56,14 @@ export function buildItunesSearchUrl(term: string, entity: string, attribute?: s
 }
 
 /**
- * Upgrade an iTunes `artworkUrl100` (…/100x100bb.jpg) to a high-res tile (…/600x600bb.jpg).
+ * Upgrade an iTunes `artworkUrl100` (…/100x100bb.jpg) to a sharp tile (…/1200x1200bb.jpg, D-11).
  * The replacement is DEFENSIVE: it only swaps when the `100x100bb` token is present; otherwise
  * the URL is returned unchanged. Empty / whitespace-only / null / undefined → null.
  */
 export function upgradeArtwork(url: string | null | undefined): string | null {
 	const clean = (url ?? '').trim();
 	if (!clean) return null;
-	return clean.includes('100x100bb') ? clean.replace('100x100bb', '600x600bb') : clean;
+	return clean.includes('100x100bb') ? clean.replace('100x100bb', '1200x1200bb') : clean;
 }
 
 /**

@@ -174,10 +174,11 @@ describe('scoreMatch — review regressions (CR-01/CR-02/WR-02/IN-01/IN-02)', ()
 describe('scoreMatch — 試聽 sub-60s preview penalty (D-03 / D-04)', () => {
 	const query = { artist: 'X', title: 'Song' };
 
-	it('D-03: an undefined-duration candidate scores IDENTICALLY with and without a ctx', () => {
-		const cand = mk('netease', 'u', 'X', { title: 'Song' }); // duration undefined
-		const ctx = computeSetContext([cand], 'Song');
-		expect(scoreMatch(query, cand, ctx)).toBe(scoreMatch(query, cand));
+	it('D-03: an undefined-duration candidate is NOT penalized (== an identical full-length one)', () => {
+		const undef = mk('netease', 'u', 'X', { title: 'Song' }); // duration undefined
+		const full = mk('qq', 'f', 'X', { title: 'Song', duration: 223 }); // full track
+		// neither is a sub-60s clip → identical base score; the unknown duration must not lose points
+		expect(scoreMatch(query, undef)).toBe(scoreMatch(query, full));
 	});
 
 	it('D-03: a duration=0 candidate is NOT penalized (0 = unknown)', () => {

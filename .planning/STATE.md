@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Resilient Playback & UX Polish
 status: executing
-stopped_at: Phase 23 context gathered
-last_updated: "2026-06-11T18:11:39.252Z"
-last_activity: 2026-06-11 -- Phase 22 execution started
+stopped_at: Phase 23 UI-SPEC approved
+last_updated: "2026-06-11T19:18:17.761Z"
+last_activity: 2026-06-11 -- Phase 23 planning complete
 progress:
   total_phases: 10
   completed_phases: 6
-  total_plans: 30
+  total_plans: 38
   completed_plans: 26
   percent: 60
 ---
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-06-10)
 
 Phase: 22 (lyrics-polish) — EXECUTING
 Plan: 1 of 2
-Status: Executing Phase 22
-Last activity: 2026-06-11 -- Phase 22 execution started
+Status: Ready to execute
+Last activity: 2026-06-11 -- Phase 23 planning complete
 Next: /gsd:verify-work phase 19 (device-pass the two non-node-testable contracts — MENU-02 marquee re-measure + MENU-03 stuck-state — before sign-off)
 
 ## Performance Metrics
@@ -207,6 +207,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-11T18:11:39.244Z
-Stopped at: Phase 23 context gathered
+Last session: 2026-06-11T18:40:46.858Z
+Stopped at: Phase 23 UI-SPEC approved
 Resume: plan Phase 16 (`/gsd:plan-phase 16`). Phase 16 is the resilience-core dependency root; everything else builds on its `queueContext` / 2-state repeat / skip-loop guard.

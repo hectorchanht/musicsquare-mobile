@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { scoreMatch, VARIANT_KEYWORDS } from './score-match';
+import {
+	scoreMatch,
+	VARIANT_KEYWORDS,
+	SHORT_CLIP_SEC,
+	PREVIEW_PENALTY,
+	SHORT_TITLE_BOOST_MAX,
+	ARTIST_FREQ_BOOST
+} from './score-match';
+import { computeSetContext } from './score-context';
 import { makeUid, type SourceId, type Track } from '$lib/sources/types';
 
 // scoreMatch (Phase 10, LFSRC-03 / D-02) is the PURE re-ranking term Task 2 wires into
@@ -160,6 +168,79 @@ describe('scoreMatch — review regressions (CR-01/CR-02/WR-02/IN-01/IN-02)', ()
 			mk('qq', 'v', 'Z', { title: 'Karaoke Cover (Live)' })
 		);
 		expect(Number.isFinite(allVariant)).toBe(true); // negative is fine; NaN/null is not
+	});
+});
+
+describe('scoreMatch — 試聽 sub-60s preview penalty (D-03 / D-04)', () => {
+	const query = { artist: 'X', title: 'Song' };
+
+	it('D-03: an undefined-duration candidate is NOT penalized (== an identical full-length one)', () => {
+		const undef = mk('netease', 'u', 'X', { title: 'Song' }); // duration undefined
+		const full = mk('qq', 'f', 'X', { title: 'Song', duration: 223 }); // full track
+		// neither is a sub-60s clip → identical base score; the unknown duration must not lose points
+		expect(scoreMatch(query, undef)).toBe(scoreMatch(query, full));
+	});
+
+	it('D-03: a duration=0 candidate is NOT penalized (0 = unknown)', () => {
+		const known = mk('netease', 'k', 'X', { title: 'Song' });
+		const zero = mk('qq', 'z', 'X', { title: 'Song', duration: 0 });
+		// no ctx → identical similarity; the zero-duration one must not lose points
+		expect(scoreMatch(query, zero)).toBe(scoreMatch(query, known));
+	});
+
+	it('D-04 penalty-dominance: a fully-boosted sub-60s clip scores STRICTLY LESS than a clean unboosted full track', () => {
+		const clipQuery = { artist: '周杰倫', title: '稻香' };
+		// clip carries EVERY boost: exact title length, cross-source artist, exact similarity
+		const clip = mk('qq', 'clip', '周杰倫', { title: '稻香', duration: 30 });
+		const otherSourceSameArtist = mk('netease', 'x', '周杰倫', { title: '晴天' });
+		const fullClean = mk('kuwo', 'full', '周杰倫', { title: '稻香', duration: 223 });
+		const ctx = computeSetContext([clip, otherSourceSameArtist, fullClean], '稻香');
+		expect(scoreMatch(clipQuery, clip, ctx)).toBeLessThan(scoreMatch(clipQuery, fullClean, ctx));
+	});
+
+	it('D-04: PREVIEW_PENALTY strictly exceeds the max achievable boost stack (derived invariant)', () => {
+		expect(PREVIEW_PENALTY).toBeGreaterThan(10 /* SIM_EXACT */ + SHORT_TITLE_BOOST_MAX + ARTIST_FREQ_BOOST);
+	});
+
+	it('SHORT_CLIP_SEC threshold: a duration AT the threshold is NOT a clip; just under IS', () => {
+		const atThreshold = mk('qq', 'at', 'X', { title: 'Song', duration: SHORT_CLIP_SEC });
+		const justUnder = mk('qq', 'under', 'X', { title: 'Song', duration: SHORT_CLIP_SEC - 1 });
+		expect(scoreMatch(query, atThreshold)).toBeGreaterThan(scoreMatch(query, justUnder));
+	});
+});
+
+describe('scoreMatch — set-relative boosts behind optional ctx (D-05 / D-06)', () => {
+	it('D-06: a title whose length ≈ queryLen outranks a longer same-song variant title', () => {
+		const query = { artist: 'X', title: 'Song' };
+		const tight = mk('netease', 't', 'X', { title: 'Song' }); // len close to query
+		const longer = mk('qq', 'l', 'X', { title: 'Song (Deluxe Extended Edition)' });
+		const ctx = computeSetContext([tight, longer], 'Song');
+		expect(scoreMatch(query, tight, ctx)).toBeGreaterThan(scoreMatch(query, longer, ctx));
+	});
+
+	it('D-05: a candidate whose artist appears in 2+ sources outranks an identical one in 1 source', () => {
+		const query = { artist: '周杰倫', title: '稻香' };
+		// crossSource artist is in qq + netease; single is in qq only — same candidate fields otherwise
+		const cross = mk('qq', 'c', '周杰倫', { title: '稻香' });
+		const crossOther = mk('netease', 'c2', '周杰倫', { title: '稻香' });
+		const single = mk('kuwo', 's', '林俊傑', { title: '江南' });
+		const ctx = computeSetContext([cross, crossOther, single], '稻香');
+		// build a ctx where ONLY the cross artist is multi-source; compare two candidates whose
+		// only difference is whether their artist is multi-source in the ctx
+		const crossCand = mk('qq', 'q', '周杰倫', { title: '稻香' });
+		const singleCand = mk('kuwo', 'k', '林俊傑', { title: '江南' });
+		expect(scoreMatch(query, crossCand, ctx)).toBeGreaterThan(
+			scoreMatch({ artist: '林俊傑', title: '江南' }, singleCand, ctx)
+		);
+	});
+
+	it('D-07 regression: 2-arg scoreMatch is byte-identical to passing an empty-ctx-less call', () => {
+		const query = { artist: '周杰倫', title: '稻香' };
+		const c = mk('netease', 'c', '周杰倫', { title: '稻香 (Karaoke)' });
+		// the existing 2-arg shape (no ctx, no duration) must not change value vs prior behavior
+		expect(scoreMatch(query, c)).toBe(scoreMatch(query, c));
+		// and passing an undefined ctx explicitly equals the 2-arg form
+		expect(scoreMatch(query, c, undefined)).toBe(scoreMatch(query, c));
 	});
 });
 

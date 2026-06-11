@@ -51,6 +51,11 @@ export interface Track {
 	jooxQualityText?: string | null;
 	pay?: string | null; // QQ paywall signal
 	pageUrl?: string; // QQ
+	/** Track length in SECONDS. `undefined` means the source did NOT report a duration —
+	 *  NEVER penalized by scoreMatch (D-03 unknown-neutrality). Additive/optional like the
+	 *  Last.fm fields below; NOT in any serialize whitelist. QQ populates it from the detail
+	 *  body's `song_play_time` (search rows carry no duration). */
+	duration?: number;
 	/** 5sing — `fc` (翻唱/cover) | `bz` (伴奏/karaoke) | `yc` (原创/original).
 	 *  Identity-critical: songid is NOT unique across songtypes, so the uid folds songtype
 	 *  into the songid via `${songtype}-${songid}` (hvu Pitfall, mirrors JOOX Pitfall 4). */

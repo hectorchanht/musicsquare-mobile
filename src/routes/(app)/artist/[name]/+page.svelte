@@ -373,7 +373,7 @@
 			<ul class="list">
 				{#each songs.slice(0, 30) as track, i (track.uid)}
 					<li>
-						<button class="row" use:longpress onlongpress={() => { menuTrack = track; menuOpen = true; }} onclick={() => { player.setQueue(songs, 'artist'); player.play(track); }}>
+						<button class="row" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); menuTrack = track; menuOpen = true; }} onclick={() => { player.setQueue(songs, 'artist'); player.play(track); }}>
 							<span class="rank">{i + 1}</span>
 							<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
 							<span class="meta">
@@ -467,7 +467,9 @@
 	   in the markup are the only per-file pieces — the global rule animates them. */
 	.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 	.row { width: 100%; text-align: left; background: none; border: none; padding: 6px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 12px; }
-	.row:hover { background: var(--color-surface); }
+	/* MENU-03 / D-12: hover-capable devices only — touch otherwise latches this :hover
+	   background on a row under a held finger while the track menu opens. */
+	@media (hover: hover) { .row:hover { background: var(--color-surface); } }
 	.rank { width: 18px; text-align: center; color: var(--color-text-muted); font-size: 13px; flex: none; }
 	.art { width: 44px; height: 44px; border-radius: 6px; background-size: cover; background-position: center; flex: none; }
 	.meta { flex: 1; display: flex; flex-direction: column; min-width: 0; }

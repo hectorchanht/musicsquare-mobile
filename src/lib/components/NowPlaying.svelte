@@ -771,7 +771,7 @@
 								class:over={i === dragOver && i !== dragFrom}
 								style:transform={i === dragFrom && rowDragY ? `translateY(${rowDragY}px)` : undefined}
 							>
-								<button class="row q-row" class:playing={track.uid === player.current?.uid} use:swipeRemove={{ onremove: () => player.removeFromQueue(track.uid), enabled: track.uid !== player.current?.uid }} use:longpress onlongpress={() => openMenu(track)} onclick={() => player.play(track, { fresh: true })}>
+								<button class="row q-row" class:playing={track.uid === player.current?.uid} use:swipeRemove={{ onremove: () => player.removeFromQueue(track.uid), enabled: track.uid !== player.current?.uid }} use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => player.play(track, { fresh: true })}>
 									<span class="r-title">{names.dnTitle(track.title)}</span>
 									<span class="r-artist">{names.dnArtist(track.artist)}</span>
 								</button>
@@ -811,7 +811,7 @@
 				{#if related.length}
 					<ul class="list">
 						{#each related as track (track.uid)}
-							<li><button class="row" use:longpress onlongpress={() => openMenu(track)} onclick={() => player.play(track, { fresh: true })}><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-artist">{names.dnArtist(track.artist)}</span></button></li>
+							<li><button class="row" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => player.play(track, { fresh: true })}><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-artist">{names.dnArtist(track.artist)}</span></button></li>
 						{/each}
 					</ul>
 				{:else}<p class="empty">{t('nowplaying.loadingRelated')}</p>{/if}
@@ -901,7 +901,9 @@
 	.panel { flex: 1; overflow-y: auto; }
 	.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 	.row { width: 100%; text-align: left; background: none; border: none; padding: 8px 6px; border-radius: 8px; cursor: pointer; display: flex; flex-direction: column; }
-	.row:hover { background: var(--color-surface); }
+	/* MENU-03 / D-12: hover-capable devices only — touch otherwise latches this :hover
+	   background on a queue/related row under a held finger while the track menu opens. */
+	@media (hover: hover) { .row:hover { background: var(--color-surface); } }
 	.row.playing { background: rgba(124,92,255,0.15); }
 	/* Queue rows: play-button + far-right grip side by side. */
 	.list li { display: flex; align-items: center; gap: 2px; }

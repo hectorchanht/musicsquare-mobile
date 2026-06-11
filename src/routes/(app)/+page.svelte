@@ -645,7 +645,7 @@
 		<!-- D-06 fallback: the random buildDiversePicks grid (real Tracks → tap-to-play). -->
 		<div class="grid">
 			{#each fallbackSongs as track (track.uid)}
-				<button class="tile" use:longpress onlongpress={() => { menuTrack = track; menuOpen = true; }} onclick={() => { player.setQueue(fallbackSongs, 'home-discovery'); player.play(track); }}>
+				<button class="tile" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); menuTrack = track; menuOpen = true; }} onclick={() => { player.setQueue(fallbackSongs, 'home-discovery'); player.play(track); }}>
 					<div class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track.uid)}></div>
 					{#if track.qualityLabel || track.quality}<span class="q">{track.qualityLabel ?? track.quality}</span>{/if}
 					<div class="scrim"></div>
@@ -684,7 +684,7 @@
 		<div class="subhead">{t('home.topHits')}</div>
 		<div class="albumrow" use:dragScroll>
 			{#each topHits as item (item.artist + ' ' + item.title)}
-				<button class="album" use:longpress onlongpress={() => tileMenu(item)} onclick={() => playStub(item)}>
+				<button class="album" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); tileMenu(item); }} onclick={() => playStub(item)}>
 					<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
 						{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
 					</span>
@@ -718,7 +718,7 @@
 		<div class="subhead">{t('home.tagShelf', { tag: shelf.label })}</div>
 		<div class="albumrow" use:dragScroll>
 			{#each shelf.tracks as item (item.artist + ' ' + item.title)}
-				<button class="album" use:longpress onlongpress={() => tileMenu(item)} onclick={() => playStub(item)}>
+				<button class="album" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); tileMenu(item); }} onclick={() => playStub(item)}>
 					<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
 						{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
 					</span>
@@ -735,7 +735,7 @@
 		<div class="subhead">{t('home.countryShelf', { country: shelf.label })}</div>
 		<div class="albumrow" use:dragScroll>
 			{#each shelf.tracks as item (item.artist + ' ' + item.title)}
-				<button class="album" use:longpress onlongpress={() => tileMenu(item)} onclick={() => playStub(item)}>
+				<button class="album" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); tileMenu(item); }} onclick={() => playStub(item)}>
 					<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
 						{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
 					</span>
@@ -749,7 +749,7 @@
 
 {#snippet librarySongRow(track: Track)}
 	{@const rowCover = track.cover ?? getCachedCover(track.artist, track.title)}
-	<button class="album" use:longpress onlongpress={() => { menuTrack = track; menuOpen = true; }} onclick={() => player.play(track, { fresh: true })}>
+	<button class="album" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); menuTrack = track; menuOpen = true; }} onclick={() => player.play(track, { fresh: true })}>
 		<span class="al-cover" style:background-image={rowCover ? `url(${rowCover})` : fallbackCover(track.uid)}>
 			{#if rowCover}<img class="al-cover-img" src={rowCover} loading="lazy" alt="" onerror={hideOnError} />{/if}
 		</span>
@@ -842,7 +842,9 @@
 	   scrollWidth>clientWidth never tripped). Pinning min-width:0 holds the 130px basis, so the
 	   labels clip to the cover width and the marquee correctly detects + scrolls the overflow. */
 	.album { flex: 0 0 calc(130px * var(--cover-scale, 1)); min-width: 0; max-width: calc(130px * var(--cover-scale, 1)); background: none; border: none; padding: 0; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 4px; transition: transform 0.12s ease; }
-	.album:active { transform: scale(0.96); }
+	/* MENU-03 / D-12: hover-capable devices only — a touch long-press otherwise latches the
+	   :active scale under the held finger while the track menu opens. */
+	@media (hover: hover) { .album:active { transform: scale(0.96); } }
 	.al-cover { position: relative; overflow: hidden; width: calc(130px * var(--cover-scale, 1)); height: calc(130px * var(--cover-scale, 1)); border-radius: 10px; background-size: cover; background-position: center; background-color: var(--color-surface-2); }
 	.al-cover.round { border-radius: 50%; }
 	/* w87: COMPACT density — tighter tiles + gaps so more fit per shelf row. Comfortable
@@ -870,7 +872,8 @@
 		overflow: hidden; cursor: pointer; border: none; padding: 0; background: var(--color-surface-2);
 		transition: transform 0.12s ease;
 	}
-	.tile:active { transform: scale(0.96); }
+	/* MENU-03 / D-12: hover-capable devices only (see .album:active above). */
+	@media (hover: hover) { .tile:active { transform: scale(0.96); } }
 	.art { position: absolute; inset: 0; background-size: cover; background-position: center; }
 	.scrim { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 55%); }
 	.label { position: absolute; left: 7px; right: 7px; bottom: 6px; text-align: left; }

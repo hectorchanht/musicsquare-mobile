@@ -381,7 +381,7 @@
 	<ul class="list">
 		{#each results as t (t.uid)}
 			<li>
-				<button class="row" use:longpress onlongpress={() => { menuTrack = t; menuOpen = true; }} onclick={() => { player.setQueue(results, 'search'); player.play(t); }}>
+				<button class="row" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); menuTrack = t; menuOpen = true; }} onclick={() => { player.setQueue(results, 'search'); player.play(t); }}>
 					<span class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></span>
 					<span class="meta">
 						<span class="r-title">{names.dnTitle(t.title)}</span>
@@ -458,7 +458,9 @@
 		width: 100%; display: flex; align-items: center; gap: 12px; padding: 8px; background: none;
 		border: none; border-radius: 10px; cursor: pointer; text-align: left; transition: background 0.12s ease;
 	}
-	.row:hover { background: var(--color-surface); }
+	/* MENU-03 / D-12: hover-capable devices only — touch otherwise latches this :hover
+	   background on a row under a held finger while the track menu opens. */
+	@media (hover: hover) { .row:hover { background: var(--color-surface); } }
 	.art { width: 48px; height: 48px; border-radius: 8px; background-size: cover; background-position: center; flex: none; }
 	.meta { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 	.r-title { font-size: calc(14px * var(--fs-title, 1)); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

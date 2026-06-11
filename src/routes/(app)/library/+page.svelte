@@ -155,7 +155,7 @@
 		<ul class="list" class:editing={editMode}>
 			{#each library.liked as track (track.uid)}
 				<li>
-					<button class="row" class:edit-row={editMode} use:longpress onlongpress={() => openMenu(track)} onclick={() => rowAction(track, library.liked)}>
+					<button class="row" class:edit-row={editMode} use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => rowAction(track, library.liked)}>
 						<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
 						<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
 						{#if editMode}<Trash2 size={16} />{:else}<Play size={16} />{/if}
@@ -180,7 +180,7 @@
 					<ul class="list">
 						{#each pl.tracks as track (track.uid)}
 							<li>
-								<button class="row" class:edit-row={editMode} use:longpress onlongpress={() => openMenu(track)} onclick={() => rowAction(track, pl.tracks, pl.id)}>
+								<button class="row" class:edit-row={editMode} use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => rowAction(track, pl.tracks, pl.id)}>
 									<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
 									<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
 									{#if editMode}<Trash2 size={16} />{:else}<Play size={16} />{/if}
@@ -197,7 +197,7 @@
 		<ul class="list">
 			{#each library.downloads as track (track.uid)}
 				<li>
-					<button class="row" class:edit-row={editMode} use:longpress onlongpress={() => openMenu(track)} onclick={() => rowAction(track, library.downloads)}>
+					<button class="row" class:edit-row={editMode} use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => rowAction(track, library.downloads)}>
 						<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
 						<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
 						{#if editMode}<Trash2 size={16} />{:else}<Play size={16} />{/if}
@@ -228,7 +228,7 @@
 			{#each history.entries as entry (entry.uid)}
 				{@const track = entry as Track}
 				<li>
-					<button class="row" use:longpress onlongpress={() => openMenu(track)} onclick={() => playEntry(track)}>
+					<button class="row" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => playEntry(track)}>
 						<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
 						<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
 						<Play size={16} />
@@ -256,7 +256,9 @@
 	.tabs button.active { background: var(--color-primary); color: #fff; border-color: transparent; }
 	.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 	.row { width: 100%; text-align: left; background: none; border: none; padding: 8px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 12px; color: var(--color-text); }
-	.row:hover { background: var(--color-surface); }
+	/* MENU-03 / D-12: hover-capable devices only — touch otherwise latches this :hover
+	   background on a row under a held finger while the track menu opens. */
+	@media (hover: hover) { .row:hover { background: var(--color-surface); } }
 	.art { width: 48px; height: 48px; border-radius: 8px; background-size: cover; background-position: center; flex: none; }
 	.meta { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 	.r-title { font-size: calc(14px * var(--fs-title, 1)); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

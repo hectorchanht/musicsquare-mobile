@@ -481,7 +481,7 @@
 	<ul class="list">
 		{#each tracks as track, i (i)}
 			<li>
-				<button class="row" use:longpress onlongpress={() => openMenu(track)} onclick={() => playStub(track)}>
+				<button class="row" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => playStub(track)}>
 					<span class="rank">{i + 1}</span>
 					<span class="art" style:background-image={fallbackCover(track.artist + track.title)}></span>
 					<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
@@ -533,7 +533,9 @@
 	.muted { color: var(--color-text-muted); font-size: 14px; }
 	.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 	.row { width: 100%; text-align: left; background: none; border: none; padding: 6px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 12px; color: var(--color-text); }
-	.row:hover { background: var(--color-surface); }
+	/* MENU-03 / D-12: hover-capable devices only — touch otherwise latches this :hover
+	   background on a row under a held finger while the track menu opens. */
+	@media (hover: hover) { .row:hover { background: var(--color-surface); } }
 	.rank { width: 18px; text-align: center; color: var(--color-text-muted); font-size: 13px; flex: none; }
 	.art { width: 44px; height: 44px; border-radius: 6px; background-size: cover; background-position: center; flex: none; }
 	.meta { display: flex; flex-direction: column; min-width: 0; flex: 1; }

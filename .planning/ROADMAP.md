@@ -541,7 +541,11 @@ Plans:
   4. On CN LRCs where translation lines precede originals, the original line is highlighted as current (ordering bug fixed)
   5. "Hide parenthesised translations" handles a wider set of bracket types and never drops a line containing original lyrics — only the bracketed translation content is hidden
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 22-01-PLAN.md — Pure lrc.ts: dominantScript + reorderPairs + widened script-aware splitParenLines + lineSeekFraction, with fixtures (LYR-04, LYR-05, LYR-01 seek math)
+- [ ] 22-02-PLAN.md — NowPlaying.svelte: compose parse→reorder→split, per-line tap-to-seek, ~3s momentum-safe resume, end spacer + device checkpoint (LYR-01, LYR-02, LYR-03)
 **UI hint**: yes
 **Research flag**: LOW — pure logic with an existing test file (`lrc.test.ts`); touch-suspend needs live confirmation.
 

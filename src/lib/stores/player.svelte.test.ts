@@ -1374,4 +1374,84 @@ describe('sleep timer expiry — Phase-18 blocker (never enters the failure mach
 			vi.useRealTimers();
 		}
 	});
+
+	it('CR-01: the timeupdate firehose (many fires across the fade) does NOT restart the fade, re-probe, or degrade the restored volume', () => {
+		vi.useFakeTimers();
+		try {
+			// Wrap `volume` in a getter/setter so we can OBSERVE every write. canFadeVolume's probe
+			// slams volume to 0 then restores; if expireSleepTimer re-entered each timeupdate it would
+			// re-run that probe (a 0-write) mid-fade. We record the writes to prove it runs once.
+			// `volume` already exists on makeSleepAudio()'s type, so redefining it is type-safe.
+			const audio = makeSleepAudio();
+			let _vol = 1;
+			const volumeWrites: number[] = [];
+			Object.defineProperty(audio, 'volume', {
+				get: () => _vol,
+				set: (v: number) => {
+					_vol = v;
+					volumeWrites.push(v);
+				},
+				configurable: true
+			});
+			player.attach(audio as unknown as HTMLAudioElement);
+			sleepTimer.set('minutes', 5);
+			sleepTimer.deadline = Date.now() - 1; // deadline in the past for the whole fade window
+
+			// Fire timeupdate repeatedly across the fade, advancing fake timers between fires so the
+			// fade interval ticks AND the listener keeps seeing an expired minutes timer (production
+			// fires ~4×/sec). The re-entry guard must keep the fade single-flight.
+			for (let i = 0; i < 25; i++) {
+				audio.fire('timeupdate');
+				vi.advanceTimersByTime(400);
+			}
+			// Drain any remaining fade so finishExpiry() runs.
+			vi.advanceTimersByTime(10_200);
+
+			// Paused exactly once — re-entry would have armed multiple fades → multiple finishExpiry.
+			expect(audio.pause).toHaveBeenCalledTimes(1);
+			// Restored to the ORIGINAL 1.0, not a degraded mid-fade snapshot (preFadeVolume read once).
+			expect(audio.volume).toBe(1);
+			expect(sleepTimer.active).toBe(false);
+			expect(player.next).not.toHaveBeenCalled();
+			// canFadeVolume's probe writes 0 once (at fade start); the fade ramp also lands on 0 at
+			// the end — so a healthy single fade has at most 2 zero-writes. The re-entry bug re-ran
+			// the probe on EVERY timeupdate (≥25 here), so a small bound proves the guard held.
+			expect(volumeWrites.filter((v) => v === 0).length).toBeLessThanOrEqual(2);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('WR-02: a natural `ended` in repeat-one DURING a minutes fade finishes the expiry — no loop, volume restored, timer cancelled', () => {
+		vi.useFakeTimers();
+		try {
+			const audio = makeSleepAudio();
+			audio.currentTime = 73; // non-zero so a suppressed repeat-one rewind (→0) is observable
+			player.attach(audio as unknown as HTMLAudioElement);
+			player.repeatMode = 'one';
+			sleepTimer.set('minutes', 5);
+			sleepTimer.deadline = Date.now() - 1;
+
+			audio.fire('timeupdate'); // arms the fade interval (fade in flight, audio still playing)
+			vi.advanceTimersByTime(400); // partway through — volume now < 1
+			expect(audio.volume).toBeLessThan(1);
+			audio.play.mockClear();
+
+			// Track reaches its natural end mid-fade. decideEndedAction('minutes','one') is
+			// 'repeat-rewind', but the fade-in-flight guard must finish the expiry instead of looping.
+			audio.fire('ended');
+
+			expect(audio.play).not.toHaveBeenCalled(); // did NOT loop/replay
+			expect(audio.currentTime).toBe(73); // repeat-one would have set currentTime=0 — it didn't
+			expect(audio.pause).toHaveBeenCalledTimes(1); // finishExpiry paused once
+			expect(audio.volume).toBe(1); // pre-fade volume restored (not a degraded value)
+			expect(sleepTimer.active).toBe(false); // timer cancelled
+			expect(player.next).not.toHaveBeenCalled();
+			// The fade is disarmed: advancing past the original FADE_MS does not pause again.
+			vi.advanceTimersByTime(10_200);
+			expect(audio.pause).toHaveBeenCalledTimes(1);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 });

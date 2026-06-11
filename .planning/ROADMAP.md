@@ -568,7 +568,15 @@ Plans:
   4. Any homepage section can be set to compact mode — rows of 4 with smaller covers, still horizontally scrollable — per section in settings; an option icon (and long-press) on a compact row opens the track menu
   5. Each section title has a right-arrow that navigates to a dedicated grid/chart page (sections mirroring library content redirect to the matching library tab); albums with no tracks are hidden from the artist page
 
-**Plans**: TBD
+**Plans**: 8 plans
+- [ ] 23-01-PLAN.md — Feedback primitives: global toast store + ToastHost + inflightGuard + haptics (D-15/16/17)
+- [ ] 23-02-PLAN.md — Gesture/a11y primitives: swipeAction (generalize swipeRemove) + focusTrap (D-02, UX-06)
+- [ ] 23-03-PLAN.md — Home per-section density plumbing: resolveSectionDensity + settings (D-07)
+- [ ] 23-04-PLAN.md — Compact homepage: CompactRow/CompactPager + compact-by-default + section-title nav + settings UI (HOME-02/03/04)
+- [ ] 23-05-PLAN.md — Row swipe-actions + library aria-pressed/deep-link + album skeleton (UX-04/05/06, D-01/D-13)
+- [ ] 23-06-PLAN.md — Chart pages: /charts/top, /charts/tags/[tag], /charts/countries/[country] (HOME-04, D-11/D-12)
+- [ ] 23-07-PLAN.md — Trackless-album gate + Deezer artist-albums proxy (ART-01, D-18/D-19)
+- [ ] 23-08-PLAN.md — A11y/feedback finish: toast migration + aria-pressed + focusTrap on NowPlaying/TrackMenu/SleepTimerSheet (UX-02/05/06)
 **UI hint**: yes
 **Research flag**: LOW — cross-cutting polish over existing components; no new infrastructure.
 

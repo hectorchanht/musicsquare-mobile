@@ -412,9 +412,10 @@
 		if (!dragArmed) return;
 		const dy = e.clientY - startY;
 		const dx = e.clientX - startX;
+		// Axis-dominance claim (D-05): vertical wins ONLY when `dy > DRAG_SLOP && Math.abs(dy) > Math.abs(dx)`
+		// — a horizontal-dominant drag falls through (no capture) so coverSwipe owns the carousel; never
+		// captures on pointerdown, so a sub-slop tap reaches the cover's onclick (Pitfall 7 invariant).
 		if (!dragging) {
-			// Claim the gesture only once it's clearly a downward vertical drag — protects
-			// taps + horizontal gestures (marquee scroll on long titles, future swipe).
 			if (dy > DRAG_SLOP && Math.abs(dy) > Math.abs(dx)) {
 				dragging = true;
 				(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);

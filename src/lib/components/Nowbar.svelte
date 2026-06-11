@@ -120,13 +120,13 @@
         align-items: center;
         gap: 10px;
         padding: 8px 12px;
-        background: rgba(40, 32, 60, 0.55);
+        /*background: rgba(40, 32, 60, 0.55);*/
         backdrop-filter: blur(14px);
         -webkit-backdrop-filter: blur(14px);
         /* Top + sides only — no bottom border so there's no double divider against the tabbar. */
-        border-width: 1px 1px 0 1px;
+        /*border-width: 1px 1px 0 1px;
         border-style: solid;
-        border-color: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.08);*/
         margin: 0 auto;
         z-index: 20;
         overflow: hidden;
@@ -169,6 +169,8 @@
         right: auto;
         bottom: auto;
         margin: 0;
+        padding-left: 0;
+        padding-right: 0;
         max-width: none;
         z-index: 4;
     }

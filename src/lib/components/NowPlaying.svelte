@@ -19,6 +19,7 @@
 	import { longpress } from '$lib/actions/longpress';
 	import { marquee } from '$lib/actions/marquee';
 	import { swipeRemove } from '$lib/actions/swipeRemove';
+	import { coverSwipe } from '$lib/actions/coverSwipe';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import Nowbar from '$lib/components/Nowbar.svelte';
 	import { parseLRC, splitParenLines, type LyricLine } from '$lib/services/lrc';
@@ -307,6 +308,33 @@
 	// Effective now-playing cover: the swapped hi-res Last.fm art when adopted, else
 	// the source cover (never a placeholder).
 	const effectiveCover = $derived(swappedCover ?? player.current?.cover ?? null);
+
+	// ---- Cover carousel (NP-01 / D-01) ----
+	// A rigid 3-cell strip [prev | current | next] laid out edge-to-edge (no gutter): each cell is
+	// `position:absolute` at left -100% / 0 / +100% so the strip's RESTING transform is translateX(0)
+	// (the current cell fills the cover). use:coverSwipe is attached to the strip element itself, so
+	// the action's own live `translateX(dx)` IS the 1:1 lockstep follow (UI-SPEC §1) — no separate
+	// transform to drive; ondrag is still wired (below) only to expose the live dx if needed and to
+	// keep the strip's CSS commit-settle transition `transform 0.32s cubic-bezier(.22,1,.36,1)` in
+	// sync (it is overridden to `none` by the action while dragging, then restored on release).
+	//
+	// Neighbors are derived from the PUBLIC player.queue by uid (indexOf is private in the store),
+	// mirroring the PATTERNS neighbor-lookup. On commit the coverSwipe action calls player.prev()/
+	// next() (D-03 — NO new advance fn); the store swap re-derives ci/prevCover/nextCover and the
+	// strip repaints the committed neighbor as the new current cell.
+	const ci = $derived(player.queue.findIndex((tk) => tk.uid === player.current?.uid));
+	const prevCover = $derived(ci > 0 ? player.queue[ci - 1] : null);
+	const nextCover = $derived(ci >= 0 && ci + 1 < player.queue.length ? player.queue[ci + 1] : null);
+	// hasPrev is false EXACTLY at the true boundary: index 0 (no prev neighbor). player.prev() itself
+	// restarts the song when currentTime > 3, so a non-boundary prev is always safe to fire; the only
+	// case that must rubber-band (D-02) is prev on index 0 (where prevCover === null). hasNext stays
+	// true — ensureAhead() keeps a neighbor, so next rarely resists (nextCover is almost always set).
+	const hasPrevNeighbor = $derived(prevCover !== null && ci !== 0);
+	let coverDragX = $state(0); // live finger dx mirrored from the action's ondrag (debug/extension hook)
+	// Cell background: current cell uses the effective (possibly Last.fm-swapped) cover; the prev/next
+	// neighbors use their own source cover (or the deterministic gradient fallback). null → 'none'.
+	const cellBg = (tk: Track | null) =>
+		tk ? (tk.cover ? `url(${tk.cover})` : fallbackCover(tk)) : 'none';
 
 	function openArtist() {
 		if (player.current) {
@@ -691,14 +719,51 @@
 		onpointerup={npTopUp}
 		onpointercancel={npTopUp}
 	>
+	<!-- AXIS-ARBITRATION CONTRACT (D-05 / Pitfall 7 — the highest-risk interaction in v1.2):
+	     The cover region hosts THREE pointer paths that must NEVER both capture:
+	       • HORIZONTAL carousel — use:coverSwipe on `.cover-strip` (below). Owns the X axis. Arms on
+	         down WITHOUT setPointerCapture; commits + captures in pointermove ONLY after the 8px slop
+	         and |dx|>|dy| dominance check; yields (goes passive, no capture) on vertical dominance so
+	         a down-drag started on the cover flows up to npTopMove. touch-action: pan-y set by the
+	         action on attach so the browser hands it the X axis.
+	       • VERTICAL collapse — npTop*/.np-top wrapper (unchanged). Owns the Y axis. `.np-top` keeps
+	         touch-action: pan-x so the wrapper yields the horizontal pan to the action; npTopMove
+	         captures ONLY after `dy > DRAG_SLOP && |dy| > |dx|`, so it never steals a horizontal swipe.
+	       • TAP — the `.cover` onclick (tap-to-collapse-in-half, NP-03). A sub-slop tap reaches it
+	         because neither path captures on pointerdown; a committed swipe does NOT replay it because
+	         coverSwipe arms a one-shot capture-phase click suppressor on the strip (stops the bubble to
+	         `.cover`). NO extra movement guard is added beyond the sheetState check.
+	     Net: |dy|>|dx| past slop → vertical collapse; |dx|>|dy| past slop → carousel; sub-slop → tap. -->
 	<div
 		class="cover"
 		role="button"
 		tabindex="0"
 		bind:this={coverEl}
 		aria-label={t('nowplaying.albumArt')}
-		style:background-image={effectiveCover ? `url(${effectiveCover})` : fallbackCover(player.current)}
-	></div>
+	>
+		<!-- Rigid 3-cell carousel strip: prev | current | next, edge-to-edge (no gutter), 1:1 lockstep
+		     (no parallax/scale/fade — UI-SPEC §1). overflow:hidden clips the off-strip neighbor. The
+		     strip's resting transform is translateX(0) (current cell at left:0); coverSwipe translates
+		     it live, then settles the committed neighbor to center over 0.32s before the store swap
+		     re-derives the cells. No accent/color/glow on arm (UI-SPEC §3 — positional feedback only). -->
+		<div
+			class="cover-strip"
+			use:coverSwipe={{
+				onprev: () => player.prev(),
+				onnext: () => player.next(),
+				ondrag: (dx) => (coverDragX = dx),
+				hasPrev: hasPrevNeighbor,
+				hasNext: true
+			}}
+		>
+			<div class="cover-cell prev" style:background-image={cellBg(prevCover)}></div>
+			<div
+				class="cover-cell cur"
+				style:background-image={effectiveCover ? `url(${effectiveCover})` : fallbackCover(player.current)}
+			></div>
+			<div class="cover-cell next" style:background-image={cellBg(nextCover)}></div>
+		</div>
+	</div>
 
 	<div class="meta">
 		<!-- {#key uid}: .title/.artist are single persistent nodes, so the marquee action would
@@ -893,8 +958,28 @@
 	   fire). touch-action: pan-x leaves horizontal scrolling intact (none here, but
 	   defensive) while letting our pointer handlers own vertical motion. */
 	.np-top { touch-action: pan-x; }
-	.cover { position: relative; z-index: 1; width: min(72vw, 320px); height: auto; aspect-ratio: 1/1; margin: 4px auto; border-radius: 16px; background-size: cover; background-position: center; box-shadow: 0 18px 50px rgba(0,0,0,0.5); cursor: grab; transition: width 0.32s cubic-bezier(.22,1,.36,1), height 0.32s cubic-bezier(.22,1,.36,1), margin 0.32s cubic-bezier(.22,1,.36,1), border-radius 0.32s cubic-bezier(.22,1,.36,1); }
+	.cover { position: relative; z-index: 1; width: min(72vw, 320px); height: auto; aspect-ratio: 1/1; margin: 4px auto; border-radius: 16px; overflow: hidden; background-size: cover; background-position: center; box-shadow: 0 18px 50px rgba(0,0,0,0.5); cursor: grab; transition: width 0.32s cubic-bezier(.22,1,.36,1), height 0.32s cubic-bezier(.22,1,.36,1), margin 0.32s cubic-bezier(.22,1,.36,1), border-radius 0.32s cubic-bezier(.22,1,.36,1); }
 	.cover:active { cursor: grabbing; }
+	/* NP-01 carousel: the rigid strip fills .cover and rests at translateX(0) (current cell visible).
+	   The commit-settle uses the cover-reflow personality (0.32s, same universal curve); coverSwipe
+	   overrides this to `none` while dragging (1:1 finger-follow), then restores it on release so the
+	   committed neighbor / spring-back animates. will-change keeps the slide smooth. */
+	.cover-strip { position: absolute; inset: 0; will-change: transform; transition: transform 0.32s cubic-bezier(.22,1,.36,1); }
+	/* Each cell is exactly one cover wide, laid edge-to-edge with NO gutter: prev at the left edge
+	   (-100%), current filling the box (0), next at the right edge (+100%). 1:1 lockstep — no
+	   parallax, no scale, no fade, no accent (UI-SPEC §1/§3). An absent neighbor → background-image
+	   'none' (a blank edge during the rubber-band, which never commits anyway). */
+	.cover-cell { position: absolute; top: 0; width: 100%; height: 100%; background-size: cover; background-position: center; }
+	.cover-cell.prev { left: -100%; }
+	.cover-cell.cur { left: 0; }
+	.cover-cell.next { left: 100%; }
+	/* Reduced motion (OS pref OR the app's :root[data-reduce-motion] setting, app.css): the carousel
+	   commit-settle / spring-back collapses to instant — the track still changes, only the slide
+	   animation is removed (UI-SPEC §1 reduced-motion row). The action restores `transition` inline on
+	   release; setting it to `none` here is overridden by that inline value during the active gesture
+	   but applies to the resting strip so the post-swap repaint does not animate. */
+	@media (prefers-reduced-motion: reduce) { .cover-strip { transition: none; } }
+	:global(:root[data-reduce-motion]) .cover-strip { transition: none; }
 	.meta { margin: 4px 2px 12px; transition: margin 0.32s cubic-bezier(.22,1,.36,1); display: flex; flex-direction: column; align-items: flex-start; gap: 0px; }
 	/* Reflow (sheet half/full): cover becomes a full-bleed YT-Music banner that the
 	   header overlaps at the top and the meta overlaps at the bottom. */

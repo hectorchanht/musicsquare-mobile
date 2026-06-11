@@ -373,7 +373,7 @@
 			<ul class="list">
 				{#each songs.slice(0, 30) as track, i (track.uid)}
 					<li>
-						<button class="row" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); menuTrack = track; menuOpen = true; }} onclick={() => { player.setQueue(songs, 'artist'); player.play(track); }}>
+						<button class="row" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); menuTrack = track; menuOpen = true; }} onclick={() => { player.play(track); player.setListQueue(songs, 'artist'); }}>
 							<span class="rank">{i + 1}</span>
 							<span class="art" style:background-image={track.cover ? `url(${track.cover})` : fallbackCover(track)}></span>
 							<span class="meta">

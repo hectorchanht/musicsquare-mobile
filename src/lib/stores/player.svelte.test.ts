@@ -1109,6 +1109,23 @@ describe('player.setListQueue — current-anchored queue install (album-and-next
 		expect(player.queue.map((t) => t.uid)).toEqual([tapped.uid, albumB.uid, albumC.uid]);
 		expect(player.queue.some((t) => t.uid === generated.uid)).toBe(false);
 	});
+
+	it('list-tap pattern (search/artist/library): tapped lower-ranked variant survives dedupe drop so next() has a target (fail-to-move-to-next-track)', () => {
+		// Regression: search/artist/library taps used `setQueue(list); play(t)` — dedupeBest could
+		// drop the tapped variant in favor of a higher-ranked same-song source, orphaning `current`
+		// (indexOf === -1) so next()/ensureAhead went silently dead at track end. The call sites now
+		// use `play(t); setListQueue(list, ctx)`, which must keep the EXACT tapped object a member.
+		const tappedQQ = mk('qq', 'Q1', 'Adele', 'Hello');
+		const variantNetease = mk('netease', 'N1', 'Adele', 'Hello'); // outranks qq → dedupe winner slot
+		const after = mk('kuwo', 'K1', 'Adele', 'Skyfall');
+		player.current = tappedQQ; // play(t) sets current synchronously before setListQueue runs
+		player.setListQueue([variantNetease, tappedQQ, after], 'search');
+		expect(player.queue.includes(tappedQQ)).toBe(true);
+		const i = player.queue.findIndex((t) => t.uid === tappedQQ.uid);
+		expect(i).toBeGreaterThanOrEqual(0);
+		expect(player.queue[i + 1]?.uid).toBe(after.uid); // next() can advance
+		expect(player.queueContext).toBe('search');
+	});
 });
 
 describe('player.play — auto-expand fresh-only guard + per-context branch (Phase 17 QUEUE-01/D-05)', () => {

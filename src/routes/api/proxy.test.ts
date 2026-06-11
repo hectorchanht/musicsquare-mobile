@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { jooxProxy } from '$lib/proxy/joox';
 import type { Env } from '$lib/proxy/proxy-types';
 import { GET } from './[source]/[...path]/+server';
+import { handle } from '../../hooks.server';
 
 // The real JOOX token value (from legacy/index.html:2165) must NEVER appear in any
 // client-facing artifact. Tests use a fake token so we can also assert the real value's
@@ -119,5 +120,65 @@ describe('/api/joox proxy route — token injected upstream, ABSENT from the cli
 			String(c[0]).includes('token=undefined')
 		);
 		expect(calledWithUndefinedToken).toBe(false);
+	});
+});
+
+describe('hooks.server handle() — single CORS seam for all /api/* (D-02)', () => {
+	// Synthetic RequestEvent + a resolve() stub returning a plain Response, exercising the
+	// hook in isolation (the real route logic is irrelevant to the CORS contract).
+	function hookEvent(method: string, pathname: string, origin: string | null) {
+		const url = new URL(`https://openmusic.pages.dev${pathname}`);
+		const headers = new Headers();
+		if (origin) headers.set('origin', origin);
+		return {
+			url,
+			request: new Request(url, { method, headers })
+		};
+	}
+	const resolveStub = vi.fn(async () => new Response('{"ok":true}', { status: 200 }));
+
+	beforeEach(() => resolveStub.mockClear());
+
+	it('echoes Access-Control-Allow-Origin for an allowlisted origin on a GET /api/* (incl. https://localhost — Capacitor)', async () => {
+		const event = hookEvent('GET', '/api/translate', 'https://localhost');
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const res = await handle({ event, resolve: resolveStub } as any);
+		expect(res.headers.get('access-control-allow-origin')).toBe('https://localhost');
+		expect(res.headers.get('vary')).toContain('Origin');
+		expect(resolveStub).toHaveBeenCalledTimes(1); // non-OPTIONS resolves the route
+	});
+
+	it('OMITS Access-Control-Allow-Origin for an unknown origin on /api/*', async () => {
+		const event = hookEvent('GET', '/api/translate', 'https://evil.example');
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const res = await handle({ event, resolve: resolveStub } as any);
+		expect(res.headers.get('access-control-allow-origin')).toBeNull();
+		expect(res.headers.get('vary')).toContain('Origin');
+	});
+
+	it('answers OPTIONS preflight on /api/* with 204 WITHOUT resolving downstream', async () => {
+		const event = hookEvent('OPTIONS', '/api/joox/search', 'https://localhost');
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const res = await handle({ event, resolve: resolveStub } as any);
+		expect(res.status).toBe(204);
+		expect(res.headers.get('access-control-allow-origin')).toBe('https://localhost');
+		expect(resolveStub).not.toHaveBeenCalled(); // workerd: OPTIONS must not fall through
+	});
+
+	it('NEVER emits Access-Control-Allow-Origin: * (open-relay forbidden — T-999.1-01)', async () => {
+		for (const origin of ['https://localhost', 'https://evil.example', null]) {
+			const event = hookEvent('GET', '/api/translate', origin);
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const res = await handle({ event, resolve: resolveStub } as any);
+			expect(res.headers.get('access-control-allow-origin')).not.toBe('*');
+		}
+	});
+
+	it('passes non-/api/* paths through untouched (no CORS headers added)', async () => {
+		const event = hookEvent('GET', '/search', 'https://localhost');
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const res = await handle({ event, resolve: resolveStub } as any);
+		expect(res.headers.get('access-control-allow-origin')).toBeNull();
+		expect(resolveStub).toHaveBeenCalledTimes(1);
 	});
 });

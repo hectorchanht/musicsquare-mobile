@@ -1,6 +1,7 @@
 // Client helper for lyric translation. Calls /api/translate with in-memory +
 // localStorage caching so switching tabs / re-opening a song doesn't refetch.
 import { browser } from '$app/environment';
+import { apiFetch } from './api-base';
 
 const mem = new Map<string, string[]>();
 
@@ -27,7 +28,7 @@ export async function translateLines(lines: string[], to: string): Promise<strin
 		}
 	}
 	try {
-		const res = await fetch('/api/translate', {
+		const res = await apiFetch('/api/translate', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({ lines, to })

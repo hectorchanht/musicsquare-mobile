@@ -12,6 +12,7 @@
 import type { SourceAdapter, Track } from './types';
 import { makeUid } from './types';
 import { inferQualityFromUrl } from '../services/lrc';
+import { apiUrl, apiFetch } from '../services/api-base';
 
 // Netease search row shape from the Meting proxy (fields we read).
 interface NeteaseSearchItem {
@@ -43,11 +44,11 @@ export const netease: SourceAdapter = {
 	async search(keyword: string, page: number, signal: AbortSignal): Promise<Track[]> {
 		// Pagination by limit-multiplication, not a real page param (preserve legacy:1987).
 		const requestLimit = Math.max(1, page || 1) * Math.max(1, 10);
-		const url = `/api/netease/search?id=${encodeURIComponent(keyword)}&limit=${encodeURIComponent(
+		const path = `/api/netease/search?id=${encodeURIComponent(keyword)}&limit=${encodeURIComponent(
 			requestLimit
 		)}`;
 
-		const res = await fetch(url, { signal });
+		const res = await apiFetch(path, { signal });
 		const json: unknown = await res.json();
 		// Contract-drift guard: Netease must return an array. Throw (not return 0) so the
 		// fan-out records a typed per-source error.
@@ -84,10 +85,13 @@ export const netease: SourceAdapter = {
 		// (ports legacy:2269-2276).
 		if (track.songid) {
 			if (!track.audioUrl) {
-				track.audioUrl = `/api/netease/url?id=${encodeURIComponent(track.songid)}`;
+				// Pitfall 3: this URL is consumed directly by <audio>.src, so it MUST be
+				// absolute in the native APK (apiUrl() prepends the base; no-op on web).
+				track.audioUrl = apiUrl(`/api/netease/url?id=${encodeURIComponent(track.songid)}`);
 			}
 			if (!track.lrcUrl) {
-				track.lrcUrl = `/api/netease/lrc?id=${encodeURIComponent(track.songid)}`;
+				// Pitfall 3: lrcUrl is fetched as-is below — must be absolute on native too.
+				track.lrcUrl = apiUrl(`/api/netease/lrc?id=${encodeURIComponent(track.songid)}`);
 			}
 		}
 

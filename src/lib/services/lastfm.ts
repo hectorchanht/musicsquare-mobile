@@ -16,6 +16,7 @@
 //    candidate (`lastfmArt`); it never decides whether to swap.
 import type { Track } from '$lib/sources/types';
 import { cached } from './ttl-cache';
+import { apiFetch } from './api-base';
 
 const MAX_TAGS = 5;
 // k3y client-side TTL for Last.fm /api/lastfm/info calls. The edge already caches
@@ -58,7 +59,7 @@ async function fetchInfo(params: Record<string, string>): Promise<LastfmInfo> {
 	).toString();
 	return cached(`lf:info:${qs}`, TTL_LASTFM, async () => {
 		try {
-			const res = await fetch(`/api/lastfm/info?${qs}`);
+			const res = await apiFetch(`/api/lastfm/info?${qs}`);
 			const data = (await res.json()) as LastfmInfo;
 			return data ?? {};
 		} catch {
@@ -190,7 +191,7 @@ interface LastfmList<T> {
 async function fetchList<T>(params: Record<string, string>): Promise<LastfmList<T>> {
 	try {
 		const qs = new URLSearchParams(params).toString();
-		const res = await fetch(`/api/lastfm/discovery?${qs}`);
+		const res = await apiFetch(`/api/lastfm/discovery?${qs}`);
 		const data = (await res.json()) as LastfmList<T>;
 		return data ?? { items: [] };
 	} catch {

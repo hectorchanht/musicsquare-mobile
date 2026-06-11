@@ -22,6 +22,7 @@
 import type { SourceAdapter, Track } from './types';
 import { makeUid } from './types';
 import { inferQualityFromUrl } from '../services/lrc';
+import { apiFetch } from '../services/api-base';
 import { settings, type DefaultQuality } from '$lib/stores/settings.svelte';
 import { pickByQualityPref } from './quality';
 
@@ -163,9 +164,9 @@ export const joox: SourceAdapter = {
 
 	async search(keyword: string, _page: number, signal: AbortSignal): Promise<Track[]> {
 		// The proxy injects token + br server-side — the client only sends the keyword.
-		const url = `/api/joox/search?msg=${encodeURIComponent(keyword)}`;
+		const path = `/api/joox/search?msg=${encodeURIComponent(keyword)}`;
 
-		const res = await fetch(url, { signal });
+		const res = await apiFetch(path, { signal });
 		const json = (await res.json()) as JooxSearchResponse;
 
 		// Contract-drift guard: JOOX must return code:200 with data.songs[]. Throw (not
@@ -212,11 +213,11 @@ export const joox: SourceAdapter = {
 		// sending it because the upstream requires it, but we re-validate the response
 		// against the track's stable identity below before trusting it.
 		const n = track.jooxIndex || track.displayIndex || 1;
-		const url =
+		const path =
 			`/api/joox/detail?msg=${encodeURIComponent(track.keyword)}` +
 			`&n=${encodeURIComponent(String(n))}`;
 
-		const res = await fetch(url, { signal });
+		const res = await apiFetch(path, { signal });
 		const j = (await res.json()) as JooxDetailResponse;
 		if (!j || j.code !== 200 || !j.data) {
 			throw new Error('joox detail failed (invalid response)');

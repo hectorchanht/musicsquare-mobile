@@ -43,6 +43,139 @@ export function parseLRC(txt: string): LyricLine[] {
 }
 
 /**
+ * A coarse Unicode-script classification of a line body, used to tell an original
+ * lyric line apart from its embedded translation. `'other'` covers digit/punctuation-
+ * only or empty lines (no countable letter present).
+ */
+export type Script = 'han' | 'kana' | 'hangul' | 'latin' | 'other';
+
+/**
+ * Return the dominant script of `text` by counting codepoints per script class.
+ *
+ * Uses ES2018 Unicode property escapes (`\p{Script=...}`, Baseline since Safari 11.1 /
+ * Chrome 64) — the `u` flag is mandatory and we iterate by codepoint (`for...of`) so
+ * astral-plane CJK extension characters count as single units.
+ *
+ * Heuristic (A1): Japanese mixes kanji (Han) with kana; a pure max-count would mislabel
+ * a kanji-heavy JP line as `'han'` (== Chinese). Therefore ANY kana presence ⇒ `'kana'`,
+ * regardless of Han count. Otherwise the largest of han/hangul/latin wins; ties favour
+ * han, then hangul, then latin. A line with no countable letters returns `'other'`.
+ */
+export function dominantScript(text: string): Script {
+	let han = 0;
+	let kana = 0;
+	let hangul = 0;
+	let latin = 0;
+	for (const ch of text) {
+		if (/\p{Script=Han}/u.test(ch)) han++;
+		else if (/\p{Script=Hiragana}/u.test(ch) || /\p{Script=Katakana}/u.test(ch)) kana++;
+		else if (/\p{Script=Hangul}/u.test(ch)) hangul++;
+		else if (/\p{Script=Latin}/u.test(ch)) latin++;
+		// whitespace / punctuation / digits are not counted
+	}
+	// Any kana presence ⇒ Japanese, even when kanji dominates the count (A1).
+	if (kana > 0) return 'kana';
+	const max = Math.max(han, hangul, latin);
+	if (max === 0) return 'other';
+	if (han === max) return 'han';
+	if (hangul === max) return 'hangul';
+	return 'latin';
+}
+
+/**
+ * Reorder lines so that within each same-`time` group the ORIGINAL lyric (the line whose
+ * script matches the song's dominant language) is rendered ABOVE its translation (D-04/D-05).
+ *
+ * Why: some upstream LRCs ship the translation first and the original second within a
+ * shared timestamp; the group-highlight anchor in NowPlaying.svelte locks onto the FIRST
+ * entry of a group, so the original must come first for the highlight to track the sung line.
+ *
+ * Algorithm:
+ *   1. Compute the song-dominant script across ALL line bodies (the "original language"
+ *      baseline — A1 mitigation: decided over the whole song, not per-line).
+ *   2. Walk consecutive same-`time` groups. Within a group, if at least one line's
+ *      dominantScript === songDominant and at least one sibling's !== songDominant, move
+ *      the FIRST song-dominant (original) line to the front of the group.
+ *   3. Pure single-script songs (no mismatched siblings) pass through unchanged.
+ *   4. Stable: the relative order of all non-moved lines is preserved.
+ *
+ * MUST run BEFORE splitParenLines — split emits multiple same-timestamp siblings, which
+ * would pollute the original/translation grouping this function inspects.
+ */
+export function reorderPairs(lines: LyricLine[]): LyricLine[] {
+	if (lines.length < 2) return lines.slice();
+
+	// 1. Song-dominant script over all line bodies.
+	let han = 0;
+	let kana = 0;
+	let hangul = 0;
+	let latin = 0;
+	for (const line of lines) {
+		switch (dominantScript(line.text)) {
+			case 'han':
+				han++;
+				break;
+			case 'kana':
+				kana++;
+				break;
+			case 'hangul':
+				hangul++;
+				break;
+			case 'latin':
+				latin++;
+				break;
+			default:
+				break;
+		}
+	}
+	// In this app Han (Simplified/Traditional Chinese) is overwhelmingly the user's
+	// TRANSLATION target, never the foreign original. So if the song contains ANY non-Han
+	// script the original language is that foreign script — even when Han is the per-line
+	// count majority (a 1-original/2-translation-fragment LRC still has the foreign line as
+	// the original). Foreign scripts are ranked kana > hangul > latin by count. Only a song
+	// with no foreign script at all (pure-CN) keeps Han as dominant — and such songs have no
+	// mismatched siblings, so reorder is a no-op regardless.
+	const foreignMax = Math.max(kana, hangul, latin);
+	let songDominant: Script;
+	if (foreignMax > 0) {
+		if (kana === foreignMax) songDominant = 'kana';
+		else if (hangul === foreignMax) songDominant = 'hangul';
+		else songDominant = 'latin';
+	} else if (han > 0) {
+		songDominant = 'han';
+	} else {
+		songDominant = 'other';
+	}
+
+	const out: LyricLine[] = [];
+	let i = 0;
+	while (i < lines.length) {
+		// Collect the consecutive same-`time` group starting at i.
+		let j = i + 1;
+		while (j < lines.length && lines[j].time === lines[i].time) j++;
+		const group = lines.slice(i, j);
+		i = j;
+
+		if (group.length < 2) {
+			out.push(...group);
+			continue;
+		}
+		const hasOriginal = group.some((l) => dominantScript(l.text) === songDominant);
+		const hasMismatch = group.some((l) => dominantScript(l.text) !== songDominant);
+		if (!hasOriginal || !hasMismatch) {
+			// Pure single-script (or no original) group — leave order unchanged.
+			out.push(...group);
+			continue;
+		}
+		// Move the first original (song-dominant) line to the front; keep all others stable.
+		const origIdx = group.findIndex((l) => dominantScript(l.text) === songDominant);
+		const reordered = [group[origIdx], ...group.filter((_, k) => k !== origIdx)];
+		out.push(...reordered);
+	}
+	return out;
+}
+
+/**
  * Split a line containing one or more `(...)` / `（...）` clauses into separate LyricLine
  * entries that share the same timestamp. Useful when the upstream LRC encodes a translated
  * version inline next to the original — the user wants the translation to live on its own
@@ -52,35 +185,82 @@ export function parseLRC(txt: string): LyricLine[] {
  * untouched. The returned entries carry `fromParen: true` for clauses that were extracted
  * out of their parent so the renderer can optionally hide their translations.
  *
- * Conventions:
- * - Both ASCII `()` and full-width `（）` parens are recognised.
- * - A line that is ALREADY only a parenthesised clause (e.g. `(我們可以...)`) is treated as a
- *   normal line — no split, no `fromParen` flag.
- * - Multiple parens in one line produce multiple sibling entries.
- * - The order is preserved: parent (parens stripped) first, then each clause in order.
+ * Conventions (D-07/D-08/D-09):
+ * - All 9 bracket pairs are recognised: （） () 【】 [] ［］ 「」 『』 〈〉 《》. Each open is
+ *   matched to its OWN matching close (no cross-pairing — Pitfall 4). Timestamps are already
+ *   stripped by parseLRC, so bare `[]` is safe here.
+ * - A clause is split out as `{ fromParen: true }` ONLY when its dominant script DIFFERS from
+ *   the line's main (de-bracketed) text. A same-script clause (backing vocals `(oh oh)`,
+ *   `「真的」`) is left INLINE and is never emitted as `fromParen` — the structural never-drop
+ *   guarantee (LYR-05): an original lyric can never be hidden because it is never extracted.
+ * - A line that is ALREADY only a bracketed clause / section marker (e.g. `[Chorus]`, `【副歌】`,
+ *   `(我們可以...)`) — i.e. nothing remains after removing the split clauses — passes through as a
+ *   normal line (no split, no `fromParen`).
+ * - Multiple mismatched clauses in one line produce multiple sibling entries.
+ * - Order is preserved: parent (mismatched clauses removed) first, then each split clause in order.
  */
+// Pair-aware bracket regex: each open bracket is matched to its OWN close (Pitfall 4 —
+// avoids （…】 cross-pairing that a single character class would allow).
+const BRACKET_RE =
+	/（([^）]*)）|\(([^)]*)\)|【([^】]*)】|\[([^\]]*)\]|［([^］]*)］|「([^」]*)」|『([^』]*)』|〈([^〉]*)〉|《([^》]*)》/g;
+
 export function splitParenLines(lines: LyricLine[]): LyricLine[] {
 	const out: LyricLine[] = [];
-	const parenRe = /[(（]([^()（）]+)[)）]/g;
 	for (const line of lines) {
-		const matches = [...line.text.matchAll(parenRe)];
+		BRACKET_RE.lastIndex = 0;
+		const matches = [...line.text.matchAll(BRACKET_RE)];
 		if (!matches.length) {
 			out.push(line);
 			continue;
 		}
-		const stripped = line.text.replace(parenRe, '').replace(/\s+/g, ' ').trim();
-		// If the WHOLE line is one paren clause + nothing else, don't split — render as-is.
+		// Script of the main body = the line with ALL brackets removed (for the mismatch gate).
+		const mainText = line.text.replace(BRACKET_RE, '').replace(/\s+/g, ' ').trim();
+		const mainScript = dominantScript(mainText);
+
+		// Decide per match: a clause whose script DIFFERS from the main body is split out;
+		// a same-script clause is kept inline (never dropped).
+		const splitOut: string[] = [];
+		const toRemove: string[] = [];
+		for (const m of matches) {
+			// The inner capture is whichever alternation group matched (others are undefined).
+			const inner = (m.slice(1).find((g) => g !== undefined) ?? '').trim();
+			if (!inner) continue;
+			if (dominantScript(inner) !== mainScript) {
+				splitOut.push(inner);
+				toRemove.push(m[0]); // the full bracketed span, to strip from the main line
+			}
+		}
+
+		// Build `stripped` = original text minus ONLY the mismatched clauses that were split out.
+		// Same-script clauses survive inside `stripped` (never-drop).
+		let strippedRaw = line.text;
+		for (const span of toRemove) {
+			strippedRaw = strippedRaw.replace(span, '');
+		}
+		const stripped = strippedRaw.replace(/\s+/g, ' ').trim();
+
+		// Whole-line bracket / section marker (nothing left after removing split clauses) → keep
+		// the original line as-is (D-09). Also covers the no-mismatch case where toRemove is empty.
 		if (!stripped) {
 			out.push(line);
 			continue;
 		}
+
 		out.push({ time: line.time, text: stripped });
-		for (const m of matches) {
-			const inner = (m[1] ?? '').trim();
-			if (inner) out.push({ time: line.time, text: inner, fromParen: true });
+		for (const inner of splitOut) {
+			out.push({ time: line.time, text: inner, fromParen: true });
 		}
 	}
 	return out;
+}
+
+/**
+ * Pure seek-math helper (LYR-01): the fraction `time / duration` to pass to the player's
+ * fraction-based seek, or `null` when the duration is unusable (≤ 0 or non-finite). DOM-free
+ * and store-free so the seek math is node-testable; the component multiplies/guards via this.
+ */
+export function lineSeekFraction(time: number, duration: number): number | null {
+	return duration > 0 && Number.isFinite(duration) ? time / duration : null;
 }
 
 /**

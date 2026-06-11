@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Resilient Playback & UX Polish
 status: planning
-stopped_at: Phase 19 context gathered
-last_updated: "2026-06-11T04:14:48.851Z"
+stopped_at: Phase 19 UI-SPEC approved
+last_updated: "2026-06-11T04:27:24.499Z"
 last_activity: "2026-06-11 - Completed quick task 260611-gln: share continuity+queue+slug, SSR OG metadata, clear-queue in menu, Android playback-position persistence"
 progress:
   total_phases: 9
@@ -196,6 +196,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-11T04:14:48.842Z
-Stopped at: Phase 19 context gathered
+Last session: 2026-06-11T04:27:24.492Z
+Stopped at: Phase 19 UI-SPEC approved
 Resume: plan Phase 16 (`/gsd:plan-phase 16`). Phase 16 is the resilience-core dependency root; everything else builds on its `queueContext` / 2-state repeat / skip-loop guard.

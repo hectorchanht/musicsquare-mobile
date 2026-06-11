@@ -34,6 +34,9 @@ interface QQDetailItem {
 	album_pic?: string;
 	singer_pic?: string;
 	song_h5_url?: string;
+	/** Track length in SECONDS (tang detail body). The search list carries no length, so
+	 *  this is the only QQ surface that reports duration — mapped onto Track.duration. */
+	song_play_time?: number;
 	song_lyric?: string;
 	lyric?: string;
 	vip?: string | number;
@@ -215,6 +218,14 @@ export const qq: SourceAdapter = {
 
 			// 歌词 — inline from the detail body (legacy:2369).
 			track.lrc = d.song_lyric || d.lyric || track.lrc;
+
+			// SRCH-01: track length in seconds from `song_play_time`. T-21-01 tampering guard —
+			// coerce to a finite positive number or `undefined`; a non-numeric/negative/zero
+			// upstream value never becomes a duration (D-03: 0/unknown is NEVER penalized).
+			track.duration =
+				typeof d.song_play_time === 'number' && d.song_play_time > 0
+					? d.song_play_time
+					: undefined;
 
 			// 文本信息 (legacy:2371-2375).
 			track.qqQualityText = best.text || (d.vip ? `VIP:${d.vip}` : null) || track.qqQualityText;

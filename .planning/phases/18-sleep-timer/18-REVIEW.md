@@ -21,7 +21,15 @@ findings:
   warning: 4
   info: 3
   total: 8
-status: issues_found
+status: resolved
+resolved:
+  - CR-01 (fix 52e2178 + test 83939ac)
+  - WR-01 (fix 5fc6120)
+  - WR-02 (fix a207ebb + test 83939ac)
+  - WR-04 (closed transitively by CR-01 guard)
+deferred:
+  - WR-03 (cosmetic — ~1s countdown lag on open)
+  - IN-01, IN-02, IN-03 (dead-code/comment cleanup)
 ---
 
 # Phase 18: Code Review Report
@@ -29,7 +37,7 @@ status: issues_found
 **Reviewed:** 2026-06-11
 **Depth:** standard
 **Files Reviewed:** 12
-**Status:** issues_found
+**Status:** resolved — CR-01 + WR-01 + WR-02 + WR-04 fixed (commits 52e2178/5fc6120/a207ebb, tests 83939ac); WR-03 + INFO deferred as cosmetic
 
 ## Summary
 

@@ -235,6 +235,7 @@ const ar: Dict = {
 	"settings.sourcesAdvanced": "متقدم — المصادر",
 	"settings.sourcesAdvancedNote": "عطّل مصدراً لإخفائه من البحث.",
 	"menu.shuffleQueue": "خلط قائمة الانتظار",
+	"menu.clearQueue": "مسح قائمة الانتظار",
 	"toast.addedToPlaylist": "تمت إضافتها إلى قائمة التشغيل",
 	"toast.playlistCreated": "تم إنشاء قائمة التشغيل",
 	"library.title": "المكتبة · الموسيقى المفتوحة",

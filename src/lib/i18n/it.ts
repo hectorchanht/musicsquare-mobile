@@ -235,6 +235,7 @@ const it: Dict = {
 	"settings.sourcesAdvanced": "Avanzate — Sorgenti",
 	"settings.sourcesAdvancedNote": "Disattiva una sorgente per nasconderla dalla ricerca.",
 	"menu.shuffleQueue": "Mescola coda",
+	"menu.clearQueue": "Svuota coda",
 	"toast.addedToPlaylist": "Aggiunto alla playlist",
 	"toast.playlistCreated": "Playlist creata",
 	"library.title": "Biblioteca · openmusic",

@@ -276,6 +276,7 @@ const en = {
 	'settings.sourcesAdvanced': 'Advanced — Sources',
 	'settings.sourcesAdvancedNote': 'Disable a source to hide it from search.',
 	'menu.shuffleQueue': 'Shuffle queue',
+	'menu.clearQueue': 'Clear queue',
 	'toast.addedToPlaylist': 'Added to playlist',
 	'toast.playlistCreated': 'Playlist created',
 

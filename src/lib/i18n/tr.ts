@@ -235,6 +235,7 @@ const tr: Dict = {
 	"settings.sourcesAdvanced": "Gelişmiş — Kaynaklar",
 	"settings.sourcesAdvancedNote": "Bir kaynağı aramada gizlemek için devre dışı bırakın.",
 	"menu.shuffleQueue": "Sırayı karıştır",
+	"menu.clearQueue": "Sırayı temizle",
 	"toast.addedToPlaylist": "Çalma listesine eklendi",
 	"toast.playlistCreated": "Oynatma listesi oluşturuldu",
 	"library.title": "Kütüphane · openmusic",

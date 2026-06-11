@@ -2,7 +2,7 @@
 	import { tick, untrack } from 'svelte';
 	import { fly } from 'svelte/transition';
 	import { goto } from '$app/navigation';
-	import { ListStart, ListEnd, Download, Heart, ListPlus, Disc, User, Share2, Info, X, Plus, Shuffle, Moon } from '@lucide/svelte';
+	import { ListStart, ListEnd, Download, Heart, ListPlus, Disc, User, Share2, Info, X, Plus, Shuffle, Trash2, Moon } from '@lucide/svelte';
 	import { player } from '$lib/stores/player.svelte';
 	import { sleepTimer } from '$lib/stores/sleepTimer.svelte';
 	import { library } from '$lib/stores/library.svelte';
@@ -41,6 +41,9 @@
 	// ii6: Shuffle moved off the NowPlaying transport row into the menu. Shown only when
 	// there's a queue to shuffle (otherwise the action would be a no-op).
 	function shuffleQueue() { player.toggleShuffle(); close(); }
+	// GLN-5: clear-queue relocated here from the NowPlaying subnav. Clearing a queue that is just
+	// [current] is a no-op, so the item is gated to queue.length > 1 in the template.
+	function clearQueue() { player.clearQueue(); close(); }
 	function like() {
 		if (!track) return;
 		library.toggleLike(track);
@@ -182,6 +185,7 @@
 			<button class="mi" onclick={addQueue}><ListEnd size={18} /> {t('menu.addToQueue')}</button>
 			{#if player.queue.length > 1}
 				<button class="mi" class:on={player.shuffle} onclick={shuffleQueue}><Shuffle size={18} /> {t('menu.shuffleQueue')}</button>
+				<button class="mi" onclick={clearQueue}><Trash2 size={18} /> {t('menu.clearQueue')}</button>
 			{/if}
 			<button class="mi" onclick={doDownload}><Download size={18} /> {t('menu.download')}</button>
 			<button class="mi" onclick={like}><Heart size={18} fill={liked ? 'currentColor' : 'none'} /> {liked ? t('menu.liked') : t('menu.like')}</button>

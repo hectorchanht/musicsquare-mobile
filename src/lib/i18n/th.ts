@@ -235,6 +235,7 @@ const th: Dict = {
 	"settings.sourcesAdvanced": "ขั้นสูง — แหล่งที่มา",
 	"settings.sourcesAdvancedNote": "ปิดใช้แหล่งหนึ่งเพื่อซ่อนจากการค้นหา",
 	"menu.shuffleQueue": "สุ่มคิว",
+	"menu.clearQueue": "ล้างคิว",
 	"toast.addedToPlaylist": "เพิ่มลงในเพลย์ลิสต์แล้ว",
 	"toast.playlistCreated": "สร้างเพลย์ลิสต์แล้ว",
 	"library.title": "ห้องสมุด · โอเพนมิวสิค",

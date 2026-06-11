@@ -235,6 +235,7 @@ const vi: Dict = {
 	"settings.sourcesAdvanced": "Nâng cao — Nguồn",
 	"settings.sourcesAdvancedNote": "Tắt một nguồn để ẩn nó khỏi tìm kiếm.",
 	"menu.shuffleQueue": "Trộn hàng đợi",
+	"menu.clearQueue": "Xóa hàng đợi",
 	"toast.addedToPlaylist": "Đã thêm vào danh sách phát",
 	"toast.playlistCreated": "Đã tạo danh sách phát",
 	"library.title": "Thư viện · âm nhạc mở",

@@ -3,7 +3,7 @@
 	import { fly } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import { goto } from '$app/navigation';
-	import { ChevronDown, MoreVertical, Heart, SkipBack, SkipForward, Play, Pause, Repeat, Repeat1, GripVertical, Trash2, Moon } from '@lucide/svelte';
+	import { ChevronDown, MoreVertical, Heart, SkipBack, SkipForward, Play, Pause, Repeat, Repeat1, GripVertical, Moon } from '@lucide/svelte';
 	import { player, fmtTime } from '$lib/stores/player.svelte';
 	import { sleepTimer } from '$lib/stores/sleepTimer.svelte';
 	import { settings, effectiveTarget } from '$lib/stores/settings.svelte';
@@ -759,9 +759,6 @@
 			<button data-tab="queue" class:active={tab === 'queue'} onclick={() => selectTab('queue')}>{t('nowplaying.upNext')}</button>
 			<button data-tab="lyrics" class:active={tab === 'lyrics'} onclick={() => selectTab('lyrics')}>{t('nowplaying.lyrics')}</button>
 			<button data-tab="related" class:active={tab === 'related'} onclick={() => selectTab('related')}>{t('nowplaying.related')}</button>
-			{#if tab === 'queue' && player.queue.length > 1}
-				<button class="clear" onclick={() => player.clearQueue()} aria-label={t('nowplaying.clearQueue')}><Trash2 size={16} /></button>
-			{/if}
 		</nav>
 
 		<div class="panel">
@@ -901,10 +898,6 @@
 	.subnav { display: flex; justify-content: space-around; padding-bottom: 6px; touch-action: none; user-select: none; -webkit-user-select: none; }
 	.subnav button { background: none; border: none; color: var(--color-text-muted); font-size: 13px; min-height: 40px; padding: 8px 12px; cursor: pointer; border-bottom: 2px solid transparent; }
 	.subnav button.active { color: var(--color-text); border-bottom-color: var(--color-primary); }
-	/* Clear-queue button (Phase 17, QUEUE-05) — an icon affordance in the queue-tab header,
-	   no active underline; muted until pressed. */
-	.subnav button.clear { min-height: 40px; padding: 8px 10px; display: grid; place-items: center; opacity: 0.7; }
-	.subnav button.clear:active { opacity: 1; color: var(--color-text); }
 	.panel { flex: 1; overflow-y: auto; }
 	.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 	.row { width: 100%; text-align: left; background: none; border: none; padding: 8px 6px; border-radius: 8px; cursor: pointer; display: flex; flex-direction: column; }

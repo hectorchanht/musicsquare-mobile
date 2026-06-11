@@ -235,6 +235,7 @@ const de: Dict = {
 	"settings.sourcesAdvanced": "Erweitert — Quellen",
 	"settings.sourcesAdvancedNote": "Eine Quelle deaktivieren, um sie aus der Suche auszublenden.",
 	"menu.shuffleQueue": "Warteschlange mischen",
+	"menu.clearQueue": "Warteschlange leeren",
 	"toast.addedToPlaylist": "Zur Playlist hinzugefügt",
 	"toast.playlistCreated": "Playlist erstellt",
 	"library.title": "Bibliothek · openmusic",

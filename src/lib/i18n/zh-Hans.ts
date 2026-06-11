@@ -261,6 +261,7 @@ const zhHans: Dict = {
 	'settings.sourcesAdvanced': '高级 — 音乐来源',
 	'settings.sourcesAdvancedNote': '禁用某来源可将其隐藏于搜索结果。',
 	'menu.shuffleQueue': '随机播放队列',
+	'menu.clearQueue': '清除队列',
 	'toast.addedToPlaylist': '已加入播放列表',
 	'toast.playlistCreated': '已创建播放列表',
 

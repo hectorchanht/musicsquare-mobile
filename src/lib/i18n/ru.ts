@@ -235,6 +235,7 @@ const ru: Dict = {
 	"settings.sourcesAdvanced": "Дополнительно — Источники",
 	"settings.sourcesAdvancedNote": "Отключите источник, чтобы скрыть его из поиска.",
 	"menu.shuffleQueue": "Перемешать очередь",
+	"menu.clearQueue": "Очистить очередь",
 	"toast.addedToPlaylist": "Добавлено в плейлист",
 	"toast.playlistCreated": "Плейлист создан",
 	"library.title": "Библиотека · openmusic",

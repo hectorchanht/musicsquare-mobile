@@ -235,6 +235,7 @@ const fr: Dict = {
 	"settings.sourcesAdvanced": "Avancé — Sources",
 	"settings.sourcesAdvancedNote": "Désactivez une source pour la masquer des recherches.",
 	"menu.shuffleQueue": "Mélanger la file",
+	"menu.clearQueue": "Vider la file",
 	"toast.addedToPlaylist": "Ajouté à la playlist",
 	"toast.playlistCreated": "Liste de lecture créée",
 	"library.title": "Bibliothèque · musique ouverte",

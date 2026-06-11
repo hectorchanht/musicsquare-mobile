@@ -235,6 +235,7 @@ const hi: Dict = {
 	"settings.sourcesAdvanced": "उन्नत — स्रोत",
 	"settings.sourcesAdvancedNote": "खोज से छिपाने के लिए स्रोत को निष्क्रिय करें।",
 	"menu.shuffleQueue": "कतार शफल करें",
+	"menu.clearQueue": "कतार साफ़ करें",
 	"toast.addedToPlaylist": "प्लेलिस्ट में जोड़ा गया",
 	"toast.playlistCreated": "प्लेलिस्ट बनाई गई",
 	"library.title": "लाइब्रेरी · ओपनम्यूज़िक",

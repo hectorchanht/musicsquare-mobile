@@ -235,6 +235,7 @@ const id: Dict = {
 	"settings.sourcesAdvanced": "Lanjutan — Sumber",
 	"settings.sourcesAdvancedNote": "Nonaktifkan sumber untuk menyembunyikannya dari pencarian.",
 	"menu.shuffleQueue": "Acak antrean",
+	"menu.clearQueue": "Kosongkan antrean",
 	"toast.addedToPlaylist": "Ditambahkan ke daftar putar",
 	"toast.playlistCreated": "Daftar putar dibuat",
 	"library.title": "Perpustakaan · musik terbuka",

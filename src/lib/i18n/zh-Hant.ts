@@ -261,6 +261,7 @@ const zhHant: Dict = {
 	'settings.sourcesAdvanced': '進階 — 音樂來源',
 	'settings.sourcesAdvancedNote': '停用某來源可將其隱藏於搜尋結果。',
 	'menu.shuffleQueue': '隨機播放佇列',
+	'menu.clearQueue': '清除佇列',
 	'toast.addedToPlaylist': '已加入播放清單',
 	'toast.playlistCreated': '已建立播放清單',
 

@@ -108,7 +108,9 @@
 	async function doShare() {
 		if (!track) return;
 		onclose();
-		const url = shareUrl(track);
+		// GLN-2: carry the current up-next queue so the shared link restores it, not just one song.
+		// shareUrl handles an empty queue (queue ?? []) — no behavior change when there is none.
+		const url = shareUrl(track, player.queue);
 		try {
 			const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
 			if (nav.share) await nav.share({ title: `${track.title} — ${track.artist}`, url });

@@ -76,25 +76,32 @@
 
 <style>
 	.nowbar {
+		/* quick-260611-fr9: docked nowbar blends flush with the tabbar as one continuous bottom
+		   surface (YT-Music style). Full-width, bottom flush on top of the tabbar (which owns the
+		   safe-area inset — do NOT add safe-area padding here or it double-counts), rounded TOP
+		   corners only + square bottom, single divider (tabbar's own border-top). The `.embed`
+		   variant below is unchanged. */
 		position: fixed;
-		left: 8px;
-		right: 8px;
-		bottom: calc(var(--tabbar-h) + 6px);
+		left: 0;
+		right: 0;
+		bottom: var(--tabbar-h);
 		height: var(--nowbar-h);
 		display: flex;
 		align-items: center;
 		gap: 10px;
 		padding: 8px 12px;
-		border-radius: 14px;
+		border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 		background: rgba(40, 32, 60, 0.55);
 		backdrop-filter: blur(14px);
 		-webkit-backdrop-filter: blur(14px);
-		border: 1px solid rgba(255, 255, 255, 0.08);
+		/* Top + sides only — no bottom border so there's no double divider against the tabbar. */
+		border-width: 1px 1px 0 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.08);
 		max-width: 704px;
-		margin: 2px auto 0;
+		margin: 0 auto;
 		z-index: 20;
 		overflow: hidden;
-		margin-top: 4px;
 	}
 	.nowbar::before {
 		content: "";
@@ -103,7 +110,10 @@
 		left: -10px;
 		right: -10px;
 		bottom: -10px; */
-		
+
+		/* Follow the bar's rounded-top / square-bottom shape so no square corner peeks past. */
+		border-radius: inherit;
+
 		/* Your background logic (e.g., using inherited or static image) */
 		background: rgba(40, 32, 60, 0.55);
 		background-repeat: no-repeat;

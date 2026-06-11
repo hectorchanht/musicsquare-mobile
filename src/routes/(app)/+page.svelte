@@ -30,7 +30,7 @@
 	import { deezerChart } from '$lib/services/deezer';
 	import { getCachedCover, getCachedArtistCover } from '$lib/services/cover-cache';
 	import { backfillCovers, backfillArtistCovers } from '$lib/services/cover-backfill';
-	import { decodeTrack } from '$lib/services/share';
+	import { decodeShare } from '$lib/services/share';
 	import { player } from '$lib/stores/player.svelte';
 	import { library } from '$lib/stores/library.svelte';
 	import { history as playHistory } from '$lib/stores/history.svelte';
@@ -564,15 +564,23 @@
 		if (libCache) applyLibraryCache(libCache);
 		else buildLibraryShelves(false);
 
-		// Shared link: /?play=<token> → reconstruct the track stub and play it.
+		// Shared link: /?play=<token> → reconstruct the current track + up-next queue and play
+		// through the SAME continuity path normal tap-to-play uses, so a shared song auto-advances
+		// (regenerate/ensureAhead + prefetchNext) at end instead of stopping (GLN-1) AND restores
+		// the shared queue, not just one song (GLN-2). decodeShare also accepts legacy v1 tokens.
 		const token = new URLSearchParams(location.search).get('play');
 		if (token) {
-			const tr = decodeTrack(token);
-			if (tr) {
-				player.setQueue([tr], 'home-discovery');
-				player.play(tr);
+			const { current, queue } = decodeShare(token);
+			if (current) {
+				// Multi-item queue → install it; otherwise seed a 1-item queue (legacy/single-track
+				// token). fresh:true makes the player regenerate a similar-artist up-next + prefetch,
+				// matching a normal fresh play so the shared song keeps playing continuously.
+				player.setQueue(queue.length > 1 ? queue : [current], 'home-discovery');
+				player.play(current, { fresh: true });
 			}
-			history.replaceState(null, '', location.pathname); // clear the param
+			// Clear the params via the global window.history (the play-history store is imported as
+			// `playHistory`, so `window.history` is the real History API here).
+			window.history.replaceState(null, '', location.pathname);
 		}
 
 		// Instant render from the cached shelves, then revalidate in the background.

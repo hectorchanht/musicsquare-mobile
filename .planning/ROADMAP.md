@@ -352,7 +352,7 @@ Music never stops + offline downloads + a broad UX polish pass. This is a polish
 - [x] **Phase 17: Up-Next Sourcing + Settings Plumbing** - Per-context up-next setting (same-list vs genre-generated, default generated), search-doesn't-append + no auto-expand, queue swipe-remove + clear, widened text-size demo, accent-wiring verify, Deezer artist/album enrichment (completed 2026-06-10)
 - [x] **Phase 18: Sleep Timer** - Sleep timer (5/10/15/30/45/60 min or end-of-track) from the track menu with active indicator + cancel/change (completed 2026-06-11)
 - [x] **Phase 19: Track Menu Rework** - Instant buttons + background resolve-then-act, 2-row marquee header, top-right like/close, Remix (seed genre queue), long-press focus-state fix (completed 2026-06-11)
-- [ ] **Phase 20: Now-Playing Surface & Gestures** - Cover swipe prev/next (axis-locked), half-open scroll containment, tap-cover-closes-subnav, top running-line loader, nowbar horizontal swipe
+- [x] **Phase 20: Now-Playing Surface & Gestures** - Cover swipe prev/next (axis-locked), half-open scroll containment, tap-cover-closes-subnav, top running-line loader, nowbar horizontal swipe (completed 2026-06-11)
 - [ ] **Phase 21: Search & Cover Pipeline Polish** - Search scoring tune (short-title / artist-frequency boost, <60s 試聽 penalty), result cover fallback, empty-query autofocus, playing-track cover guarantee, scroll-into-view uid/name-keyed cache
 - [ ] **Phase 22: Lyrics Polish** - Tap-line-to-seek, touch-suspended auto-scroll (verify live), end-spacer centering, CN translation-line ordering fix, robust bracket hiding
 - [ ] **Phase 23: UX Audit & Homepage/Artist Polish** - Shape-matched skeletons everywhere, button toast + double-click guard, row swipe-actions, haptics, a11y pass, compact rows-of-4 homepage mode + section grid/library nav, hide trackless albums
@@ -487,8 +487,8 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 20-03-PLAN.md — Cover 3-cover carousel via `coverSwipe` + prev-boundary rubber-band + tap-cover-collapses-in-half + axis-arbitration with `npTop*` vertical collapse (checkpoint: human-verify) (NP-01/NP-03) — depends on 20-01, 20-02 (same file)
-- [ ] 20-04-PLAN.md — Nowbar `.np-open` slide-and-snap via `coverSwipe` + tap-to-expand preserved + loader rail pinned (checkpoint: human-verify) (NP-05) — depends on 20-01
+- [x] 20-03-PLAN.md — Cover 3-cover carousel via `coverSwipe` + prev-boundary rubber-band + tap-cover-collapses-in-half + axis-arbitration with `npTop*` vertical collapse (checkpoint: human-verify) (NP-01/NP-03) — depends on 20-01, 20-02 (same file)
+- [x] 20-04-PLAN.md — Nowbar `.np-open` slide-and-snap via `coverSwipe` + tap-to-expand preserved + loader rail pinned (checkpoint: human-verify) (NP-05) — depends on 20-01
 **UI hint**: yes
 **Research flag**: LOW-MEDIUM — the cover-swipe vs sheet-collapse gesture collision (Pitfall 7) is the highest-risk interaction: never `setPointerCapture` on `pointerdown`, commit axis in `pointermove` after slop, sub-slop movement must still reach `onclick`. Reuses the existing slop/velocity idiom; no new gesture library.
 
@@ -590,7 +590,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 | 17. Up-Next Sourcing + Settings Plumbing | 4/4 | Complete    | 2026-06-10 |
 | 18. Sleep Timer | 3/3 | Complete    | 2026-06-11 |
 | 19. Track Menu Rework | 3/3 | Complete    | 2026-06-11 |
-| 20. Now-Playing Surface & Gestures | 2/4 | In Progress|  |
+| 20. Now-Playing Surface & Gestures | 4/4 | Complete   | 2026-06-11 |
 | 21. Search & Cover Pipeline Polish | 0/TBD | Not started | - |
 | 22. Lyrics Polish | 0/TBD | Not started | - |
 | 23. UX Audit & Homepage/Artist Polish | 0/TBD | Not started | - |

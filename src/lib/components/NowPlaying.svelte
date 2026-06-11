@@ -577,6 +577,27 @@
 		}, 290);
 	}
 
+	// NP-03 / D-04: a sub-slop TAP on the cover collapses the sheet to `closed` — but ONLY in the
+	// `half` state (no-op in `closed` and `full`). Reuses the EXISTING closed-snap reassignment idiom
+	// (same as the grip TAP path: set sheetState + clear the transient drag state); no new animation —
+	// the `.sheet` transform transition (0.28s) and the `.cover` reflow (0.32s) already run concurrently
+	// on a sheetState change. This onclick only ever fires on a genuine tap: coverSwipe never
+	// setPointerCaptures on pointerdown and arms a one-shot click suppressor on a committed swipe, so a
+	// committed carousel swipe does NOT replay this. No extra movement guard beyond the state check.
+	function tapCoverCollapse() {
+		if (sheetState !== 'half') return;
+		sheetDragging = false;
+		sheetDragY = 0;
+		sheetState = 'closed';
+	}
+	// Keyboard parity for the cover's role="button" (Enter/Space) — mirrors the grip's gripKey idiom
+	// and satisfies the a11y click-needs-keydown rule. Same half-only collapse; no-op in closed/full.
+	function tapCoverKey(e: KeyboardEvent) {
+		if (e.key !== 'Enter' && e.key !== ' ') return;
+		e.preventDefault();
+		tapCoverCollapse();
+	}
+
 	/** Grip keyboard step (Enter/Space): mirrors the TAP single-step. */
 	function gripKey(e: KeyboardEvent) {
 		if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -736,6 +757,8 @@
 	     Net: |dy|>|dx| past slop → vertical collapse; |dx|>|dy| past slop → carousel; sub-slop → tap. -->
 	<div
 		class="cover"
+		onclick={tapCoverCollapse}
+		onkeydown={tapCoverKey}
 		role="button"
 		tabindex="0"
 		bind:this={coverEl}

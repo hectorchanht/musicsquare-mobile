@@ -828,7 +828,10 @@
 </section>
 
 <style>
-	.np { position: fixed; inset: 0; z-index: 50; background: var(--color-bg); display: flex; flex-direction: column; padding: 0px 18px env(safe-area-inset-bottom); overflow: hidden; }
+	/* quick-260611-fr9: top is intentionally FLUSH (0) — content starts at the very top with no
+	   gap above the header (.bar). The header and .np-top follow immediately, neither carries a
+	   top margin. Bottom safe-area inset is preserved; only the TOP is flush. */
+	.np { position: fixed; inset: 0; z-index: 50; background: var(--color-bg); display: flex; flex-direction: column; padding: 0 18px env(safe-area-inset-bottom); overflow: hidden; }
 	.bar { display: flex; align-items: center; justify-content: space-between; }
 	.icon { background: none; border: none; color: var(--color-text); cursor: pointer; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; }
 	.icon:hover { background: var(--color-surface-2); }

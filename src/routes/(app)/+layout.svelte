@@ -161,8 +161,12 @@
 	<nav class="tabbar">
 		{#each tabs as tab (tab.href)}
 			{@const Icon = tab.icon}
-			<a class="tab" class:active={page.url.pathname === tab.href} href={tab.href}>
-				<span class="ic"><Icon size={20} /></span>{t(tab.labelKey)}
+			{@const active = page.url.pathname === tab.href}
+			<!-- quick-260611-fr9: active route's tab icon is FILLED, others OUTLINE. Lucide is
+			     outline-only, so we use the established `fill` prop idiom (cf. NowPlaying Heart).
+			     stroke-width is nudged down on the active (filled) glyph so it doesn't read heavy. -->
+			<a class="tab" class:active href={tab.href}>
+				<span class="ic"><Icon size={20} fill={active ? 'currentColor' : 'none'} strokeWidth={active ? 1.5 : 2} /></span>{t(tab.labelKey)}
 			</a>
 		{/each}
 	</nav>

@@ -2,7 +2,7 @@
 	import { tick, untrack } from 'svelte';
 	import { fly } from 'svelte/transition';
 	import { goto } from '$app/navigation';
-	import { ListStart, ListEnd, Download, Heart, ListPlus, Disc, User, Share2, Info, X, Plus, Shuffle, Trash2, Moon } from '@lucide/svelte';
+	import { ListStart, ListEnd, Download, Heart, ListPlus, Disc, User, Share2, Info, X, Plus, Shuffle, Trash2, Moon, Sparkles } from '@lucide/svelte';
 	import { player } from '$lib/stores/player.svelte';
 	import { sleepTimer } from '$lib/stores/sleepTimer.svelte';
 	import { library } from '$lib/stores/library.svelte';
@@ -10,6 +10,8 @@
 	import { names } from '$lib/stores/names.svelte';
 	import { overlays } from '$lib/stores/overlays.svelte';
 	import { dragClose } from '$lib/actions/dragClose';
+	import { marquee } from '$lib/actions/marquee';
+	import { isGatedReady, shouldStartResolve } from './track-menu-gate';
 	import { t } from '$lib/i18n';
 	import { ensureTrackDetails } from '$lib/services/catalog';
 	import { blobStore } from '$lib/services/blob-store';
@@ -31,6 +33,28 @@
 		toastTimer = setTimeout(() => (toastMsg = ''), 2000);
 	}
 	const liked = $derived(track ? library.isLiked(track.uid) : false);
+
+	// MENU-01 (D-02/D-03): per-action in-flight set drives the inline row spinners. A gated
+	// action (Download / Detail / Remix) is tappable on a STUB — tapping kicks off the resolve,
+	// shows the spinner on that row, and the action fires automatically once data arrives. Exactly
+	// one resolve per action key (second tap while spinning = no-op); cleared in `finally` on
+	// success OR failure (never a stuck spinner). `new Set(...)` reassign keeps it reactive.
+	let inFlight = $state(new Set<string>());
+	async function gated(key: string, run: (resolved: Track) => void | Promise<void>) {
+		if (!track) return;
+		if (!shouldStartResolve(inFlight, key)) return; // D-03: a second tap while spinning is a no-op
+		if (isGatedReady(track)) return void run(track); // fast path: already resolved, run on the stub now
+		inFlight = new Set(inFlight).add(key);
+		try {
+			const resolved = await ensureTrackDetails(track);
+			if (!resolved.audioUrl) { toast(t('toast.noAudio')); return; } // graceful fail, no stuck spinner
+			await run(resolved);
+		} catch {
+			toast(t('toast.noAudio')); // never a stuck spinner on throw
+		} finally {
+			const next = new Set(inFlight); next.delete(key); inFlight = next;
+		}
+	}
 
 	function close() {
 		pickerOpen = false;
@@ -71,8 +95,10 @@
 		overlays.navigateAway(() => goto(dest));
 	}
 
-	async function doDownload() {
-		if (!track) return;
+	// Gated run callback (D-02): invoked by gated('download', …) with the resolved track. The gate
+	// guarantees `resolved.audioUrl` is present before we get here, but Download re-resolves at the
+	// user's DOWNLOAD quality (separate from the streaming default the gate resolved at).
+	async function doDownload(resolved: Track) {
 		onclose();
 		toast(t('toast.preparingDownload'));
 		// Re-resolve at the user's DOWNLOAD quality (separate from the streaming default).
@@ -82,10 +108,10 @@
 		// Force a fresh resolve (clear cached details on a COPY — the queue track is left
 		// untouched).
 		const r: Track = await ensureTrackDetails(
-			{ ...track, detailsLoaded: false, audioUrl: null, lrc: null },
+			{ ...resolved, detailsLoaded: false, audioUrl: null, lrc: null },
 			undefined,
 			settings.downloadQuality
-		).catch(() => track);
+		).catch(() => resolved);
 		library.addDownload(r);
 		if (!r.audioUrl) return toast(t('toast.noAudio'));
 		try {
@@ -99,7 +125,7 @@
 			const ext = (r.audioUrl.split('?')[0].match(/\.(mp3|flac|m4a|aac|ogg|wav)$/i)?.[1] ?? 'mp3').toLowerCase();
 			const a = document.createElement('a');
 			a.href = URL.createObjectURL(blob);
-			a.download = `${track.artist} - ${track.title}.${ext}`.replace(/[/\\?%*:|"<>]/g, '_');
+			a.download = `${r.artist} - ${r.title}.${ext}`.replace(/[/\\?%*:|"<>]/g, '_');
 			a.click();
 			URL.revokeObjectURL(a.href);
 			toast(t('toast.downloaded'));
@@ -120,10 +146,22 @@
 			else { await navigator.clipboard.writeText(url); toast(t('toast.shareCopied')); }
 		} catch { /* cancelled */ }
 	}
-	async function doDetail() {
-		if (!track) return;
-		onclose();
-		detailTrack = await ensureTrackDetails(track).catch(() => track);
+	// Gated run callback (D-02): the gate already resolved the track, so just open the detail sheet
+	// with the resolved object (audioUrl/quality rows populated). The menu stays open behind the
+	// detail sub-sheet (its own overlay entry), matching the prior behavior.
+	function doDetail(resolved: Track) {
+		detailTrack = resolved;
+	}
+	// Remix (QUEUE-04 / D-04..D-07): play the seed first, then seed a force-generated up-next from
+	// it via the existing fresh-play regenerate path — NO new queue mechanism. setQueue([seed],
+	// 'remix') records the 'remix' QueueContext (effectiveUpnextMode('remix') === 'generated', from
+	// 19-01); play(seed,{fresh:true}) → regenerate → dedupeBest([seed, ...manualEntries, ...auto])
+	// preserves manual pins (D-05) and discards the prior generated tail. Gated → seed has audioUrl.
+	function doRemix(seed: Track) {
+		toast(t('toast.remixing'));
+		player.setQueue([seed], 'remix');
+		void player.play(seed, { fresh: true });
+		close();
 	}
 	function addToPlaylist(id: string) { if (track) library.addToPlaylist(id, track); pickerOpen = false; toast(t('toast.addedToPlaylist')); }
 	function newPlaylist() {
@@ -173,31 +211,68 @@
 {#if open && track}
 	<button class="scrim" aria-label={t('menu.closeMenu')} onclick={close}></button>
 	<div class="menu" transition:fly={{ y: 240, duration: 200 }} use:dragClose={{ onclose: close }}>
-		<div class="menu-head">{names.dnTitle(track.title)} · {names.dnArtist(track.artist)}</div>
-		{#if loading}
-			<!-- Resolving the real Track (home stub). Skeleton placeholders so the menu is
-			     visible INSTANTLY on long-press; the buttons swap in when the track resolves. -->
-			{#each Array(9) as _, i (i)}
-				<div class="mi-skel" aria-hidden="true"><span class="sk-ico"></span><span class="sk-bar" style:width={`${70 - (i % 3) * 12}%`}></span></div>
-			{/each}
-		{:else}
-			<button class="mi" onclick={playNext}><ListStart size={18} /> {t('menu.playNext')}</button>
-			<button class="mi" onclick={addQueue}><ListEnd size={18} /> {t('menu.addToQueue')}</button>
-			{#if player.queue.length > 1}
-				<button class="mi" class:on={player.shuffle} onclick={shuffleQueue}><Shuffle size={18} /> {t('menu.shuffleQueue')}</button>
-				<button class="mi" onclick={clearQueue}><Trash2 size={18} /> {t('menu.clearQueue')}</button>
-			{/if}
-			<button class="mi" onclick={doDownload}><Download size={18} /> {t('menu.download')}</button>
-			<button class="mi" onclick={like}><Heart size={18} fill={liked ? 'currentColor' : 'none'} /> {liked ? t('menu.liked') : t('menu.like')}</button>
-			<button class="mi" onclick={() => { pickerOpen = true; }}><ListPlus size={18} /> {t('menu.addToPlaylist')}</button>
-			<!-- Opens the GLOBAL SleepTimerSheet (mounted in the app layout) — not a local sub-sheet
-			     here, so the timer indicator is reachable from the nowbar + now-playing too (D-08). -->
-			<button class="mi" onclick={() => { close(); tick().then(() => (sleepTimer.sheetOpen = true)); }}><Moon size={18} /> {t('menu.sleepTimer')}</button>
-			<!-- <button class="mi" onclick={gotoAlbum} disabled={!track.album}><Disc size={18} /> {t('menu.goToAlbum')}</button> -->
-			<button class="mi" onclick={gotoArtist}><User size={18} /> {t('menu.goToArtist')}</button>
-			<button class="mi" onclick={doShare}><Share2 size={18} /> {t('menu.share')}</button>
-			<button class="mi" onclick={doDetail}><Info size={18} /> {t('menu.detail')}</button>
+		<!-- D-08/D-09/D-10: two-row marquee header (song/artist, display-only) + a top-right
+		     Like+Close cluster. Replaces the old single ellipsised `{title} · {artist}` line.
+		     {#key track.uid} remounts the clips on a stub→resolved reassignment so use:marquee
+		     re-measures the wider resolved text (NowPlaying analog; Pitfall 2). The keyframe is
+		     GLOBAL in app.css (Pitfall 4) — the component styles only the clip wrappers. -->
+		<div class="sheet-head">
+			<div class="head-text">
+				{#key track.uid}
+					<div class="hd-title" use:marquee><span class="marquee-inner">{names.dnTitle(track.title)}</span></div>
+					<div class="hd-artist" use:marquee><span class="marquee-inner">{names.dnArtist(track.artist)}</span></div>
+				{/key}
+			</div>
+			<div class="head-actions">
+				<!-- Like is the SOLE accent in the header (D-09); the mid-list Like row is removed.
+				     Reuses the existing like() + liked derived; the Heart import stays (Pitfall 7). -->
+				<button class="hd-btn" class:liked aria-pressed={liked} aria-label={liked ? t('menu.liked') : t('menu.like')} onclick={like}><Heart size={20} fill={liked ? 'currentColor' : 'none'} /></button>
+				<!-- NEW explicit Close affordance (today close is scrim/drag only). It ONLY flips
+				     state via close() → the $effect cleanup is the SOLE overlays.dismiss caller, so
+				     scrim/X/drag/back all converge on one dismiss path (overlay invariant; D-09). -->
+				<button class="hd-btn" aria-label={t('menu.closeMenu')} onclick={close}><X size={20} /></button>
+			</div>
+		</div>
+		{#if loading && !track.title}
+			<!-- HEADER-ONLY skeleton (D-11): two stacked .sk bars matching the 2-row header shape,
+			     using the GLOBAL .sk class. Home stubs usually carry title/artist so this only
+			     fills the rare pre-data instant; the action list ALWAYS renders below (D-01). -->
+			<div class="sheet-head" aria-hidden="true">
+				<div class="head-text">
+					<div class="sk" style="height:15px;width:65%"></div>
+					<div class="sk" style="height:12px;width:45%;margin-top:6px"></div>
+				</div>
+			</div>
 		{/if}
+		<!-- D-01: the action list ALWAYS renders (no `loading` gate around the buttons — `loading`
+		     now only drives the header-only skeleton above). Gated rows (Download / Detail / Remix)
+		     are tappable on a stub and resolve-then-act with an inline spinner (D-02/D-03). -->
+		<button class="mi" onclick={playNext}><ListStart size={18} /> {t('menu.playNext')}</button>
+		<button class="mi" onclick={addQueue}><ListEnd size={18} /> {t('menu.addToQueue')}</button>
+		<!-- Remix: GATED (needs audioUrl to play the seed) — Sparkles + the inline spinner.
+		     Sits in the queue-actions cluster after Play next / Add to queue (D-07). -->
+		<button class="mi" aria-busy={inFlight.has('remix')} aria-label={inFlight.has('remix') ? t('menu.preparing') : undefined} onclick={() => gated('remix', doRemix)}>
+			{#if inFlight.has('remix')}<span class="row-spinner"></span>{:else}<Sparkles size={18} />{/if} {t('menu.remix')}
+		</button>
+		{#if player.queue.length > 1}
+			<button class="mi" class:on={player.shuffle} onclick={shuffleQueue}><Shuffle size={18} /> {t('menu.shuffleQueue')}</button>
+			<button class="mi" onclick={clearQueue}><Trash2 size={18} /> {t('menu.clearQueue')}</button>
+		{/if}
+		<!-- Download: GATED — resolve-then-act at settings.downloadQuality inside the run callback. -->
+		<button class="mi" aria-busy={inFlight.has('download')} aria-label={inFlight.has('download') ? t('menu.preparing') : undefined} onclick={() => gated('download', doDownload)}>
+			{#if inFlight.has('download')}<span class="row-spinner"></span>{:else}<Download size={18} />{/if} {t('menu.download')}
+		</button>
+		<button class="mi" onclick={() => { pickerOpen = true; }}><ListPlus size={18} /> {t('menu.addToPlaylist')}</button>
+		<!-- Opens the GLOBAL SleepTimerSheet (mounted in the app layout) — not a local sub-sheet
+		     here, so the timer indicator is reachable from the nowbar + now-playing too (D-08). -->
+		<button class="mi" onclick={() => { close(); tick().then(() => (sleepTimer.sheetOpen = true)); }}><Moon size={18} /> {t('menu.sleepTimer')}</button>
+		<!-- <button class="mi" onclick={gotoAlbum} disabled={!track.album}><Disc size={18} /> {t('menu.goToAlbum')}</button> -->
+		<button class="mi" onclick={gotoArtist}><User size={18} /> {t('menu.goToArtist')}</button>
+		<button class="mi" onclick={doShare}><Share2 size={18} /> {t('menu.share')}</button>
+		<!-- Detail: GATED — resolves details to populate the detail sheet's audioUrl/quality rows. -->
+		<button class="mi" aria-busy={inFlight.has('detail')} aria-label={inFlight.has('detail') ? t('menu.preparing') : undefined} onclick={() => gated('detail', doDetail)}>
+			{#if inFlight.has('detail')}<span class="row-spinner"></span>{:else}<Info size={18} />{/if} {t('menu.detail')}
+		</button>
 	</div>
 {/if}
 
@@ -233,24 +308,32 @@
 <style>
 	.scrim { position: fixed; inset: 0; z-index: 80; background: rgba(0,0,0,0.45); border: none; }
 	.menu, .modal { position: fixed; left: 12px; right: 12px; bottom: 16px; z-index: 81; background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: 16px; padding: 8px; max-width: 680px; margin: 0 auto; box-shadow: 0 -10px 40px rgba(0,0,0,0.5); max-height: 80vh; overflow-y: auto; }
+	/* Legacy single-line head — STILL used by the playlist-picker + detail sub-sheets. */
 	.menu-head { font-size: calc(13px * var(--fs-title, 1)); color: var(--color-text-muted); padding: 8px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.menu-head.row { display: flex; align-items: center; justify-content: space-between; }
 	.x { background: none; border: none; color: var(--color-text); cursor: pointer; display: grid; place-items: center; }
+	/* D-08/D-09/D-10: two-row marquee header + top-right Like/Close cluster. Left text column
+	   flexes (min-width:0 so the clips can shrink-and-ellipsis); right cluster is fixed-width. */
+	.sheet-head { display: flex; align-items: center; gap: 12px; padding: 8px 10px; }
+	.head-text { flex: 1; min-width: 0; }
+	.hd-title { font-size: calc(15px * var(--fs-title, 1)); font-weight: 600; color: var(--color-text); line-height: 1.25; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; max-width: 100%; }
+	.hd-artist { font-size: calc(13px * var(--fs-artist, 1)); font-weight: 400; color: var(--color-text-muted); line-height: 1.25; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; max-width: 100%; }
+	.head-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 18px; }
+	.hd-btn { min-width: 44px; min-height: 44px; display: grid; place-items: center; background: none; border: none; border-radius: 10px; color: var(--color-text); cursor: pointer; }
+	.hd-btn:hover { background: var(--color-surface); }
+	.hd-btn.liked { color: var(--color-primary); }
 	.mi { width: 100%; display: flex; align-items: center; gap: 12px; background: none; border: none; color: var(--color-text); font-size: 15px; padding: 12px; border-radius: 10px; cursor: pointer; text-align: left; }
 	.mi:hover { background: var(--color-surface); }
 	.mi:disabled { opacity: 0.4; cursor: default; }
 	.mi.accent { color: var(--color-primary); }
 	.mi .count { margin-left: auto; font-size: 12px; color: var(--color-text-muted); }
-	/* Loading skeleton rows (home stub resolving) — same height as .mi so the menu doesn't jump. */
-	.mi-skel { display: flex; align-items: center; gap: 12px; padding: 12px; }
-	.sk-ico { width: 18px; height: 18px; border-radius: 4px; flex: none; }
-	.sk-bar { height: 12px; border-radius: 6px; }
-	/* Lighter than the menu's --color-surface-2 bg so the placeholders are visibly grey (the
-	   old --color-surface was DARKER than the menu → invisible). Stronger shimmer too. */
-	.sk-ico, .sk-bar { position: relative; overflow: hidden; background: rgba(255, 255, 255, 0.13); }
-	.sk-ico::after, .sk-bar::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.28), transparent); transform: translateX(-100%); animation: mi-shimmer 1.1s ease-in-out infinite; }
-	@keyframes mi-shimmer { 100% { transform: translateX(100%); } }
-	@media (prefers-reduced-motion: reduce) { .sk-ico::after, .sk-bar::after { animation: none; } }
+	/* MENU-01 inline resolve spinner — neutral (NOT accent), sits in the leading 18px icon box so
+	   the row width does not shift. Reduced-motion (OS pref + the app's [data-reduce-motion] rule)
+	   drops the rotation; the row stays announced busy via aria-busy + the menu.preparing label. */
+	.row-spinner { width: 16px; height: 16px; flex: none; border: 2px solid var(--color-text-muted); border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; }
+	@keyframes spin { to { transform: rotate(360deg); } }
+	@media (prefers-reduced-motion: reduce) { .row-spinner { animation: none; } }
+	:global(:root[data-reduce-motion]) .row-spinner { animation: none; }
 	.detail { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; padding: 6px 12px 14px; margin: 0; }
 	.detail dt { color: var(--color-text-muted); font-size: 12px; }
 	.detail dd { margin: 0; font-size: 13px; }

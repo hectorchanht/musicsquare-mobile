@@ -131,7 +131,7 @@ Milestone v1.2. Music never stops + offline downloads + broad UX polish. Researc
 
 - [x] **MENU-01**: The menu opens instantly with all action buttons visible while song data resolves in the background; actions that need resolved data are gated resolve-then-act (`detailsLoaded && uid`) and complete gracefully once data arrives
 - [x] **MENU-02**: Header is 2 rows (song name / artist name) with marquee handling; like button sits top-right beside a close button; the skeleton matches the new shape
-- [ ] **MENU-03**: Opening the menu by long-press leaves NO focus/active state on the menu item under the finger
+- [x] **MENU-03**: Opening the menu by long-press leaves NO focus/active state on the menu item under the finger
 
 ### Now Playing
 
@@ -325,7 +325,7 @@ Each v1.2 requirement maps to exactly one phase (16–24). See `.planning/ROADMA
 | TIMER-01 | Phase 18 | Complete |
 | MENU-01 | Phase 19 | Complete |
 | MENU-02 | Phase 19 | Complete |
-| MENU-03 | Phase 19 | Pending |
+| MENU-03 | Phase 19 | Complete |
 | QUEUE-04 | Phase 19 | Complete |
 | NP-01 | Phase 20 | Pending |
 | NP-02 | Phase 20 | Pending |

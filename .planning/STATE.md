@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Resilient Playback & UX Polish
-status: executing
-stopped_at: Completed 19-02-PLAN.md
-last_updated: "2026-06-11T05:30:46.092Z"
+status: verifying
+stopped_at: Completed 19-03-PLAN.md
+last_updated: "2026-06-11T05:39:19.696Z"
 last_activity: 2026-06-11
 progress:
   total_phases: 9
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 13
-  completed_plans: 12
-  percent: 33
+  completed_plans: 13
+  percent: 44
 ---
 
 # Project State
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-10)
 
 ## Current Position
 
-Phase: 19 (track-menu-rework) — EXECUTING
+Phase: 19 (track-menu-rework) — READY FOR VERIFICATION
 Plan: 3 of 3
-Status: 19-02 complete (TrackMenu rework — 2-row marquee header, always-visible gated buttons, Remix) — ready to execute 19-03
-Last activity: 2026-06-11 -- 19-02 complete (TrackMenu.svelte reworked; overlay invariant intact; pnpm check 0/0, 626 tests green)
-Next: execute 19-03-PLAN.md (long-press release fix at trigger sites)
+Status: 19-03 complete (MENU-03/D-12 long-press release fix — global tap-highlight reset + @media (hover: hover) guards + blur-on-longpress at all 6 trigger sites; longpress.ts untouched) — all 3 plans done
+Last activity: 2026-06-11 -- 19-03 complete (app.css + 6 trigger files; pnpm check 0/0, 626 tests green; device-pass iOS Safari + Android Chrome deferred)
+Next: /gsd:verify-work phase 19 (device-pass the two non-node-testable contracts — MENU-02 marquee re-measure + MENU-03 stuck-state — before sign-off)
 
 ## Performance Metrics
 
@@ -66,6 +66,7 @@ Next: execute 19-03-PLAN.md (long-press release fix at trigger sites)
 | Phase 18 P03 | 12 min | 2 tasks | 6 files |
 | Phase 19 P01 | 7 min | 3 tasks | 22 files |
 | Phase 19 P02 | 10 min | 3 tasks | 1 files |
+| Phase 19 P03 | 5 min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -104,6 +105,7 @@ Recent decisions affecting current work:
 - [Phase 19]: 19-01: D-06 force-generate = a 'remix' QueueContext enum value + a one-line effectiveUpnextMode early-return (if ctx===remix return generated); least-churn vs threading a mode param (A1). Player store unchanged — Remix reuses setQueue/play({fresh})/regenerate verbatim.
 - [Phase 19]: 19-01: MENU-01 gating extracted to PURE helper track-menu-gate.ts (isGatedReady = detailsLoaded && uid && audioUrl; shouldStartResolve = !inFlight.has(key)) so it is node-testable without a DOM; the new Set() reassign-for-reactivity stays in the component (19-02). i18n parity test widened from 3 to all 15 locales.
 - [Phase 19]: 19-02: TrackMenu rework landed as ONE atomic commit (the 3 contracts are mutually-dependent edits to one component file that won't compile in partial states); overlay $effect kept byte-unchanged (dep open-only, untrack, sole-dismiss cleanup, {#if open && track}); new Close (X) calls close() only. doDownload/doDetail refactored to gated run(resolved) callbacks; Download re-resolves at downloadQuality inside the callback (WR-07 preserved).
+- [Phase ?]: 19-03: MENU-03/D-12 stuck-highlight fix lands ENTIRELY at the 6 long-press trigger sites + one global app.css tap-highlight reset; longpress.ts and all onclick handlers untouched (suppressNextClick trailing-click guard + pointercancel/pointerup :active release preserved). Each sticky :hover/:active wrapped in @media (hover: hover) byte-unchanged; every onlongpress calls (e.currentTarget as HTMLElement)?.blur(). pnpm check 0/0, 626 tests green; device-pass deferred.
 
 ### Pending Todos
 
@@ -201,6 +203,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-11T05:29:43.560Z
-Stopped at: Completed 19-01-PLAN.md
+Last session: 2026-06-11T05:39:19.689Z
+Stopped at: Completed 19-03-PLAN.md
 Resume: plan Phase 16 (`/gsd:plan-phase 16`). Phase 16 is the resilience-core dependency root; everything else builds on its `queueContext` / 2-state repeat / skip-loop guard.

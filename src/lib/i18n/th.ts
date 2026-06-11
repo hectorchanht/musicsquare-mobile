@@ -34,6 +34,7 @@ const th: Dict = {
 	"search.noMore": "ไม่มีผลลัพธ์อีกต่อไป",
 	"search.recent": "การค้นหาล่าสุด",
 	"search.clear": "ชัดเจน",
+	"search.suggestions": "คำแนะนำ",
 	"settings.title": "การตั้งค่า · เปิดเพลง",
 	"settings.heading": "การตั้งค่า",
 	"settings.appLanguage": "ภาษาของแอป",

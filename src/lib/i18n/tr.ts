@@ -34,6 +34,7 @@ const tr: Dict = {
 	"search.noMore": "Başka sonuç yok.",
 	"search.recent": "Son aramalar",
 	"search.clear": "Temizle",
+	"search.suggestions": "Öneriler",
 	"settings.title": "Ayarlar · openmusic",
 	"settings.heading": "Ayarlar",
 	"settings.appLanguage": "Uygulama dili",

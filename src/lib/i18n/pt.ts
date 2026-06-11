@@ -34,6 +34,7 @@ const pt: Dict = {
 	"search.noMore": "Não há mais resultados.",
 	"search.recent": "Pesquisas recentes",
 	"search.clear": "Limpar",
+	"search.suggestions": "Sugestões",
 	"settings.title": "Configurações · openmusic",
 	"settings.heading": "Configurações",
 	"settings.appLanguage": "Idioma do aplicativo",

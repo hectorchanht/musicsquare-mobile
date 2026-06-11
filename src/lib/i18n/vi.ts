@@ -34,6 +34,7 @@ const vi: Dict = {
 	"search.noMore": "Không còn kết quả nữa.",
 	"search.recent": "Tìm kiếm gần đây",
 	"search.clear": "Xóa",
+	"search.suggestions": "Gợi ý",
 	"settings.title": "Cài đặt · openmusic",
 	"settings.heading": "Cài đặt",
 	"settings.appLanguage": "Ngôn ngữ ứng dụng",

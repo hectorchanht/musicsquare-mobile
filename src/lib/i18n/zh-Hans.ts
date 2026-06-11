@@ -41,6 +41,7 @@ const zhHans: Dict = {
 	'search.noMore': '没有更多结果了。',
 	'search.recent': '最近搜索',
 	'search.clear': '清除',
+	'search.suggestions': '建议',
 
 	// --- settings ---
 	'settings.title': '设置 · openmusic',

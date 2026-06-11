@@ -34,6 +34,7 @@ const id: Dict = {
 	"search.noMore": "Tidak ada hasil lagi.",
 	"search.recent": "Pencarian terkini",
 	"search.clear": "Jelas",
+	"search.suggestions": "Saran",
 	"settings.title": "Pengaturan · musik terbuka",
 	"settings.heading": "Pengaturan",
 	"settings.appLanguage": "Bahasa aplikasi",

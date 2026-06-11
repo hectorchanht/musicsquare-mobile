@@ -34,6 +34,7 @@ const hi: Dict = {
 	"search.noMore": "कोई और परिणाम नहीं.",
 	"search.recent": "हाल की खोजें",
 	"search.clear": "स्पष्ट",
+	"search.suggestions": "सुझाव",
 	"settings.title": "सेटिंग्स · ओपनम्यूजिक",
 	"settings.heading": "सेटिंग्स",
 	"settings.appLanguage": "ऐप भाषा",

@@ -34,6 +34,7 @@ const es: Dict = {
 	"search.noMore": "No más resultados.",
 	"search.recent": "Búsquedas recientes",
 	"search.clear": "Borrar",
+	"search.suggestions": "Sugerencias",
 	"settings.title": "Configuración · música abierta",
 	"settings.heading": "Configuración",
 	"settings.appLanguage": "Idioma de la aplicación",

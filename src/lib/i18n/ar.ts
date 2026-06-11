@@ -34,6 +34,7 @@ const ar: Dict = {
 	"search.noMore": "لا مزيد من النتائج.",
 	"search.recent": "عمليات البحث الأخيرة",
 	"search.clear": "واضح",
+	"search.suggestions": "اقتراحات",
 	"settings.title": "الإعدادات · الموسيقى المفتوحة",
 	"settings.heading": "الإعدادات",
 	"settings.appLanguage": "لغة التطبيق",

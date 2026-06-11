@@ -763,6 +763,15 @@ class Player {
 			// already paused the element; rewind + play(). 'off' is the straight advance into
 			// next() (which grows auto up-next at the end of the queue — no repeat-all wrap).
 			if (this.repeatMode === 'one' && this.audio) {
+				// WR-02: a minutes fade keeps the audio PLAYING (it only pauses at finishExpiry). If
+				// the track ends naturally mid-fade, `fadeTimer` is still set — the timer has expired.
+				// Replaying here would loop a fading track (and the fade would keep lowering the new
+				// loop's volume). Finish the expiry instead (disarm fade, restore volume, pause, cancel
+				// timer) and do NOT loop. The 'advance' branch is already safe — next() calls abortFade.
+				if (this.fadeTimer) {
+					this.finishExpiry();
+					return;
+				}
 				this.audio.currentTime = 0;
 				// Not an initial-load arming point (D-14): repeat-one rewinds an already-playing
 				// src, so a rejection here is a paused-loop, not a load failure — the watchdog

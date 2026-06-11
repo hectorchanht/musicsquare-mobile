@@ -612,9 +612,9 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 
 ### Phase 999.1: v2.0 Native (Capacitor) migration (BACKLOG)
 
-**Goal:** Wrap the SvelteKit app as iOS/Android native apps via Capacitor, with sideload-only distribution. Trigger: revisit after v1.2 completes.
-**Requirements:** TBD
-**Plans:** 0 plans
+**Goal:** Ship an installable, signed Android APK of MusicSquare via Capacitor 8 — full background audio + lock-screen controls, downloads to device storage, distributed by sideload (GitHub Releases / Obtainium), with the web Cloudflare deploy untouched. (iOS slice + API worker extraction deferred.)
+**Requirements:** none mapped (backlog phase — covers CONTEXT.md decisions D-01..D-12)
+**Plans:** 5 plans
 
 Decided context (assessment 2026-06-11, full doc: `~/.claude/plans/i-m-planning-to-make-fluffy-star.md`):
 - **Distribution:** sideload-only — Android signed APK via GitHub Releases, iOS Xcode sideload/AltStore. Store submission ruled out (Apple Guideline 5.2.3 / Google Play IP policy — unofficial music-source aggregation + downloads is near-certain rejection). Skip store-compliance scope entirely.
@@ -626,4 +626,8 @@ Decided context (assessment 2026-06-11, full doc: `~/.claude/plans/i-m-planning-
 - When promoted: reverse the native-apps exclusion in PROJECT.md/REQUIREMENTS.md.
 
 Plans:
-- [ ] TBD (promote with /gsd:review-backlog when ready)
+- [ ] 999.1-01-PLAN.md — API_BASE fetch seam (D-03) + Capacitor-origin CORS via hooks.server.ts (D-02); web byte-identical [wave 1]
+- [ ] 999.1-02-PLAN.md — dual-adapter build switch (D-01) + Capacitor Android scaffold (D-12); first foreground-playing debug APK [wave 2]
+- [ ] 999.1-03-PLAN.md — blob-store filesystem platform-switch (D-10) + public-Music vs app-private storage decision (D-11) [wave 3]
+- [ ] 999.1-04-PLAN.md — background audio: plugin Cap-8 compat spike + native media-session bridge + FGS (D-04/D-05/D-06); device-gated [wave 4]
+- [ ] 999.1-05-PLAN.md — GitHub Actions signed-APK release pipeline + Obtainium versioning (D-07/D-08/D-09) [wave 5]

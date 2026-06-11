@@ -183,7 +183,18 @@
 	// (pendingTrack cleared) — a supersede leaves pendingTrack on the newer song (no toast).
 	async function playStub(stub: AlbumStub) {
 		const tr = await player.playStub(stub.artist, stub.title, null, 'album');
-		if (tr === null && player.pendingTrack == null) toast(t('album.unplayable'));
+		if (tr === null) {
+			if (player.pendingTrack == null) toast(t('album.unplayable'));
+			return;
+		}
+		// album-and-next-song-bug fix: playStub installs a one-track queue ([tr]) for the optimistic
+		// now-bar, so up-next would otherwise be GENERATED (or grown) rather than the album remainder,
+		// and next() could fail. Resolve the rest of the album and re-anchor the queue AROUND the
+		// now-playing track so up-next IS the album's remaining tracks (and stays so under the
+		// "same-list" sourcing setting). setListQueue keeps `tr` (already current) as the member, so
+		// playback is not interrupted. Guard a stale tap: only install while `tr` is still current.
+		const all = await resolveAllCached();
+		if (player.current?.uid === tr.uid && all.length) player.setListQueue(all, 'album');
 	}
 
 	// ---- Album-level actions (between hero + tracklist) ----
@@ -264,7 +275,13 @@
 				return;
 			}
 			const all = await resolveAllCached();
-			player.setQueue(all.length ? all : [first], 'album');
+			// album-and-next-song-bug fix: `first` (player.current) was resolved by playStub's own
+			// resolveStub and may be a DIFFERENT source-variant uid than `all`'s entry for track 0
+			// (resolveStub is non-deterministic + dedupeBest collapses variants). A plain setQueue(all)
+			// would leave indexOf(current) === -1 → next() dead. setListQueue re-anchors current into
+			// the album list (by uid, then by same-song key) so the whole album plays straight through.
+			if (all.length) player.setListQueue(all, 'album');
+			else player.setQueue([first], 'album');
 		} finally {
 			busyAction = null;
 		}

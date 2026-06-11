@@ -15,7 +15,7 @@ import { tryFallback } from '$lib/services/fallback';
 import { buildDiversePicks } from '$lib/services/picks';
 import { buildSimilarQueue } from '$lib/services/similar';
 import { buildOfflineQueue } from '$lib/services/downloads-queue';
-import { dedupeBest } from '$lib/services/dedupe';
+import { dedupeBest, sameSongKey } from '$lib/services/dedupe';
 import { buildArtwork, safePositionState, playbackStateFor } from '$lib/services/media-session';
 import { resolveStub } from '$lib/services/discovery';
 import { blobStore } from '$lib/services/blob-store';
@@ -916,6 +916,48 @@ class Player {
 		this.persist();
 	}
 
+	/**
+	 * Install an explicit ordered LIST as the up-next queue while GUARANTEEING the currently
+	 * playing track is a member of it (album-and-next-song-bug fix). The single-tap album path and
+	 * any other "play one item, then back-fill the rest of its list" flow needs the current track to
+	 * live INSIDE the queue at its real position, otherwise indexOf(current) is -1 and next()/prev()/
+	 * ensureAhead/prefetchNext all go dead AND the "same-list" up-next can never be the list remainder
+	 * (it falls through to generation). This re-anchors current into the deduped list WITHOUT
+	 * restarting playback (unlike play(), which resets currentTime + re-sets audio.src):
+	 *
+	 *  - Dedupe the list (cross-source collapse, same as setQueue).
+	 *  - Locate current in it by uid first, then by sameSongKey (a different-source variant of the
+	 *    same song collapses under dedupe, so the uid may differ — match the SONG, not the id).
+	 *  - If found, REPLACE that slot with the exact `current` object so indexOf(current) is valid and
+	 *    audio keeps playing the already-loaded track.
+	 *  - If NOT found (the song isn't in its own list — rare), splice current at the front so it
+	 *    stays a member and the rest of the list becomes the up-next remainder.
+	 *
+	 * No-op delegate to setQueue() when there is no current track (nothing to anchor).
+	 */
+	setListQueue(tracks: Track[], context: QueueContext = null) {
+		const current = this.current;
+		if (!current) {
+			this.setQueue(tracks, context);
+			return;
+		}
+		this.queueGen++; // WR-06: an explicit queue supersedes any in-flight regenerate result
+		const deduped = dedupeBest(tracks, settings.preferredSource);
+		let idx = deduped.findIndex((t) => t.uid === current.uid);
+		if (idx < 0) idx = deduped.findIndex((t) => sameSongKey(t, current));
+		if (idx >= 0) {
+			// Re-anchor: keep the EXACT current object (its resolved audioUrl/lrc) in place so playback
+			// is uninterrupted and indexOf(current) is valid.
+			deduped[idx] = current;
+			this.queue = deduped;
+		} else {
+			// current isn't in its own list — keep it a member at the front so next() still works.
+			this.queue = [current, ...deduped.filter((t) => t.uid !== current.uid)];
+		}
+		this.queueContext = context;
+		this.persist();
+	}
+
 	/** Insert a track right after the current one (de-duped). Plays it if nothing is playing. */
 	playNext(t: Track) {
 		this.manualUids.add(t.uid); // explicit manual add — preserved across regen
@@ -973,11 +1015,19 @@ class Player {
 		const i = this.indexOf(this.current);
 		if (i < 0 || this.queue.length - i > 2) return;
 		this.growing = true;
+		// album-and-next-song-bug fix: snapshot the queue generation (mirrors regenerate's WR-06).
+		// A fresh single-tap album play fires ensureAhead against the optimistic one-track queue;
+		// while buildDiversePicks is in flight the album page installs the FULL album list via
+		// setListQueue (which bumps queueGen). Without this guard the stale grow would append
+		// GENERATED picks onto the explicit album queue, re-introducing the "up-next still generated"
+		// bug. Discard the grow if an explicit queue landed meanwhile.
+		const myQueueGen = this.queueGen;
 		try {
 			// Union removedUids (Phase 17, D-10/QUEUE-02): swiped-away songs stay excluded from the
 			// auto-grow picks, not just from the current queue snapshot.
 			const have = new Set([...this.queue.map((t) => t.uid), ...this.removedUids]);
 			const more = await buildDiversePicks(8, have);
+			if (myQueueGen !== this.queueGen) return; // an explicit setQueue/setListQueue superseded
 			if (more.length) this.queue = dedupeBest([...this.queue, ...more], settings.preferredSource);
 		} catch {
 			/* sources dry — leave the queue as-is */

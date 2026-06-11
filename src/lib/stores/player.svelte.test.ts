@@ -1019,6 +1019,98 @@ describe('player.queueContext — context-threaded setQueue/playStub (Phase 17 Q
 	});
 });
 
+describe('player.setListQueue — current-anchored queue install (album-and-next-song-bug)', () => {
+	// Regression coverage for the album queue/next-song bug: the album play paths must install the
+	// FULL list as the queue while keeping the now-playing track a MEMBER of it, so up-next is the
+	// list remainder and next() can advance. These assert the synchronous queue state (no <audio>).
+	beforeEach(() => {
+		player.current = null;
+		player.queue = [];
+		player.queueContext = null;
+	});
+
+	it('re-anchors current INTO the list by uid so indexOf(current) is valid (next() can advance)', () => {
+		const t1 = mk('netease', '1', 'A', 'Track One');
+		const t2 = mk('netease', '2', 'A', 'Track Two');
+		const t3 = mk('netease', '3', 'A', 'Track Three');
+		player.current = t1; // already playing track 1 (e.g. tapped on the album page)
+		player.setListQueue([t1, t2, t3], 'album');
+		expect(player.queueContext).toBe('album');
+		// current is a member at its real position → up-next IS the album remainder.
+		const idx = player.queue.findIndex((t) => t.uid === t1.uid);
+		expect(idx).toBe(0);
+		expect(player.queue.map((t) => t.uid)).toEqual([t1.uid, t2.uid, t3.uid]);
+	});
+
+	it('matches current by same-song key when the list entry is a different SOURCE variant (Bug 2)', () => {
+		// playAlbum: `first` (current) came from one resolveStub; the list re-resolved track 0 to a
+		// different-source variant of the SAME song. dedupeBest collapses them; setListQueue must keep
+		// the EXACT current object in the surviving slot so indexOf(current) stays valid.
+		const currentNetease = mk('netease', 'X', 'Adele', 'Hello');
+		const variantQQ = mk('qq', 'Y', 'Adele', 'Hello'); // same song, different source → dedup-collapses
+		const other = mk('kuwo', 'Z', 'Adele', 'Someone Like You');
+		player.current = currentNetease;
+		player.setListQueue([variantQQ, other], 'album');
+		// The exact current object survives in the queue (so audio keeps playing + next() works).
+		expect(player.queue.includes(currentNetease)).toBe(true);
+		expect(player.queue.some((t) => t.uid === variantQQ.uid && t !== currentNetease)).toBe(false);
+		// next() target exists after current.
+		const i = player.queue.findIndex((t) => t.uid === currentNetease.uid);
+		expect(player.queue[i + 1]?.uid).toBe(other.uid);
+	});
+
+	it('splices current at the front when it is NOT in its own list (stays a member)', () => {
+		const current = mk('netease', 'C', 'A', 'Current');
+		const a = mk('qq', 'a', 'B', 'Other A');
+		const b = mk('kuwo', 'b', 'C', 'Other B');
+		player.current = current;
+		player.setListQueue([a, b], 'album'); // current's song absent from the list
+		expect(player.queue[0].uid).toBe(current.uid);
+		expect(player.queue.map((t) => t.uid)).toEqual([current.uid, a.uid, b.uid]);
+	});
+
+	it('delegates to setQueue when there is no current track (nothing to anchor)', () => {
+		player.current = null;
+		const a = mk('netease', '1', 'A', 'S');
+		player.setListQueue([a], 'album');
+		expect(player.queue.map((t) => t.uid)).toEqual([a.uid]);
+		expect(player.queueContext).toBe('album');
+	});
+
+	it('bumps queueGen so a racing ensureAhead grow is discarded (up-next stays the list, not generated)', async () => {
+		// Reproduces the single-tap "same-list still generated" residual race: a fresh play fires
+		// ensureAhead against the optimistic one-track queue; while buildDiversePicks is in flight the
+		// album page installs the full album via setListQueue (bumps queueGen). The stale grow must be
+		// discarded so generated picks never get appended to the album queue.
+		const tapped = mk('netease', '1', 'A', 'Tapped');
+		const albumB = mk('netease', '2', 'A', 'Album B');
+		const albumC = mk('netease', '3', 'A', 'Album C');
+		const generated = mk('joox', 'GEN', 'Z', 'Generated Pick');
+
+		player.current = tapped;
+		player.queue = [tapped]; // optimistic one-track queue (playStub state)
+
+		// Make buildDiversePicks resolve AFTER setListQueue lands.
+		const d = deferred<Track[]>();
+		mockPicks.mockReset().mockReturnValue(d.promise);
+
+		const aheadPromise = (
+			player as unknown as { ensureAhead(): Promise<void> }
+		).ensureAhead(); // queue.length - i = 1, not > 2 → it grows
+
+		// Album finishes resolving → install the full album.
+		player.setListQueue([tapped, albumB, albumC], 'album');
+
+		// Now the stale grow settles — it must be discarded (queueGen advanced).
+		d.resolve([generated]);
+		await aheadPromise;
+		await flush();
+
+		expect(player.queue.map((t) => t.uid)).toEqual([tapped.uid, albumB.uid, albumC.uid]);
+		expect(player.queue.some((t) => t.uid === generated.uid)).toBe(false);
+	});
+});
+
 describe('player.play — auto-expand fresh-only guard + per-context branch (Phase 17 QUEUE-01/D-05)', () => {
 	// Exercise the REAL play() (restore the global spy) with a fake <audio>, mocked resolve, and
 	// spies on the private regenerate/ensureAhead so we observe the branch without real network.

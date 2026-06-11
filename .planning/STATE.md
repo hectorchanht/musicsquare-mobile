@@ -4,8 +4,8 @@ milestone: v1.2
 milestone_name: Resilient Playback & UX Polish
 status: executing
 stopped_at: Phase 20 UI-SPEC approved
-last_updated: "2026-06-11T08:21:12.247Z"
-last_activity: 2026-06-11 -- Phase 20 planning complete
+last_updated: "2026-06-11T08:35:02.410Z"
+last_activity: 2026-06-11 -- Phase 20 execution started
 progress:
   total_phases: 9
   completed_phases: 4
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-10)
 
 **Core value:** A user on their phone can search a song, tap it, and have it play instantly with a smooth, native-app-like experience — and keep playing when the screen locks.
-**Current focus:** Phase 20 — now playing surface & gestures
+**Current focus:** Phase 20 — now-playing-surface-gestures
 
 ## Current Position
 
-Phase: 20
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-06-11 -- Phase 20 planning complete
+Phase: 20 (now-playing-surface-gestures) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 20
+Last activity: 2026-06-11 -- Phase 20 execution started
 Next: /gsd:verify-work phase 19 (device-pass the two non-node-testable contracts — MENU-02 marquee re-measure + MENU-03 stuck-state — before sign-off)
 
 ## Performance Metrics

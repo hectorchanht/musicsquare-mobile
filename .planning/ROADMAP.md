@@ -482,8 +482,8 @@ Plans:
 
 **Wave 1**
 
-- [ ] 20-01-PLAN.md — `coverSwipe` action (reusable horizontal prev/next swipe: 0.28×-width proportional commit, 0.5px/ms flick, boundary rubber-band, no-capture-on-pointerdown) + node tests (NP-01/NP-05)
-- [ ] 20-02-PLAN.md — NP top running-line loader (reuse nowbar `.np-prog.indet`) + `.panel` `overscroll-behavior-y: contain` (NP-02/NP-04)
+- [x] 20-01-PLAN.md — `coverSwipe` action (reusable horizontal prev/next swipe: 0.28×-width proportional commit, 0.5px/ms flick, boundary rubber-band, no-capture-on-pointerdown) + node tests (NP-01/NP-05)
+- [x] 20-02-PLAN.md — NP top running-line loader (reuse nowbar `.np-prog.indet`) + `.panel` `overscroll-behavior-y: contain` (NP-02/NP-04)
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -590,7 +590,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 | 17. Up-Next Sourcing + Settings Plumbing | 4/4 | Complete    | 2026-06-10 |
 | 18. Sleep Timer | 3/3 | Complete    | 2026-06-11 |
 | 19. Track Menu Rework | 3/3 | Complete    | 2026-06-11 |
-| 20. Now-Playing Surface & Gestures | 0/4 | Planned | - |
+| 20. Now-Playing Surface & Gestures | 2/4 | In Progress|  |
 | 21. Search & Cover Pipeline Polish | 0/TBD | Not started | - |
 | 22. Lyrics Polish | 0/TBD | Not started | - |
 | 23. UX Audit & Homepage/Artist Polish | 0/TBD | Not started | - |

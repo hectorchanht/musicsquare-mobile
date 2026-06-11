@@ -570,6 +570,13 @@ class Player {
 	 * timer silently (no second pause, no fade).
 	 */
 	expireSleepTimer() {
+		// CR-01: re-entry guard. A fade in flight means the stop has already begun — the
+		// ~4×/sec `timeupdate` firehose (and the wake-timer backstop) keep re-checking the
+		// past deadline while `sleepTimer.mode` stays 'minutes' for the whole fade. Without
+		// this guard each re-entry re-snapshots `preFadeVolume` (restoring a degraded value),
+		// restarts the interval, and re-runs canFadeVolume's volume=0 write-probe (audible
+		// stutter). Bailing while `fadeTimer` is set makes the method idempotent (also WR-04).
+		if (this.fadeTimer) return;
 		if (!this.audio) {
 			sleepTimer.cancel();
 			return;

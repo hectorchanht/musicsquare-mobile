@@ -350,7 +350,7 @@ Music never stops + offline downloads + a broad UX polish pass. This is a polish
 
 - [x] **Phase 16: Playback Resilience Core** - Never-stop player: all-source failover → toast + auto-skip, ~5-skip loop-guard, prefetch-next, auto-generate-on-exhaust, offline short-circuit, 2-state repeat (completed 2026-06-10)
 - [x] **Phase 17: Up-Next Sourcing + Settings Plumbing** - Per-context up-next setting (same-list vs genre-generated, default generated), search-doesn't-append + no auto-expand, queue swipe-remove + clear, widened text-size demo, accent-wiring verify, Deezer artist/album enrichment (completed 2026-06-10)
-- [ ] **Phase 18: Sleep Timer** - Sleep timer (5/10/15/30/45/60 min or end-of-track) from the track menu with active indicator + cancel/change
+- [x] **Phase 18: Sleep Timer** - Sleep timer (5/10/15/30/45/60 min or end-of-track) from the track menu with active indicator + cancel/change (completed 2026-06-11)
 - [ ] **Phase 19: Track Menu Rework** - Instant buttons + background resolve-then-act, 2-row marquee header, top-right like/close, Remix (seed genre queue), long-press focus-state fix
 - [ ] **Phase 20: Now-Playing Surface & Gestures** - Cover swipe prev/next (axis-locked), half-open scroll containment, tap-cover-closes-subnav, top running-line loader, nowbar horizontal swipe
 - [ ] **Phase 21: Search & Cover Pipeline Polish** - Search scoring tune (short-title / artist-frequency boost, <60s 試聽 penalty), result cover fallback, empty-query autofocus, playing-track cover guarantee, scroll-into-view uid/name-keyed cache
@@ -434,7 +434,7 @@ Plans:
 
 **Wave 3** *(blocked on 18-01 + 18-02)*
 
-- [ ] 18-03-PLAN.md — UI: global timer sub-sheet (3rd pickerOpen instance) + TrackMenu item + nowbar moon badge + now-playing countdown readout + 15-locale i18n (checkpoint: human-verify) (TIMER-01)
+- [x] 18-03-PLAN.md — UI: global timer sub-sheet (3rd pickerOpen instance) + TrackMenu item + nowbar moon badge + now-playing countdown readout + 15-locale i18n (checkpoint: human-verify) (TIMER-01)
 
 **Research flag**: LOW — `setTimeout`/absolute-deadline pattern; durations verified against Spotify. Background-tab throttle drift is the one documented pitfall.
 
@@ -567,7 +567,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 | 14. Search & Data Responsiveness | 2/2 | Complete    | 2026-06-06 |
 | 16. Playback Resilience Core | 3/3 | Complete    | 2026-06-10 |
 | 17. Up-Next Sourcing + Settings Plumbing | 4/4 | Complete    | 2026-06-10 |
-| 18. Sleep Timer | 2/3 | In Progress|  |
+| 18. Sleep Timer | 3/3 | Complete   | 2026-06-11 |
 | 19. Track Menu Rework | 0/TBD | Not started | - |
 | 20. Now-Playing Surface & Gestures | 0/TBD | Not started | - |
 | 21. Search & Cover Pipeline Polish | 0/TBD | Not started | - |

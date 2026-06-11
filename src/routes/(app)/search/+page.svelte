@@ -4,6 +4,9 @@
 	import { searchAll } from '$lib/services/catalog';
 	import { dedupeBest } from '$lib/services/dedupe';
 	import { dedupeBestWithDeezer } from '$lib/services/dedupe-deezer';
+	import { scoreMatch } from '$lib/services/score-match';
+	import { computeSetContext } from '$lib/services/score-context';
+	import { lazyCover } from '$lib/actions/lazyCover';
 	import { enrichArtist } from '$lib/services/lastfm';
 	import { deezerArtistCover, deezerSearchTopN, type DeezerHit } from '$lib/services/deezer';
 	import {
@@ -32,6 +35,11 @@
 	let q = $state('');
 	let queryInputEl = $state<HTMLInputElement | null>(null);
 	let results = $state<Track[]>([]);
+	// SRCH-02 / COVER-02: lazily-resolved covers keyed by track.uid. lazyCover fires onResolved
+	// with a SOLID https URL (Plan 02 isSolidCover gate) when a row scrolls into view and its
+	// cover is empty/broken; reassigning the object triggers a reactive repaint of that row's
+	// .art background-image. The resolve helper never refetches (cache-first + in-flight dedupe).
+	let resolvedCovers = $state<Record<string, string>>({});
 	let loading = $state(false);
 	let searched = $state(false);
 	let someFailed = $state(false);
@@ -185,6 +193,19 @@
 		return `linear-gradient(145deg, hsl(${h} 55% 32%), hsl(${(h + 40) % 360} 55% 18%))`;
 	}
 
+	// SRCH-01 / D-01 + D-02: full score-based re-sort of the (already-deduped) result set.
+	// Computes the per-set context ONCE (cross-source artist map + query length), then sorts a
+	// COPY descending by scoreMatch. Per researcher Q2/A4, the raw trimmed keyword is fed into
+	// BOTH the artist and title query slots: the similarity term degrades to token-overlap (still
+	// useful) while the new short-title / artist-frequency boosts + the sub-60s 試聽 penalty are
+	// the dominant search-list signals. scoreMatch is deterministic, so equal scores keep
+	// dedupeBest's appearance order (the tie-break) — the sort is stable in practice.
+	function rankList(rows: Track[], query: string): Track[] {
+		const ctx = computeSetContext(rows, query);
+		const qObj = { artist: query, title: query };
+		return [...rows].sort((a, b) => scoreMatch(qObj, b, ctx) - scoreMatch(qObj, a, ctx));
+	}
+
 	async function run(e?: Event) {
 		e?.preventDefault();
 		const kw = q.trim();
@@ -219,10 +240,12 @@
 			// query's partials.
 			const { interleaved, perSource } = await searchAll(kw, 1, {}, ac.signal, (partial) => {
 				if (myAc.signal.aborted || kw !== q.trim()) return;
-				results = dedupeBest(partial.interleaved, settings.preferredSource);
+				// SRCH-01/D-02: re-sort by score INSIDE the race guard (Pitfall 3 — a superseded
+				// partial returns above before ever reaching here).
+				results = rankList(dedupeBest(partial.interleaved, settings.preferredSource), kw);
 			});
-			// Final value is authoritative — re-derive from the complete superset.
-			results = dedupeBest(interleaved, settings.preferredSource);
+			// Final value is authoritative — re-derive from the complete superset, then re-sort.
+			results = rankList(dedupeBest(interleaved, settings.preferredSource), kw);
 			someFailed = perSource.some((p) => p.status === 'error');
 			// kyf: derive artist tiles from the settled result set (race-guarded inside).
 			void refreshArtistTiles(kw, results);
@@ -236,7 +259,8 @@
 			// groups where >1 CN source returned the same song. Aborts on supersede.
 			void dedupeBestWithDeezer(interleaved, settings.preferredSource, ac.signal).then((boosted) => {
 				if (myAc.signal.aborted || kw !== q.trim()) return;
-				results = boosted;
+				// SRCH-01/D-02: re-rank the Deezer-boosted set inside the supersede guard.
+				results = rankList(boosted, kw);
 				persistSession();
 			});
 		} catch (err) {
@@ -272,7 +296,9 @@
 		const myMoreAc = moreAc; // capture for the dwell ownership guard below
 		try {
 			const { interleaved } = await searchAll(kw, next, {}, moreAc.signal);
-			const merged = dedupeBest(interleaved, settings.preferredSource);
+			// SRCH-01/D-02: re-sort the cumulative superset by score. rankList is pure; the
+			// race guard below still prevents a superseded batch from assigning to `results`.
+			const merged = rankList(dedupeBest(interleaved, settings.preferredSource), kw);
 			// Race guard: user searched something else mid-fetch — bail without touching state.
 			if (kw !== q.trim()) return;
 			if (merged.length <= results.length) {
@@ -313,11 +339,18 @@
 			await tick();
 			window.scrollTo(0, searchSession.scrollY);
 		}
-		// RHX-01: mount-time-only focus on an EMPTY query so the mobile keyboard rises.
-		// Evaluated AFTER the hasPrior restore above — a restored prior query makes `q`
-		// non-empty so focus is not stolen. Lives in onMount (not a $effect keyed on `q`)
-		// so clearing the input mid-session does NOT re-grab focus.
-		if (!q.trim()) queryInputEl?.focus();
+		// RHX-01 / SRCH-03: mount-time-only focus on an EMPTY query so the mobile keyboard
+		// rises. Evaluated AFTER the hasPrior restore above — a restored prior query makes `q`
+		// non-empty so focus is not stolen (D-17). Lives in onMount (NOT a $effect keyed on
+		// `q`) so clearing the input mid-session does NOT re-grab focus.
+		// D-19: also set inputFocused = true so the recent-searches list opens on a fresh empty
+		// visit even if the programmatic .focus() does not synchronously fire the onfocus
+		// handler. iOS keyboard restriction accepted (D-18) — success = focused input (ring +
+		// caret); no gesture-chained nav hack.
+		if (!q.trim()) {
+			queryInputEl?.focus();
+			inputFocused = true;
+		}
 	});
 
 	// D-02: on navigate-away, capture the live set + current scroll so a tab return restores it.
@@ -478,7 +511,11 @@
 		{#each results as t (t.uid)}
 			<li>
 				<button class="row" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); menuTrack = t; menuOpen = true; }} onclick={() => { player.play(t); player.setListQueue(results, 'search'); }}>
-					<span class="art" style:background-image={t.cover ? `url(${t.cover})` : fallbackCover(t)}></span>
+					<span
+						class="art"
+						use:lazyCover={{ track: t, onResolved: (uid, url) => { resolvedCovers = { ...resolvedCovers, [uid]: url }; } }}
+						style:background-image={(resolvedCovers[t.uid] ?? t.cover) ? `url(${resolvedCovers[t.uid] ?? t.cover})` : fallbackCover(t)}
+					></span>
 					<span class="meta">
 						<span class="r-title">{names.dnTitle(t.title)}</span>
 						<span class="r-artist">{names.dnArtist(t.artist)}</span>

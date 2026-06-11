@@ -48,6 +48,7 @@
 		"@capacitor/filesystem": "8.1.2",
 		"@capacitor/splash-screen": "^8.0.1",
 		"@capacitor/status-bar": "^8.0.2",
+		"@jofr/capacitor-media-session": "4.0.0",
 		"@lucide/svelte": "^1.17.0",
 		"capacitor-blob-writer": "1.1.20"
 	}

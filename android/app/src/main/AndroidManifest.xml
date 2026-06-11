@@ -38,4 +38,15 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- D-04 background audio (Plan 999.1-04): a mediaPlayback foreground service keeps the
+         backgrounded WebView audio alive past screen-off and renders the system media notification
+         + lock-screen transport. The @jofr/capacitor-media-session plugin merges in its own
+         MediaSessionService (android:foregroundServiceType="mediaPlayback") and declares
+         FOREGROUND_SERVICE, but it is stale (peer Cap 6 / pre-Android-14) and does NOT declare the
+         Android 14+/targetSdk-36-REQUIRED FOREGROUND_SERVICE_MEDIA_PLAYBACK permission. Without it,
+         starting the FGS throws MissingForegroundServiceTypeException on Android 14+. Declare both
+         here (FOREGROUND_SERVICE is redeclared harmlessly; the merger dedupes). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 </manifest>

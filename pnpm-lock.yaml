@@ -25,6 +25,9 @@ dependencies:
   '@capacitor/status-bar':
     specifier: ^8.0.2
     version: 8.0.2(@capacitor/core@8.4.0)
+  '@jofr/capacitor-media-session':
+    specifier: 4.0.0
+    version: 4.0.0(@capacitor/core@8.4.0)
   '@lucide/svelte':
     specifier: ^1.17.0
     version: 1.17.0(svelte@5.56.2)
@@ -764,6 +767,14 @@ packages:
     dependencies:
       minipass: 7.1.3
     dev: true
+
+  /@jofr/capacitor-media-session@4.0.0(@capacitor/core@8.4.0):
+    resolution: {integrity: sha512-IGfc6BUzeeR0sJkk+0/jij3l0h78NdTqPMwBc9LXZrojtiqNtg4tw3CnIkYGccwZ/0glV3hPl8HVNTElOPVCyg==}
+    peerDependencies:
+      '@capacitor/core': ^6.0.0
+    dependencies:
+      '@capacitor/core': 8.4.0
+    dev: false
 
   /@jridgewell/gen-mapping@0.3.13:
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}

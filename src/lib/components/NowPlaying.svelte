@@ -22,7 +22,7 @@
 	import { coverSwipe } from '$lib/actions/coverSwipe';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import Nowbar from '$lib/components/Nowbar.svelte';
-	import { parseLRC, splitParenLines, type LyricLine } from '$lib/services/lrc';
+	import { parseLRC, reorderPairs, splitParenLines, lineSeekFraction, type LyricLine } from '$lib/services/lrc';
 	import { createVelocityTracker } from '$lib/gestures/velocity';
 	import type { Track } from '$lib/sources/types';
 
@@ -81,7 +81,7 @@
 	// translate path independently. The split entries carry `fromParen:true` so the renderer
 	// can suppress their translations when settings.lyricsHideParenTranslation is on.
 	const lines = $derived<LyricLine[]>(
-		player.current?.lrc ? splitParenLines(parseLRC(player.current.lrc)) : []
+		player.current?.lrc ? splitParenLines(reorderPairs(parseLRC(player.current.lrc))) : []
 	);
 	// When multiple lyric lines share a timestamp (common in CN LRCs that ship the original
 	// + an inline translation as two consecutive entries at the same time, plus our own
@@ -150,6 +150,25 @@
 		autoScroll = false;
 		if (idleTimer) clearTimeout(idleTimer);
 		lyricsReleased();
+	}
+	// D-01/D-02/D-03: tap any lyric line to seek there. seekFraction is the only seek API and
+	// already auto-plays when paused (D-03 free — no explicit play()). lineSeekFraction guards
+	// duration <= 0 / non-finite → null, so no unbounded value reaches the audio element.
+	// After seeking we clear the idle timer and force autoScroll back on (D-02): this overrides
+	// the suspend that this tap's OWN lyricsTouched pointerdown just set, so the anchor $effect
+	// re-runs on the autoScroll flip and smooth-centers the now-active (tapped) line immediately.
+	function seekToLine(line: LyricLine) {
+		const frac = lineSeekFraction(line.time, player.duration);
+		if (frac !== null) player.seekFraction(frac); // D-03: auto-plays if paused
+		if (idleTimer) clearTimeout(idleTimer);
+		autoScroll = true;
+	}
+	// Keyboard parity for the tappable lyric line (Enter/Space) — mirrors the cover's tapCoverKey
+	// and the grip's gripKey idiom, satisfying the a11y click-needs-keydown rule.
+	function seekToLineKey(e: KeyboardEvent, line: LyricLine) {
+		if (e.key !== 'Enter' && e.key !== ' ') return;
+		e.preventDefault();
+		seekToLine(line);
 	}
 	$effect(() => {
 		const idx = activeLine;
@@ -898,7 +917,17 @@
 						{#each lines as l, i (i)}
 							{#if !(l.fromParen && settings.lyricsHideParenLines)}
 								{@const hideTrForLine = l.fromParen && settings.lyricsHideParenTranslation}
-								<p class:active={l.time === activeTime && activeTime >= 0} class:paren={l.fromParen}>
+								<!-- D-01: every lyric line is a tap target that seeks to its timestamp. The line stays a
+								     semantic <p> so the anchor $effect's `querySelectorAll('p')[idx]` scroll-centering, the
+								     `.lyrics p` centring/active/paren CSS, and the activeTime↔translated[i] index alignment
+								     are ALL untouched (swapping to <button> would break the anchor lookup the plan forbids
+								     editing). onkeydown gives Enter/Space parity (seekToLineKey); role="button"+tabindex make
+								     it a focusable control. A <p> cannot legally carry an interactive role/tabindex per ARIA,
+								     so the three resulting advisories are silenced at element scope only. -->
+								<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+								<!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+								<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+								<p class:active={l.time === activeTime && activeTime >= 0} class:paren={l.fromParen} onclick={() => seekToLine(l)} onkeydown={(e) => seekToLineKey(e, l)} role="button" tabindex="0">
 									{#if showTr && settings.translateMode === 'replace' && !hideTrForLine}
 										{translated[i]}
 									{:else}

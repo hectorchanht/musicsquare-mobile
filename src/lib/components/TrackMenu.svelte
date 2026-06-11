@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { fly } from 'svelte/transition';
 	import { goto } from '$app/navigation';
 	import { ListStart, ListEnd, Download, Heart, ListPlus, Disc, User, Share2, Info, X, Plus, Shuffle, Moon } from '@lucide/svelte';
@@ -186,7 +186,7 @@
 			<button class="mi" onclick={() => { pickerOpen = true; }}><ListPlus size={18} /> {t('menu.addToPlaylist')}</button>
 			<!-- Opens the GLOBAL SleepTimerSheet (mounted in the app layout) — not a local sub-sheet
 			     here, so the timer indicator is reachable from the nowbar + now-playing too (D-08). -->
-			<button class="mi" onclick={() => { sleepTimer.sheetOpen = true; close(); }}><Moon size={18} /> {t('menu.sleepTimer')}</button>
+			<button class="mi" onclick={() => { close(); tick().then(() => (sleepTimer.sheetOpen = true)); }}><Moon size={18} /> {t('menu.sleepTimer')}</button>
 			<!-- <button class="mi" onclick={gotoAlbum} disabled={!track.album}><Disc size={18} /> {t('menu.goToAlbum')}</button> -->
 			<button class="mi" onclick={gotoArtist}><User size={18} /> {t('menu.goToArtist')}</button>
 			<button class="mi" onclick={doShare}><Share2 size={18} /> {t('menu.share')}</button>

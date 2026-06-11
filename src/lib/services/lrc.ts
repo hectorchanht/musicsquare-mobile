@@ -43,6 +43,139 @@ export function parseLRC(txt: string): LyricLine[] {
 }
 
 /**
+ * A coarse Unicode-script classification of a line body, used to tell an original
+ * lyric line apart from its embedded translation. `'other'` covers digit/punctuation-
+ * only or empty lines (no countable letter present).
+ */
+export type Script = 'han' | 'kana' | 'hangul' | 'latin' | 'other';
+
+/**
+ * Return the dominant script of `text` by counting codepoints per script class.
+ *
+ * Uses ES2018 Unicode property escapes (`\p{Script=...}`, Baseline since Safari 11.1 /
+ * Chrome 64) — the `u` flag is mandatory and we iterate by codepoint (`for...of`) so
+ * astral-plane CJK extension characters count as single units.
+ *
+ * Heuristic (A1): Japanese mixes kanji (Han) with kana; a pure max-count would mislabel
+ * a kanji-heavy JP line as `'han'` (== Chinese). Therefore ANY kana presence ⇒ `'kana'`,
+ * regardless of Han count. Otherwise the largest of han/hangul/latin wins; ties favour
+ * han, then hangul, then latin. A line with no countable letters returns `'other'`.
+ */
+export function dominantScript(text: string): Script {
+	let han = 0;
+	let kana = 0;
+	let hangul = 0;
+	let latin = 0;
+	for (const ch of text) {
+		if (/\p{Script=Han}/u.test(ch)) han++;
+		else if (/\p{Script=Hiragana}/u.test(ch) || /\p{Script=Katakana}/u.test(ch)) kana++;
+		else if (/\p{Script=Hangul}/u.test(ch)) hangul++;
+		else if (/\p{Script=Latin}/u.test(ch)) latin++;
+		// whitespace / punctuation / digits are not counted
+	}
+	// Any kana presence ⇒ Japanese, even when kanji dominates the count (A1).
+	if (kana > 0) return 'kana';
+	const max = Math.max(han, hangul, latin);
+	if (max === 0) return 'other';
+	if (han === max) return 'han';
+	if (hangul === max) return 'hangul';
+	return 'latin';
+}
+
+/**
+ * Reorder lines so that within each same-`time` group the ORIGINAL lyric (the line whose
+ * script matches the song's dominant language) is rendered ABOVE its translation (D-04/D-05).
+ *
+ * Why: some upstream LRCs ship the translation first and the original second within a
+ * shared timestamp; the group-highlight anchor in NowPlaying.svelte locks onto the FIRST
+ * entry of a group, so the original must come first for the highlight to track the sung line.
+ *
+ * Algorithm:
+ *   1. Compute the song-dominant script across ALL line bodies (the "original language"
+ *      baseline — A1 mitigation: decided over the whole song, not per-line).
+ *   2. Walk consecutive same-`time` groups. Within a group, if at least one line's
+ *      dominantScript === songDominant and at least one sibling's !== songDominant, move
+ *      the FIRST song-dominant (original) line to the front of the group.
+ *   3. Pure single-script songs (no mismatched siblings) pass through unchanged.
+ *   4. Stable: the relative order of all non-moved lines is preserved.
+ *
+ * MUST run BEFORE splitParenLines — split emits multiple same-timestamp siblings, which
+ * would pollute the original/translation grouping this function inspects.
+ */
+export function reorderPairs(lines: LyricLine[]): LyricLine[] {
+	if (lines.length < 2) return lines.slice();
+
+	// 1. Song-dominant script over all line bodies.
+	let han = 0;
+	let kana = 0;
+	let hangul = 0;
+	let latin = 0;
+	for (const line of lines) {
+		switch (dominantScript(line.text)) {
+			case 'han':
+				han++;
+				break;
+			case 'kana':
+				kana++;
+				break;
+			case 'hangul':
+				hangul++;
+				break;
+			case 'latin':
+				latin++;
+				break;
+			default:
+				break;
+		}
+	}
+	// In this app Han (Simplified/Traditional Chinese) is overwhelmingly the user's
+	// TRANSLATION target, never the foreign original. So if the song contains ANY non-Han
+	// script the original language is that foreign script — even when Han is the per-line
+	// count majority (a 1-original/2-translation-fragment LRC still has the foreign line as
+	// the original). Foreign scripts are ranked kana > hangul > latin by count. Only a song
+	// with no foreign script at all (pure-CN) keeps Han as dominant — and such songs have no
+	// mismatched siblings, so reorder is a no-op regardless.
+	const foreignMax = Math.max(kana, hangul, latin);
+	let songDominant: Script;
+	if (foreignMax > 0) {
+		if (kana === foreignMax) songDominant = 'kana';
+		else if (hangul === foreignMax) songDominant = 'hangul';
+		else songDominant = 'latin';
+	} else if (han > 0) {
+		songDominant = 'han';
+	} else {
+		songDominant = 'other';
+	}
+
+	const out: LyricLine[] = [];
+	let i = 0;
+	while (i < lines.length) {
+		// Collect the consecutive same-`time` group starting at i.
+		let j = i + 1;
+		while (j < lines.length && lines[j].time === lines[i].time) j++;
+		const group = lines.slice(i, j);
+		i = j;
+
+		if (group.length < 2) {
+			out.push(...group);
+			continue;
+		}
+		const hasOriginal = group.some((l) => dominantScript(l.text) === songDominant);
+		const hasMismatch = group.some((l) => dominantScript(l.text) !== songDominant);
+		if (!hasOriginal || !hasMismatch) {
+			// Pure single-script (or no original) group — leave order unchanged.
+			out.push(...group);
+			continue;
+		}
+		// Move the first original (song-dominant) line to the front; keep all others stable.
+		const origIdx = group.findIndex((l) => dominantScript(l.text) === songDominant);
+		const reordered = [group[origIdx], ...group.filter((_, k) => k !== origIdx)];
+		out.push(...reordered);
+	}
+	return out;
+}
+
+/**
  * Split a line containing one or more `(...)` / `（...）` clauses into separate LyricLine
  * entries that share the same timestamp. Useful when the upstream LRC encodes a translated
  * version inline next to the original — the user wants the translation to live on its own

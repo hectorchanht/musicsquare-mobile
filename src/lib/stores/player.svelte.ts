@@ -496,6 +496,12 @@ class Player {
 	private prefetchingUid: string | null = null;
 	/** Aborts the in-flight prefetch when a newer one supersedes it (stale-resolve guard). */
 	private prefetchController: AbortController | null = null;
+	private preloadedAudio: HTMLAudioElement | null = null;
+	private preloadedAudioUid: string | null = null;
+	private preloadedAudioUrl: string | null = null;
+	private preloadedCover: HTMLImageElement | null = null;
+	private preloadedCoverUid: string | null = null;
+	private preloadedCoverUrl: string | null = null;
 	/**
 	 * Uids the user pinned as "manual" (Play Next / Add to Queue / reordered). These
 	 * survive a fresh-play regeneration; auto-grown + similar-generated tracks do not.
@@ -1062,8 +1068,9 @@ class Player {
 	 * no-op resolve = instant start.
 	 *
 	 * Best-effort, fired as `void this.prefetchNext()` from play() — mirrors ensureAhead()/
-	 * regenerate(): never blocks the current play(), never throws, no second <audio> element
-	 * (audio byte-warming is out of scope; the iOS single-element constraint stands).
+	 * regenerate(): never blocks the current play(), never throws. After details resolve, it also
+	 * warms the next audio URL through a muted offscreen Audio element and preloads the cover image,
+	 * so the later main-audio src swap and cover repaint can reuse browser cache when supported.
 	 *
 	 * Target = queue[indexOf(current)+1] — EXACTLY what next() selects (no play-mode branching).
 	 * Guards: silent no-op at end of queue / no current; skip an already-complete target;
@@ -1076,8 +1083,12 @@ class Player {
 		const nextIndex = i + 1;
 		if (nextIndex >= this.queue.length) return; // at end of queue — silent no-op (growth is ensureAhead's job)
 		const target = this.queue[nextIndex];
-		// Already complete? The readiness guard would no-op anyway — skip without a resolve.
-		if (target.detailsLoaded && target.audioUrl && (target.lrc || !target.lrcUrl)) return;
+		this.preloadNextCover(target);
+		// Already complete? The readiness guard would no-op anyway — warm bytes/art and skip resolve.
+		if (target.detailsLoaded && target.audioUrl && (target.lrc || !target.lrcUrl)) {
+			this.prewarmNextAssets(target);
+			return;
+		}
 		// In-flight dedupe: already prefetching this exact track — do not start a second resolve.
 		if (this.prefetchingUid === target.uid) return;
 
@@ -1098,6 +1109,7 @@ class Player {
 				const slot = j + 1;
 				if (j >= 0 && this.queue[slot]?.uid === target.uid) {
 					this.queue[slot] = resolved; // same in-place sync play() does — later play() no-ops
+					this.prewarmNextAssets(resolved);
 				}
 			}
 		} catch {
@@ -1109,6 +1121,47 @@ class Player {
 				this.prefetchingUid = null;
 				this.prefetchController = null;
 			}
+		}
+	}
+
+	private prewarmNextAssets(track: Track) {
+		this.preloadNextCover(track);
+		this.preloadNextAudio(track);
+	}
+
+	private preloadNextAudio(track: Track) {
+		const url = track.audioUrl;
+		if (!url || typeof Audio === 'undefined') return;
+		if (this.preloadedAudioUid === track.uid && this.preloadedAudioUrl === url) return;
+		try {
+			const audio = this.preloadedAudio ?? new Audio();
+			this.preloadedAudio = audio;
+			audio.preload = 'auto';
+			audio.muted = true;
+			audio.setAttribute('referrerpolicy', 'no-referrer');
+			audio.src = url;
+			audio.load();
+			this.preloadedAudioUid = track.uid;
+			this.preloadedAudioUrl = url;
+		} catch {
+			/* best-effort cache warm only */
+		}
+	}
+
+	private preloadNextCover(track: Track) {
+		const url = track.cover;
+		if (!url || typeof Image === 'undefined') return;
+		if (this.preloadedCoverUid === track.uid && this.preloadedCoverUrl === url) return;
+		try {
+			const img = new Image();
+			img.decoding = 'async';
+			img.referrerPolicy = 'no-referrer';
+			img.src = url;
+			this.preloadedCover = img;
+			this.preloadedCoverUid = track.uid;
+			this.preloadedCoverUrl = url;
+		} catch {
+			/* best-effort image cache warm only */
 		}
 	}
 

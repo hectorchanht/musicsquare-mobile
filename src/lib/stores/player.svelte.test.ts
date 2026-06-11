@@ -102,6 +102,36 @@ function stub(source: SourceId, songid: string, artist: string, title: string): 
 	return { ...mk(source, songid, artist, title), detailsLoaded: false, audioUrl: null };
 }
 
+function installAssetPreloadMocks() {
+	const audios: Array<{
+		preload: string;
+		muted: boolean;
+		src: string;
+		setAttribute: ReturnType<typeof vi.fn>;
+		load: ReturnType<typeof vi.fn>;
+	}> = [];
+	const images: Array<{ decoding: string; referrerPolicy: string; src: string }> = [];
+	const AudioCtor = vi.fn(function () {
+		const audio = {
+			preload: '',
+			muted: false,
+			src: '',
+			setAttribute: vi.fn(),
+			load: vi.fn()
+		};
+		audios.push(audio);
+		return audio;
+	});
+	const ImageCtor = vi.fn(function () {
+		const img = { decoding: '', referrerPolicy: '', src: '' };
+		images.push(img);
+		return img;
+	});
+	vi.stubGlobal('Audio', AudioCtor);
+	vi.stubGlobal('Image', ImageCtor);
+	return { audios, images, AudioCtor, ImageCtor };
+}
+
 /** Mirror of Player.FAILURE_CAP (private static = 5) for the loop-guard tests. */
 const Player_FAILURE_CAP = 5;
 /** Mirror of Player.STALL_TIMEOUT_MS (private static = 15000) for the stall-watchdog tests. */
@@ -151,6 +181,29 @@ beforeEach(() => {
 	player.pendingTrack = null;
 	player.loading = false;
 	player.error = null;
+	const internals = player as unknown as {
+		prefetchingUid: string | null;
+		prefetchController: AbortController | null;
+		preloadedAudio: HTMLAudioElement | null;
+		preloadedAudioUid: string | null;
+		preloadedAudioUrl: string | null;
+		preloadedCover: HTMLImageElement | null;
+		preloadedCoverUid: string | null;
+		preloadedCoverUrl: string | null;
+		growPromise: Promise<void> | null;
+		growing: boolean;
+	};
+	internals.prefetchingUid = null;
+	internals.prefetchController?.abort();
+	internals.prefetchController = null;
+	internals.preloadedAudio = null;
+	internals.preloadedAudioUid = null;
+	internals.preloadedAudioUrl = null;
+	internals.preloadedCover = null;
+	internals.preloadedCoverUid = null;
+	internals.preloadedCoverUrl = null;
+	internals.growPromise = null;
+	internals.growing = false;
 });
 
 afterEach(() => {
@@ -281,13 +334,19 @@ describe('player.prefetchNext — pre-resolve next track for gapless-ish play', 
 	const primeNext = () => (player as unknown as { primeNext(): Promise<void> })['primeNext']();
 	const ensureAhead = () => (player as unknown as { ensureAhead(): Promise<void> })['ensureAhead']();
 
-	it("pre-resolves the next track's details and writes resolved back into the queue", async () => {
+	it("pre-resolves the next track's details and warms resolved audio + cover", async () => {
+		const assets = installAssetPreloadMocks();
 		const cur = mk('netease', '0', 'A', 'Now');
 		const next = stub('qq', '1', 'B', 'Next'); // unresolved — readiness guard does NOT short-circuit
 		player.queue = [cur, next];
 		player.current = cur;
 
-		const resolved: Track = { ...next, detailsLoaded: true, audioUrl: 'https://cdn/next.mp3' };
+		const resolved: Track = {
+			...next,
+			detailsLoaded: true,
+			audioUrl: 'https://cdn/next.mp3',
+			cover: 'https://img/next.jpg'
+		};
 		mockEnsure.mockResolvedValue(resolved);
 
 		await prefetch();
@@ -299,6 +358,16 @@ describe('player.prefetchNext — pre-resolve next track for gapless-ish play', 
 		// Resolved track written back into queue[1] (so a later play() no-ops).
 		expect(player.queue[1].detailsLoaded).toBe(true);
 		expect(player.queue[1].audioUrl).toBe('https://cdn/next.mp3');
+		expect(assets.AudioCtor).toHaveBeenCalledTimes(1);
+		expect(assets.audios[0].preload).toBe('auto');
+		expect(assets.audios[0].muted).toBe(true);
+		expect(assets.audios[0].src).toBe('https://cdn/next.mp3');
+		expect(assets.audios[0].setAttribute).toHaveBeenCalledWith('referrerpolicy', 'no-referrer');
+		expect(assets.audios[0].load).toHaveBeenCalledTimes(1);
+		expect(assets.ImageCtor).toHaveBeenCalledTimes(1);
+		expect(assets.images[0].src).toBe('https://img/next.jpg');
+		expect(assets.images[0].decoding).toBe('async');
+		expect(assets.images[0].referrerPolicy).toBe('no-referrer');
 	});
 
 	it('no-op at end of queue (no next track)', async () => {
@@ -312,9 +381,10 @@ describe('player.prefetchNext — pre-resolve next track for gapless-ish play', 
 		expect(mockEnsure).not.toHaveBeenCalled();
 	});
 
-	it('no-op when next track is already detailsLoaded (readiness guard satisfied)', async () => {
+	it('warms audio + cover even when next track is already detailsLoaded', async () => {
+		const assets = installAssetPreloadMocks();
 		const cur = mk('netease', '0', 'A', 'Now');
-		const next = mk('qq', '1', 'B', 'Next'); // mk() is fully loaded (detailsLoaded:true + audioUrl)
+		const next = { ...mk('qq', '1', 'B', 'Next'), cover: 'https://img/already.jpg' };
 		player.queue = [cur, next];
 		player.current = cur;
 
@@ -322,6 +392,11 @@ describe('player.prefetchNext — pre-resolve next track for gapless-ish play', 
 		await flush();
 
 		expect(mockEnsure).not.toHaveBeenCalled();
+		expect(assets.AudioCtor).toHaveBeenCalledTimes(1);
+		expect(assets.audios[0].src).toBe(next.audioUrl);
+		expect(assets.audios[0].load).toHaveBeenCalledTimes(1);
+		expect(assets.ImageCtor).toHaveBeenCalledTimes(1);
+		expect(assets.images[0].src).toBe('https://img/already.jpg');
 	});
 
 	it('dedupes in-flight: a second prefetchNext for the same next track does not start a second resolve', async () => {
@@ -411,9 +486,15 @@ describe('player.prefetchNext — pre-resolve next track for gapless-ish play', 
 	});
 
 	it('primeNext grows an exhausted queue, then pre-resolves the newly added next track', async () => {
+		const assets = installAssetPreloadMocks();
 		const cur = mk('netease', '0', 'A', 'Now');
 		const next = stub('qq', '1', 'B', 'Next');
-		const resolved: Track = { ...next, detailsLoaded: true, audioUrl: 'https://cdn/next.mp3' };
+		const resolved: Track = {
+			...next,
+			detailsLoaded: true,
+			audioUrl: 'https://cdn/next.mp3',
+			cover: 'https://img/prime.jpg'
+		};
 		player.queue = [cur];
 		player.current = cur;
 		mockPicks.mockReset().mockResolvedValue([next]);
@@ -426,6 +507,8 @@ describe('player.prefetchNext — pre-resolve next track for gapless-ish play', 
 		expect(mockEnsure).toHaveBeenCalledWith(next, expect.any(AbortSignal));
 		expect(player.queue.map((t) => t.uid)).toEqual([cur.uid, next.uid]);
 		expect(player.queue[1].audioUrl).toBe('https://cdn/next.mp3');
+		expect(assets.audios[0].src).toBe('https://cdn/next.mp3');
+		expect(assets.images[0].src).toBe('https://img/prime.jpg');
 	});
 });
 

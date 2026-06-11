@@ -450,7 +450,17 @@ Plans:
   3. "Remix" plays the triggering track first and seeds a genre-generated up-next from it
   4. Opening the menu by long-press leaves no focus/active state on the menu item under the finger
 
-**Plans**: TBD
+**Plans**: 3 plans (2 waves)
+Plans:
+
+**Wave 0**
+
+- [ ] 19-01-PLAN.md — Testable seams: pure gating helper (`track-menu-gate.ts`) + test, `'remix'` force-generate context (defaults + settings early-return) + settings/player tests, 3 i18n keys × 15 dicts + 15-locale parity test (MENU-01/02, QUEUE-04)
+
+**Wave 1** *(blocked on 19-01)*
+
+- [ ] 19-02-PLAN.md — TrackMenu rework: 2-row marquee header + top-right like/close + header-only skeleton, always-visible buttons + gated resolve-then-act (inline spinner/dedupe/graceful-fail), Sparkles Remix row (MENU-01/02, QUEUE-04)
+- [ ] 19-03-PLAN.md — Long-press release: global tap-highlight reset + `@media (hover:hover)` guards + blur-on-longpress across 6 trigger sites (MENU-03)
 **UI hint**: yes
 **Research flag**: LOW-MEDIUM — most constraint-dense UI change in the milestone: the overlay `$effect` must stay `open`-only-dep with `untrack()` (history-stack invariant), act-on-stub must be gated, marquee re-measure + double-action dedupe handled. No `--research-phase`, but plan carefully against the documented overlay invariant.
 

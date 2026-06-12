@@ -270,7 +270,15 @@
 			.finally(() => { if (trKey === key) translating = false; });
 	});
 	const showTr = $derived(settings.lyricsLang !== 'off' && translated.length === lines.length);
-
+	// Compute the top (in px from .np top) where .sheet should start in half-open.
+	function halfSheetTop(): number {
+		if (!transportEl || !sheetEl) return 260; // safe fallback
+		const np = sheetEl.closest('.np') as HTMLElement | null;
+		if (!np) return 260;
+		const npRect = np.getBoundingClientRect();
+		const tRect = transportEl.getBoundingClientRect();
+		return Math.round(tRect.bottom - npRect.top);
+	}
 	// ---- related ----
 	let related = $state<Track[]>([]);
 	let relatedFor = '';
@@ -624,6 +632,7 @@
 			sheetState = target;
 			sheetDragging = false;
 			sheetDragY = 0;
+			if (target === 'half') applyHalfInset();
 		}, 290);
 	}
 
@@ -662,7 +671,12 @@
 			return; // gesture was a drag on the subnav row — don't switch tabs
 		}
 		tab = next;
-		if (sheetState === 'closed') sheetState = 'half';
+		if (sheetState === 'closed') {
+			sheetState = 'half';
+			// small delay so layout is ready before we measure inset
+			// (2 frames + short timeout is safer than immediate)
+			setTimeout(() => applyHalfInset(), 30);
+		}
 	}
 
 	// Resting half reads halfOffset for its transform, but tap/keyboard paths enter half
@@ -740,6 +754,15 @@
 		dragFrom = -1;
 		dragOver = -1;
 		rowDragY = 0;
+	}
+	function applyHalfInset() {
+		if (!sheetEl || !transportEl) return;
+		const np = sheetEl.closest('.np') as HTMLElement | null;
+		if (!np) return;
+		const npRect = np.getBoundingClientRect();
+		const tRect = transportEl.getBoundingClientRect();
+		const top = Math.round(tRect.bottom - npRect.top);
+		sheetEl.style.setProperty('--sheet-half-top', top + 'px');
 	}
 </script>
 
@@ -892,11 +915,27 @@
 
 	<div
 		class="sheet"
-		class:full={sheetState !== 'closed'}
+		class:half={sheetState === 'half'} 
+		class:full={sheetState !== 'closed'}		
 		class:dragging={sheetDragging}
 		bind:this={sheetEl}
-		style:transform={sheetDragging ? `translateY(${sheetDragY}px)` : sheetState === 'half' ? `translateY(${halfOffset}px)` : undefined}
-		style:transition={gripActive ? 'none' : 'transform 0.28s cubic-bezier(.22,1,.36,1)'}
+		style:transform={
+			(sheetDragging && sheetState !== 'half')
+				? `translateY(${sheetDragY}px)`
+				: undefined
+		}
+		style:transition={
+			gripActive
+				? 'none'
+				: 'transform 0.28s cubic-bezier(.22,1,.36,1), inset 0.28s cubic-bezier(.22,1,.36,1)'
+		}
+		style:inset={
+			sheetState === 'half'
+				? `var(--sheet-half-top, 260px) 0 0 0`
+				: sheetState !== 'closed'
+					? '0'
+					: 'undefined'
+		}
 	>
 		<div class="grip" role="button" tabindex="0" aria-label={sheetState === 'closed' ? t('nowplaying.expandPanel') : t('nowplaying.collapsePanel')}
 			onpointerdown={gripDown} onpointermove={gripMove} onpointerup={gripUp} onpointercancel={gripUp}
@@ -965,11 +1004,6 @@
 								</p>
 							{/if}
 						{/each}
-						<!-- D-11/LYR-03: end spacer ≈ half the visible band so the LAST lines can scroll up to the
-						     vertical center in half AND full sheet modes (instead of pinning to the bottom). A real
-						     element is required — browsers clamp scrollTo to content bounds, so the spacer must grow
-						     scrollHeight. NO top spacer (D-12). -->
-						<div class="lyrics-end-spacer" style:height="{spacerH}px" aria-hidden="true"></div>
 					</div>
 				{:else}<p class="empty">{t('nowplaying.noLyrics')}</p>{/if}
 			{:else}
@@ -1119,7 +1153,46 @@
 	.st-readout { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-variant-numeric: tabular-nums; background: var(--color-surface); }
 	.play { width: 62px; height: 62px; border-radius: 50%; border: none; background: #fff; color: #000; cursor: pointer; display: grid; place-items: center; }
 	.sheet { display: flex; flex-direction: column; flex: 1; min-height: 0; will-change: transform; user-select: none; -webkit-user-select: none; }
-	.sheet.full, .sheet.dragging { position: absolute; inset: 0; z-index: 5; background: var(--color-bg); padding: 4px 18px env(safe-area-inset-bottom); }
+	.sheet.full {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    background: var(--color-bg);
+    padding: 4px 18px env(safe-area-inset-bottom);
+		margin-top: 64px;
+	}
+
+	/* Half-open: sheet occupies the real area below the transport row, no transform hack. */
+	.sheet.half {
+		position: absolute;
+		/* inset-top will be set via inline style using halfSheetTop() */
+		inset: var(--sheet-half-top, 260px) 0 0 0;
+		z-index: 5;
+		background: var(--color-bg);
+		padding: 4px 18px env(safe-area-inset-bottom);
+		box-sizing: border-box;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+		margin-top: 88px;
+	}
+
+	/* Ensure the panel takes all available height in half/full so lyrics/queue scroll normally */
+	.sheet.half .panel,
+	.sheet.full .panel {
+		flex: 1;
+		min-height: 0;
+		overflow-y: auto;
+		overscroll-behavior-y: contain;
+	}
+
+	/* Full-open already defined above; just guarantee panel fill there as well */
+	.sheet.full .panel {
+		min-height: 0;
+		overflow-y: auto;
+		overscroll-behavior-y: contain;
+	}
 	.grip { display: flex; justify-content: center; padding: 16px 0 0px; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
 	.grip:active { cursor: grabbing; }
 	.handle { width: 44px; height: 5px; border-radius: 999px; background: var(--color-text-muted); opacity: 0.6; }
@@ -1161,7 +1234,6 @@
 	/* D-11/LYR-03: end spacer — height is set inline from spacerH (≈ half the visible band) so the
 	   last lines can reach the vertical center. flex-shrink:0 keeps it from collapsing inside the
 	   flex column. */
-	.lyrics-end-spacer { width: 100%; flex-shrink: 0; height: 50vw; }
 	.tr-hint { text-align: center; font-size: 11px; color: var(--color-primary); margin: 0 0 6px; }
 	.empty { color: var(--color-text-muted); font-size: 14px; text-align: center; padding: 24px; }
 </style>

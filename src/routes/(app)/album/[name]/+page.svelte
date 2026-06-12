@@ -15,7 +15,11 @@
 	import { overlays } from '$lib/stores/overlays.svelte';
 	import { dragClose } from '$lib/actions/dragClose';
 	import { longpress } from '$lib/actions/longpress';
+	import { swipeAction } from '$lib/actions/swipeAction';
 	import { lazyCover } from '$lib/actions/lazyCover';
+	import { toast as globalToast } from '$lib/stores/toast.svelte';
+	import { tick as hapticTick } from '$lib/util/haptics';
+	import { ListEnd } from '@lucide/svelte';
 	import { t } from '$lib/i18n';
 	import { goto } from '$app/navigation';
 	import { resolveStub } from '$lib/services/discovery';
@@ -231,6 +235,27 @@
 		// playback is not interrupted. Guard a stale tap: only install while `tr` is still current.
 		const all = await resolveAllCached();
 		if (player.current?.uid === tr.uid && all.length) player.setListQueue(all, 'album');
+	}
+
+	// UX-04 / D-03/D-04: row swipe-actions. Album rows are {artist,title} STUBS, so — exactly like
+	// tap-to-play and long-press-menu — the stub is resolved to a real Track BEFORE the queue/like
+	// commit. swipe-right = add to queue (player.addToQueue, append-to-end), swipe-left = toggle
+	// like (library.toggleLike). Both fire the GLOBAL toast (Plan 01) + a commit-tier haptic tick;
+	// a stub that resolves to no CN-source match degrades to the existing unplayable toast (no throw).
+	async function swipeQueue(stub: AlbumStub) {
+		const tr = await resolveStub(stub.artist, stub.title).catch(() => null);
+		if (!tr) { toast(t('album.unplayable')); return; }
+		player.addToQueue(tr);
+		globalToast.show(t('toast.addedToQueue'));
+		hapticTick();
+	}
+	async function swipeLike(stub: AlbumStub) {
+		const tr = await resolveStub(stub.artist, stub.title).catch(() => null);
+		if (!tr) { toast(t('album.unplayable')); return; }
+		const wasLiked = library.isLiked(tr.uid);
+		library.toggleLike(tr);
+		globalToast.show(wasLiked ? t('toast.unliked') : t('toast.liked'));
+		hapticTick();
 	}
 
 	// ---- Album-level actions (between hero + tracklist) ----
@@ -533,8 +558,11 @@
 	</div>
 	<ul class="list">
 		{#each tracks as track, i (i)}
-			<li>
-				<button class="row" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => playStub(track)}>
+			<li class="swipe-wrap">
+				<!-- UX-04 reveal layers behind the row; the row translateX (use:swipeAction) exposes them. -->
+				<span class="reveal reveal-queue" aria-hidden="true"><ListEnd size={20} /></span>
+				<span class="reveal reveal-like" aria-hidden="true"><Heart size={20} fill="none" /></span>
+				<button class="row" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => playStub(track)} use:swipeAction={{ onSwipeRight: () => swipeQueue(track), onSwipeLeft: () => swipeLike(track) }}>
 					<span class="rank">{i + 1}</span>
 					<span class="art" use:lazyCover={{ track: stubAsTrack(track), onResolved: onCoverResolved }} style:background-image={resolvedCovers[stubUid(track)] ? `url(${resolvedCovers[stubUid(track)]})` : fallbackCover(track.artist + track.title)}></span>
 					<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
@@ -585,7 +613,17 @@
 	.dzinfo .sk-info.short { width: 90px; }
 	.muted { color: var(--color-text-muted); font-size: 14px; }
 	.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-	.row { width: 100%; text-align: left; background: none; border: none; padding: 6px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 12px; color: var(--color-text); }
+	/* UX-04: positioning context for the swipe reveal layers. The reveal spans sit BEHIND the row
+	   (the row carries an opaque background); the row translateX (use:swipeAction) slides to expose
+	   the correct side. overflow:hidden masks the reveal at rest + clips the row travel. */
+	.swipe-wrap { position: relative; overflow: hidden; border-radius: 8px; }
+	.reveal {
+		position: absolute; top: 0; bottom: 0; width: 96px; display: flex; align-items: center;
+		justify-content: center; color: #fff; pointer-events: none;
+	}
+	.reveal-queue { left: 0; background: var(--color-primary); }
+	.reveal-like { right: 0; background: var(--src-netease); }
+	.row { width: 100%; text-align: left; background: var(--color-bg); position: relative; z-index: 1; border: none; padding: 6px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 12px; color: var(--color-text); }
 	/* MENU-03 / D-12: hover-capable devices only — touch otherwise latches this :hover
 	   background on a row under a held finger while the track menu opens. */
 	@media (hover: hover) { .row:hover { background: var(--color-surface); } }

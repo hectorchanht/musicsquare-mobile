@@ -22,6 +22,14 @@ const ru: Dict = {
 	"home.countryShelf": "Top in {country}",
 	"home.unplayable": "Не удалось найти играбельную версию",
 	"home.preparing": "Загрузка…",
+
+	// --- chart pages (HOME-04) ---
+	"charts.topTitle": "Топ хитов",
+	"charts.topArtists": "Топ исполнителей",
+	"charts.topTracksTab": "Песни",
+	"charts.topArtistsTab": "Исполнители",
+	"charts.tagTitle": "{tag}",
+	"charts.countryTitle": "{country}",
 	"search.title": "Поиск",
 	"search.placeholder": "Поиск песен и исполнителей во всех источниках",
 	"search.go": "Иди",

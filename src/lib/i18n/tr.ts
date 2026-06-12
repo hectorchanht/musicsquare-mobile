@@ -22,6 +22,14 @@ const tr: Dict = {
 	"home.countryShelf": "{country}'da en iyi",
 	"home.unplayable": "Oynanabilir bir sürüm bulunamadı",
 	"home.preparing": "Yükleniyor…",
+
+	// --- chart pages (HOME-04) ---
+	"charts.topTitle": "En iyi şarkılar",
+	"charts.topArtists": "En iyi sanatçılar",
+	"charts.topTracksTab": "Şarkılar",
+	"charts.topArtistsTab": "Sanatçılar",
+	"charts.tagTitle": "{tag}",
+	"charts.countryTitle": "{country}",
 	"search.title": "Ara",
 	"search.placeholder": "Tüm kaynaklarda şarkıları ve sanatçıları arayın",
 	"search.go": "Git",

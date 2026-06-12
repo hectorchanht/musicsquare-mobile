@@ -28,6 +28,14 @@ const zhHant: Dict = {
 	'home.unplayable': '找不到可播放的版本',
 	'home.preparing': '載入中…',
 
+	// --- chart pages (HOME-04) ---
+	'charts.topTitle': '熱門金曲',
+	'charts.topArtists': '熱門歌手',
+	'charts.topTracksTab': '歌曲',
+	'charts.topArtistsTab': '歌手',
+	'charts.tagTitle': '{tag}',
+	'charts.countryTitle': '{country}',
+
 	// --- search ---
 	'search.title': '搜尋',
 	'search.placeholder': '搜尋歌曲、歌手',

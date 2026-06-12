@@ -22,6 +22,14 @@ const pt: Dict = {
 	"home.countryShelf": "Top in {country}",
 	"home.unplayable": "Não foi possível encontrar uma versão jogável",
 	"home.preparing": "Carregando…",
+
+	// --- chart pages (HOME-04) ---
+	"charts.topTitle": "Principais sucessos",
+	"charts.topArtists": "Principais artistas",
+	"charts.topTracksTab": "Músicas",
+	"charts.topArtistsTab": "Artistas",
+	"charts.tagTitle": "{tag}",
+	"charts.countryTitle": "{country}",
 	"search.title": "Pesquisar",
 	"search.placeholder": "Pesquise músicas e artistas em todas as fontes",
 	"search.go": "Vá",

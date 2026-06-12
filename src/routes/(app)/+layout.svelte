@@ -109,7 +109,10 @@
 			!new URLSearchParams(location.search).get('play') &&
 			settings.homeLandingTab !== 'home'
 		) {
-			goto(LANDING_PATHS[settings.homeLandingTab], { replaceState: true });
+			// CR-01 defense-in-depth: only redirect when the lookup resolves to a real path.
+			// goto(undefined) would resolve to the relative "undefined" → 404 with replaceState.
+			const dest = LANDING_PATHS[settings.homeLandingTab];
+			if (dest && dest !== '/') goto(dest, { replaceState: true });
 		}
 
 		// Single back-gesture popstate listener for the whole app (overlays back-to-close).

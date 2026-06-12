@@ -287,7 +287,13 @@ class Settings {
 				// Shelf size is clamped to [6,24] on load (T-w87-01): a poisoned 999/"x"/
 				// negative becomes a safe value, never breaking the fan-out / page size.
 				this.homeShelfSize = clampShelfSize(v.homeShelfSize);
-				this.homeLandingTab = (v.homeLandingTab as HomeLandingTab) ?? HOME_DEFAULTS.homeLandingTab;
+				// CR-01 / T-w87-05: validate against the 3-value union (same pattern as theme/
+				// upnextMode). A bare cast would let a corrupt persisted string reach the
+				// layout's LANDING_PATHS[...] lookup → goto(undefined) → 404 on every launch.
+				this.homeLandingTab =
+					v.homeLandingTab === 'home' || v.homeLandingTab === 'search' || v.homeLandingTab === 'library'
+						? v.homeLandingTab
+						: HOME_DEFAULTS.homeLandingTab;
 				this.homeDensity = (v.homeDensity as HomeDensity) ?? HOME_DEFAULTS.homeDensity;
 				// Per-section density map (HOME-02 / D-07): same object-not-array guard as
 				// enabledSources (T-23-06 — a malformed Array/non-object → safe {}). Per-section

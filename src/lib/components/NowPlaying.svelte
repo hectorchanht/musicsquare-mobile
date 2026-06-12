@@ -535,6 +535,7 @@
 	}
 
 	function gripDown(e: PointerEvent) {
+		e.stopPropagation();
 		gripActive = true;
 		subnavMoved = false;
 		gripStartY = e.clientY;
@@ -557,6 +558,7 @@
 	}
 	function gripMove(e: PointerEvent) {
 		if (!gripActive) return;
+		e.stopPropagation();
 		gripVel.sample(e.clientY, e.timeStamp);
 		gripMoved = e.clientY - gripStartY;
 		if (Math.abs(gripMoved) >= 8) subnavMoved = true;

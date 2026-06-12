@@ -630,7 +630,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 | 20. Now-Playing Surface & Gestures | 4/4 | Complete    | 2026-06-11 |
 | 21. Search & Cover Pipeline Polish | 2/5 | In Progress|  |
 | 22. Lyrics Polish | 1/2 | In Progress|  |
-| 23. UX Audit & Homepage/Artist Polish | 8/8 | Complete   | 2026-06-12 |
+| 23. UX Audit & Homepage/Artist Polish | 8/8 | Complete    | 2026-06-12 |
 | 24. Offline App-Shell & Sharing/SEO | 0/TBD | Not started | - |
 
 ## Backlog

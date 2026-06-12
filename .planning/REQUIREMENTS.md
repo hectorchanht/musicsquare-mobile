@@ -154,13 +154,13 @@ Milestone v1.2. Music never stops + offline downloads + broad UX polish. Researc
 
 ### Homepage
 
-- [ ] **HOME-02**: User can set any homepage section to a compact mode — rows of 4 with smaller covers, still horizontally scrollable — per section in settings
-- [ ] **HOME-03**: An option icon at the end of a compact list row opens the track menu; long-press on a row opens it too
-- [ ] **HOME-04**: Each section title has a right-arrow that navigates to a dedicated grid page for that chart; sections that mirror library content redirect to the matching library tab
+- [x] **HOME-02**: User can set any homepage section to a compact mode — rows of 4 with smaller covers, still horizontally scrollable — per section in settings
+- [x] **HOME-03**: An option icon at the end of a compact list row opens the track menu; long-press on a row opens it too
+- [x] **HOME-04**: Each section title has a right-arrow that navigates to a dedicated grid page for that chart; sections that mirror library content redirect to the matching library tab
 
 ### Artist Page
 
-- [ ] **ART-01**: Albums with no tracks are hidden from the artist page
+- [x] **ART-01**: Albums with no tracks are hidden from the artist page
 
 ### Sharing / SEO
 
@@ -180,12 +180,12 @@ Milestone v1.2. Music never stops + offline downloads + broad UX polish. Researc
 
 ### UX Polish
 
-- [ ] **UX-01**: Every loading text is replaced by a skeleton that matches the shape/count/size of the loaded data (like the related list in now-playing)
-- [ ] **UX-02**: Action buttons show a toast on click and are guarded against double-clicking
+- [x] **UX-01**: Every loading text is replaced by a skeleton that matches the shape/count/size of the loaded data (like the related list in now-playing)
+- [x] **UX-02**: Action buttons show a toast on click and are guarded against double-clicking
 - [x] **UX-03**: Text-size setting range widened to 50%–200%, with the demo text showing "example {artist or song name}" based on the type being sized
-- [ ] **UX-04**: Track rows support swipe-actions (swipe to queue / like) on main list surfaces (AUD-01)
-- [ ] **UX-05**: Key actions give haptic feedback where the platform supports it (AUD-04; Android — iOS Safari ignores)
-- [ ] **UX-06**: Accessibility pass: `aria-pressed` on toggle buttons, focus-trap in sheets/menus, labels on all icon-only buttons (AUD-11)
+- [x] **UX-04**: Track rows support swipe-actions (swipe to queue / like) on main list surfaces (AUD-01)
+- [x] **UX-05**: Key actions give haptic feedback where the platform supports it (AUD-04; Android — iOS Safari ignores)
+- [x] **UX-06**: Accessibility pass: `aria-pressed` on toggle buttons, focus-trap in sheets/menus, labels on all icon-only buttons (AUD-11)
 - [x] **UX-07**: The accent color setting visibly applies to the UI (verify wiring; fix if dead)
 
 ## v2 Requirements
@@ -342,15 +342,15 @@ Each v1.2 requirement maps to exactly one phase (16–24). See `.planning/ROADMA
 | LYR-03 | Phase 22 | Pending |
 | LYR-04 | Phase 22 | Pending |
 | LYR-05 | Phase 22 | Pending |
-| UX-01 | Phase 23 | Pending |
-| UX-02 | Phase 23 | Pending |
-| UX-04 | Phase 23 | Pending |
-| UX-05 | Phase 23 | Pending |
-| UX-06 | Phase 23 | Pending |
-| HOME-02 | Phase 23 | Pending |
-| HOME-03 | Phase 23 | Pending |
-| HOME-04 | Phase 23 | Pending |
-| ART-01 | Phase 23 | Pending |
+| UX-01 | Phase 23 | Complete |
+| UX-02 | Phase 23 | Complete |
+| UX-04 | Phase 23 | Complete |
+| UX-05 | Phase 23 | Complete |
+| UX-06 | Phase 23 | Complete |
+| HOME-02 | Phase 23 | Complete |
+| HOME-03 | Phase 23 | Complete |
+| HOME-04 | Phase 23 | Complete |
+| ART-01 | Phase 23 | Complete |
 | OFFL-01 | Phase 24 | Pending |
 | OFFL-02 | Phase 24 | Pending |
 | OFFL-03 | Phase 24 | Pending |

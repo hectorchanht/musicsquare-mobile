@@ -4,13 +4,13 @@ milestone: v1.2
 milestone_name: Resilient Playback & UX Polish
 status: executing
 stopped_at: Phase 23 UI-SPEC approved
-last_updated: "2026-06-11T19:18:17.761Z"
-last_activity: 2026-06-11 -- Phase 23 planning complete
+last_updated: "2026-06-12T04:00:54.721Z"
+last_activity: 2026-06-12 -- Phase 23 execution started
 progress:
   total_phases: 10
   completed_phases: 6
   total_plans: 38
-  completed_plans: 26
+  completed_plans: 27
   percent: 60
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-10)
 
 **Core value:** A user on their phone can search a song, tap it, and have it play instantly with a smooth, native-app-like experience — and keep playing when the screen locks.
-**Current focus:** Phase 22 — lyrics-polish
+**Current focus:** Phase 23 — ux-audit-homepage-artist-polish
 
 ## Current Position
 
-Phase: 22 (lyrics-polish) — EXECUTING
-Plan: 1 of 2
-Status: Ready to execute
-Last activity: 2026-06-11 -- Phase 23 planning complete
+Phase: 23 (ux-audit-homepage-artist-polish) — EXECUTING
+Plan: 1 of 8
+Status: Executing Phase 23
+Last activity: 2026-06-12 -- Completed quick task 260612-gn9: README APK build + install docs
 Next: /gsd:verify-work phase 19 (device-pass the two non-node-testable contracts — MENU-02 marquee re-measure + MENU-03 stuck-state — before sign-off)
 
 ## Performance Metrics
@@ -189,6 +189,7 @@ None yet.
 | 260611-gln | Sharing/metadata/persistence bundle (6 atomic commits). (1) Shared-link continuity+prefetch: `?play` handler decodes via `decodeShare` → `setQueue` → `play(current,{fresh:true})` so a shared song auto-advances/regenerates+prefetches instead of stopping. (2) Share the up-next queue: new v2 token `{v,c,q}` carries a capped (30) queue; legacy v1 single-track token still decodes. (3) Human-readable slug: `shareUrl` emits `?t=<slug>&play=<payload>` (CJK-safe pure `slugify`). (4) Crawler-correct OG: three universal `+page.ts` loads (home `?play`, artist, album) render per-page `og:`/`twitter:` in SSR HTML via shared `PageOg.svelte`; root-layout OG gated behind `{#if !page.data?.og}`; pure `buildOg` helper+tests. (5) Clear-queue moved into now-playing options (kebab→TrackMenu, gated `queue>1`, `Trash2`) — standalone subnav Clear button removed; `menu.clearQueue` in all 15 dicts. (6) Android persistence: `flushPersist()` on `visibilitychange`/`pagehide`/`freeze` + `pageshow(persisted)` re-sync writes EXACT `currentTime` immediately (was 2s-throttled→stale→restart-at-0); `restore()` pendingSeek seek unchanged. Verified live (vite SSR + mobile preview): artist/album/`?play` OG present in curl'd SSR HTML with single page-specific tags (`og:title "稻香 — Jay Chou"`); shared link restored queue [稻香,七里香] + URL cleaned to `/`; kebab shows "Clear queue", subnav button gone, clears to 1; `visibilitychange`-hidden flushed exact 37.24s to localStorage immediately; regenerated track played a real qq stream (continuity confirmed). pnpm check 0/0, 614 tests (+28). NOTE: real Android background-resume is device-dependent — NOT verifiable in desktop preview. NO new deps. | 2026-06-11 | fd40765/970288f/4c8093d/2ff7397/fb73238/323209c | [260611-gln-sharing-metadata-persistence-bundle-1-sh](./quick/260611-gln-sharing-metadata-persistence-bundle-1-sh/) |
 | 260611-ql0 | Search-page autocomplete (typeahead) for song/artist names. Source decision (user-delegated): Deezer via already-shipped `deezerSearchTopN` (keyless `/api/deezer/search` edge proxy, client 6h + edge 24h cache) — Last.fm rejected (key not guaranteed client-side), CN resolvers rejected (slow/flaky, defeats "not heavy to api fetching"). New pure `src/lib/search/autocomplete-logic.ts` (`deriveSuggestions` dedupe song+artist suggestions cap 8 + `debounce`, 14 tests, TDD red→green) mirroring `search-history-logic` split; wired into search `+page.svelte`: 300ms debounce, MIN_QUERY_LEN=2, AbortController cancel-in-flight + stale-guard, tap-to-fill-and-search real `<button>`s, silent graceful degrade, coexists with recent-search block (mutually exclusive gates). `search.suggestions` i18n key ×15 locales (parity gate; `en` landed with Task 2 since `TranslationKey` derives from `en.ts`). No new API route/credential/dep. check 0/0, 672/672 tests (+14) | 2026-06-11 | 97a7af7 | [260611-ql0-add-autocomplete-for-song-artist-names-i](./quick/260611-ql0-add-autocomplete-for-song-artist-names-i/) |
 | 260611-rhx | Auto-focus empty search input at mount on search page: `queryInputEl` $state ref + `bind:this` + `if (!q.trim()) queryInputEl?.focus()` at end of existing `onMount`, AFTER the `searchSession.hasPrior` restore block — restored/back-nav query suppresses focus, mount-only placement (not $effect) never re-steals focus on mid-session clear; programmatic `.focus()` (no bare `autofocus` attr → no a11y_autofocus warning). 1 file, no new deps/i18n. check 0/0 | 2026-06-11 | 78b585d | [260611-rhx-focus-the-search-query-input-if-it-is-em](./quick/260611-rhx-focus-the-search-query-input-if-it-is-em/) |
+| 260612-gn9 | README "Android APK (build & install)" section: prerequisites (node 22/pnpm, JDK 21 brew + `invalid source release: 21` gotcha, ANDROID_HOME, gitignored local.properties), build chain `pnpm build:native` → `cap sync` → `gradlew assembleDebug`, install via `adb install -r --user 0` (Samsung Secure Folder quirk) + RSA prompt + `am start` launch, and the stale-deploy CORS warning (openmusic.lol must carry current CORS hook; manual wrangler deploy). All facts verified from real phase-999.1 builds. | 2026-06-12 | 0b33339 | [260612-gn9-update-readme-with-apk-build-and-phone-i](./quick/260612-gn9-update-readme-with-apk-build-and-phone-i/) |
 
 > Note: off planned phase order (Phase-4-shaped UI pulled forward as a demo). Basic playback only; full audio engine = Phase 6, formal Mobile UI Shell = Phase 4. NOTE (2026-06-10): many of the quick-tasks above already exercise the v1.2 surfaces (failover/prefetch in gte/t5r/hvu, offline blob in kyf, Deezer enrichment plumbing in jau/jip, cover backfill in rvy/0bb/wv8, gesture machines in ggj/h4s/nqf) — v1.2 phases formalize, harden, and complete these rather than build from scratch.
 

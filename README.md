@@ -56,6 +56,49 @@ pnpm check        # svelte-check (TypeScript, strict)
 pnpm test         # run the Vitest suite (414 tests)
 ```
 
+## Android APK (build & install)
+
+The same SvelteKit app ships as a native Android shell via **Capacitor** — a static SPA build wrapped in a WebView, talking to the deployed `/api/*` proxy cross-origin.
+
+### Prerequisites
+
+- **Node 22** via nvm + **pnpm** — `nvm use 22` (or `export PATH="$HOME/.nvm/versions/node/v22.22.0/bin:$PATH"`)
+- **JDK 21** — `brew install openjdk@21`, then `export JAVA_HOME=/opt/homebrew/opt/openjdk@21` (JDK ≤ 20 fails the build with `invalid source release: 21`)
+- **Android SDK** — `export ANDROID_HOME=$HOME/Library/Android/sdk` (platform 36 auto-downloads on the first build)
+- `android/local.properties` (holds `sdk.dir`) is generated locally and is **gitignored** — never commit it.
+
+### Build the APK
+
+```bash
+pnpm install
+pnpm build:native          # static SPA build, bakes VITE_API_BASE=https://openmusic.lol
+npx cap sync android       # copy the web build into the Android project
+cd android && ./gradlew assembleDebug
+```
+
+Output: `android/app/build/outputs/apk/debug/app-debug.apk`
+
+### Install to a phone
+
+1. On the phone, enable **Developer options → USB debugging**, plug it in, and accept the **"Allow USB debugging?"** RSA prompt.
+2. Install:
+   ```bash
+   adb install -r --user 0 android/app/build/outputs/apk/debug/app-debug.apk
+   ```
+   `--user 0` is required on Samsung devices with Secure Folder / dual-app profiles — a plain install can land in the wrong user.
+3. Launch:
+   ```bash
+   adb shell am start -n com.openmusic.app/.MainActivity
+   ```
+
+### Important: the deployed server must be current
+
+The APK loads its UI **locally** but calls `https://openmusic.lol/api/*` **cross-origin**. The deployed web app must include the current CORS hook, or every API call from the APK fails with a CORS error. Deploy is manual:
+
+```bash
+pnpm build && npx wrangler pages deploy .svelte-kit/cloudflare --project-name openmusic
+```
+
 ## Deployment
 
 Pushes to **`main`** auto-deploy to **Cloudflare Pages** (project `openmusic`,

@@ -19,26 +19,34 @@ import { browser } from '$app/environment';
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import write_blob from 'capacitor-blob-writer';
+import { MediaStoreSaver } from './media-store';
 
 const DB_NAME = 'openmusic-blobs';
 const STORE = 'tracks';
 const VERSION = 1;
 
-// --- Native (Capacitor) filesystem backend (999.1-03, D-10) ---------------------------------
+// --- Native (Capacitor) filesystem + public-Music backend (999.1-03 D-10, 999.1-06 D-11) -----
 //
-// On native (Capacitor.isNativePlatform()) the downloaded audio Blob is written to an
-// app-private directory (`Directory.Data` — app-scoped, no runtime permissions, works on every
-// Android version) via `capacitor-blob-writer` (streams the Blob straight to disk WITHOUT a
-// base64 round-trip — @capacitor/filesystem.writeFile would base64-encode it: +33% bloat and a
-// memory spike for large lossless files). Reads/deletes go through @capacitor/filesystem.
+// On native (Capacitor.isNativePlatform()) a downloaded audio Blob is persisted TWO ways:
 //
-// TODO(999.1-06): route into public Music/ via the Kotlin MediaStore bridge (D-11 resolved
-// public-music-mediastore 2026-06-12); writing app-private here as a staged step — plan 06
-// upgrades THIS write target to MediaStore.Audio.Media (RELATIVE_PATH Music/OpenMusic, IS_PENDING).
+//   1. App-private offline copy (`Directory.Data` — app-scoped, no runtime permissions, works on
+//      every Android version) via `capacitor-blob-writer` — streams the Blob straight to disk
+//      WITHOUT a base64 round-trip (@capacitor/filesystem.writeFile would base64-encode it: +33%
+//      bloat + a memory spike for large lossless files). This is the OFFLINE-READ SOURCE: get()
+//      reads it back so a downloaded song plays offline in-app.
 //
-// The three native functions mirror the web branch's never-throws contract EXACTLY: every path
-// resolves false / null / void and NEVER rejects, so a failed download degrades to CDN playback
-// (T-999.1-09) — parity with the IDB branch.
+//   2. Public `Music/OpenMusic/` copy via the hand-written Kotlin MediaStore bridge
+//      (MediaStoreSaver.saveToMusic, 999.1-06 / D-11 resolved public-music-mediastore 2026-06-12)
+//      so the file is visible to file managers and other audio apps. The bridge returns a content
+//      URI which we record in localStorage keyed by uid so del() can remove that exact entry.
+//
+// OFFLINE-READ SPLIT (planner-allowed): get() reads the app-private copy (kept from plan 03), NOT
+// the content URI — the simplest robust split (no readFromMusic bridge method needed; the public
+// copy is purely for visibility). del() removes BOTH the app-private copy and the public entry.
+//
+// All native functions mirror the web branch's never-throws contract EXACTLY: every path resolves
+// false / null / void and NEVER rejects, so a failed public-Music write degrades to CDN playback
+// (T-999.1-09 / T-999.1-19) — parity with the IDB branch.
 
 const NATIVE_DIR = Directory.Data;
 
@@ -47,10 +55,57 @@ function nativePath(uid: string): string {
 	return `downloads/${uid.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 }
 
+/** localStorage key for the public-Music content URI the MediaStore bridge returned for `uid`. */
+function uriIndexKey(uid: string): string {
+	return `openmusic-blob-uri:${uid}`;
+}
+
+/** A stable, sanitized public Music/ file name for a uid (audio extension defaults to .mp3). */
+function nativeFileName(uid: string): string {
+	return `${uid.replace(/[^a-zA-Z0-9._-]/g, '_')}.mp3`;
+}
+
+/** Read the recorded public-Music content URI for `uid`, or null. Never throws. */
+function getStoredUri(uid: string): string | null {
+	try {
+		return typeof localStorage !== 'undefined' ? localStorage.getItem(uriIndexKey(uid)) : null;
+	} catch {
+		return null;
+	}
+}
+
+function setStoredUri(uid: string, uri: string): void {
+	try {
+		if (typeof localStorage !== 'undefined') localStorage.setItem(uriIndexKey(uid), uri);
+	} catch {
+		// ignore — the index is a best-effort convenience for del().
+	}
+}
+
+function clearStoredUri(uid: string): void {
+	try {
+		if (typeof localStorage !== 'undefined') localStorage.removeItem(uriIndexKey(uid));
+	} catch {
+		// ignore.
+	}
+}
+
+/** Base64-encode a Blob's bytes for the saveToMusic bridge call. Never throws on a valid Blob. */
+async function blobToBase64(blob: Blob): Promise<string> {
+	const bytes = new Uint8Array(await blob.arrayBuffer());
+	let binary = '';
+	for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+	return btoa(binary);
+}
+
 async function nativePut(uid: string, blob: Blob): Promise<boolean> {
 	try {
-		// TODO(999.1-06): swap this app-private write for the public Music/ MediaStore bridge.
+		// 1. App-private offline copy (the get() read source) — no base64 round-trip.
 		await write_blob({ path: nativePath(uid), directory: NATIVE_DIR, blob, recursive: true });
+		// 2. Public Music/OpenMusic/ copy via the MediaStore bridge (D-11) — record the content URI.
+		const base64 = await blobToBase64(blob);
+		const { uri } = await MediaStoreSaver.saveToMusic({ fileName: nativeFileName(uid), base64 });
+		if (uri) setStoredUri(uid, uri);
 		return true;
 	} catch {
 		return false;
@@ -59,8 +114,8 @@ async function nativePut(uid: string, blob: Blob): Promise<boolean> {
 
 async function nativeGet(uid: string): Promise<Blob | null> {
 	try {
-		// Binary read returns base64 (no Encoding passed). Convert back to a Blob; the web shim of
-		// Filesystem may hand back a Blob directly, so handle both shapes.
+		// Reads the app-private copy (the offline-read source). Binary read returns base64 (no
+		// Encoding passed). Convert back to a Blob; the web shim may hand back a Blob directly.
 		const res = await Filesystem.readFile({ path: nativePath(uid), directory: NATIVE_DIR });
 		const data = res.data;
 		if (data instanceof Blob) return data;
@@ -75,10 +130,21 @@ async function nativeGet(uid: string): Promise<Blob | null> {
 }
 
 async function nativeDel(uid: string): Promise<void> {
+	// Remove the app-private offline copy. Swallow not-found (parity with IDB del()).
 	try {
 		await Filesystem.deleteFile({ path: nativePath(uid), directory: NATIVE_DIR });
 	} catch {
-		// not-found / any failure: swallow — parity with the IDB del() never-throws posture.
+		// not-found / any failure: swallow.
+	}
+	// Remove the public Music/ entry the app created (D-11), then clear the index. Never throws.
+	const uri = getStoredUri(uid);
+	if (uri) {
+		try {
+			await MediaStoreSaver.deleteFromMusic({ uri });
+		} catch {
+			// not-found / any failure: swallow — parity with the never-throws posture.
+		}
+		clearStoredUri(uid);
 	}
 }
 

@@ -130,4 +130,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-12 after Phase 23 complete (UX Audit: Homepage & Artist Polish)*
+*Last updated: 2026-06-12 after Phase 999.1 complete (v2.0 Native Capacitor Migration — Android APK: dual-adapter build, background audio FGS, public Music/ MediaStore downloads, signed-release CI; 3 device UAT sets pending)*

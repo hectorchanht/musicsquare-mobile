@@ -49,4 +49,14 @@
          here (FOREGROUND_SERVICE is redeclared harmlessly; the merger dedupes). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
+    <!-- D-11 public Music/ (Plan 999.1-06): the MediaStoreSaver plugin writes downloaded audio into
+         the public Music/OpenMusic/ collection. On API 29+ writing the app's OWN MediaStore.Audio
+         entries needs NO runtime permission (RELATIVE_PATH + IS_PENDING). Only the legacy API <=28
+         branch (Environment.getExternalStoragePublicDirectory(DIRECTORY_MUSIC)) needs
+         WRITE_EXTERNAL_STORAGE, so it is scoped to maxSdkVersion="28" — a no-op on modern Android
+         (T-999.1-18 mitigation). NO READ_MEDIA_AUDIO / broad media-read scope is requested. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
 </manifest>

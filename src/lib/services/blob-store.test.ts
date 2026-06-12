@@ -37,6 +37,37 @@ vi.mock('@capacitor/filesystem', () => ({
 	Directory: { Data: 'DATA', External: 'EXTERNAL' }
 }));
 
+// --- public Music/ MediaStore bridge (999.1-06, D-11) ---
+// nativePut also routes the file into public Music/ via saveToMusic({ fileName, base64 }) and
+// records the returned content URI; nativeDel removes that entry via deleteFromMusic({ uri }).
+const saveToMusic = vi.fn((_opts: { fileName: string; base64: string }) =>
+	Promise.resolve({ uri: 'content://media/external/audio/media/42' })
+);
+const deleteFromMusic = vi.fn((_opts: { uri: string }) => Promise.resolve());
+vi.mock('./media-store', () => ({
+	MediaStoreSaver: {
+		saveToMusic: (opts: unknown) => saveToMusic(opts as never),
+		deleteFromMusic: (opts: unknown) => deleteFromMusic(opts as never)
+	}
+}));
+
+// --- localStorage shim (uid -> content URI index lives here on native) ---
+function installLocalStorageShim() {
+	const map = new Map<string, string>();
+	const ls = {
+		getItem: (k: string) => (map.has(k) ? map.get(k)! : null),
+		setItem: (k: string, v: string) => void map.set(k, String(v)),
+		removeItem: (k: string) => void map.delete(k),
+		clear: () => map.clear(),
+		key: (i: number) => Array.from(map.keys())[i] ?? null,
+		get length() {
+			return map.size;
+		}
+	};
+	vi.stubGlobal('localStorage', ls);
+	return map;
+}
+
 import { blobStore, put, get, del } from './blob-store';
 
 beforeEach(() => {
@@ -44,10 +75,14 @@ beforeEach(() => {
 	writeBlob.mockReset().mockResolvedValue('file:///data/downloads/x');
 	readFile.mockReset();
 	deleteFile.mockReset().mockResolvedValue(undefined);
+	saveToMusic.mockReset().mockResolvedValue({ uri: 'content://media/external/audio/media/42' });
+	deleteFromMusic.mockReset().mockResolvedValue(undefined);
+	installLocalStorageShim();
 });
 
 afterEach(() => {
 	vi.clearAllMocks();
+	vi.unstubAllGlobals();
 });
 
 describe('blob-store — namespace export shape (consumers must keep compiling)', () => {
@@ -88,7 +123,7 @@ describe('blob-store — web branch (isNativePlatform false)', () => {
 describe('blob-store — native branch put (isNativePlatform true)', () => {
 	beforeEach(() => isNativePlatform.mockReturnValue(true));
 
-	it('put writes the Blob via capacitor-blob-writer and resolves true on success', async () => {
+	it('put writes the app-private offline copy via capacitor-blob-writer and resolves true on success', async () => {
 		const blob = new Blob(['audio-bytes']);
 		const ok = await put('netease-123', blob);
 		expect(ok).toBe(true);
@@ -97,14 +132,36 @@ describe('blob-store — native branch put (isNativePlatform true)', () => {
 		expect(opts.blob).toBe(blob);
 		expect(opts.path).toContain('netease-123');
 		expect(opts.recursive).toBe(true);
-		// app-private dir (Directory.Data) — public Music/ bridge is plan 06
+		// app-private dir (Directory.Data) — kept as the offline-read source for get()
 		expect(opts.directory).toBe('DATA');
+	});
+
+	// --- 999.1-06 (D-11): native put ALSO routes the file into public Music/ via the bridge ---
+	it('put routes the file into public Music/ via MediaStoreSaver.saveToMusic with a base64 payload', async () => {
+		const ok = await put('netease-123', new Blob(['audio-bytes']));
+		expect(ok).toBe(true);
+		expect(saveToMusic).toHaveBeenCalledTimes(1);
+		const opts = saveToMusic.mock.calls[0][0] as { fileName: string; base64: string };
+		expect(opts.fileName).toContain('netease-123');
+		// base64 of the blob bytes is passed (non-empty string)
+		expect(typeof opts.base64).toBe('string');
+		expect(opts.base64.length).toBeGreaterThan(0);
+		// the returned content URI is recorded so get/del can resolve it later
+		expect(localStorage.getItem('openmusic-blob-uri:netease-123')).toBe(
+			'content://media/external/audio/media/42'
+		);
+	});
+
+	it('put resolves false (never rejects) when saveToMusic rejects', async () => {
+		saveToMusic.mockRejectedValue(new Error('MediaStore insert returned null'));
+		await expect(put('netease-1', new Blob(['a']))).resolves.toBe(false);
 	});
 
 	it('put returns false on empty uid without touching the backend', async () => {
 		const ok = await put('', new Blob(['a']));
 		expect(ok).toBe(false);
 		expect(writeBlob).not.toHaveBeenCalled();
+		expect(saveToMusic).not.toHaveBeenCalled();
 	});
 
 	it('put resolves false (never rejects) when the write backend throws', async () => {
@@ -140,16 +197,36 @@ describe('blob-store — native branch get (isNativePlatform true)', () => {
 describe('blob-store — native branch del (isNativePlatform true)', () => {
 	beforeEach(() => isNativePlatform.mockReturnValue(true));
 
-	it('del deletes the file and resolves void', async () => {
+	it('del deletes the app-private copy and resolves void', async () => {
 		await expect(del('netease-123')).resolves.toBeUndefined();
 		expect(deleteFile).toHaveBeenCalledTimes(1);
 		const opts = deleteFile.mock.calls[0][0] as { path: string };
 		expect(opts.path).toContain('netease-123');
 	});
 
+	// --- 999.1-06 (D-11): del removes the public-Music MediaStore entry the app created ---
+	it('del removes the recorded public-Music entry via MediaStoreSaver.deleteFromMusic and clears the index', async () => {
+		// Simulate a prior put having recorded the content URI.
+		await put('netease-123', new Blob(['audio-bytes']));
+		deleteFromMusic.mockClear();
+		await expect(del('netease-123')).resolves.toBeUndefined();
+		expect(deleteFromMusic).toHaveBeenCalledTimes(1);
+		const opts = deleteFromMusic.mock.calls[0][0] as { uri: string };
+		expect(opts.uri).toBe('content://media/external/audio/media/42');
+		// the index entry is cleared so no stale URI lingers
+		expect(localStorage.getItem('openmusic-blob-uri:netease-123')).toBeNull();
+	});
+
+	it('del resolves void (never rejects) when deleteFromMusic throws', async () => {
+		await put('netease-123', new Blob(['audio-bytes']));
+		deleteFromMusic.mockRejectedValue(new Error('content uri gone'));
+		await expect(del('netease-123')).resolves.toBeUndefined();
+	});
+
 	it('del resolves void on empty uid without touching the backend', async () => {
 		await expect(del('')).resolves.toBeUndefined();
 		expect(deleteFile).not.toHaveBeenCalled();
+		expect(deleteFromMusic).not.toHaveBeenCalled();
 	});
 
 	it('del resolves void (never rejects) when the file is absent / delete throws', async () => {

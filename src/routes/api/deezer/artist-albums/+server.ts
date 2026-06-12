@@ -147,7 +147,13 @@ export const GET: RequestHandler = async ({ url, request }) => {
 		//    this MUST be proxied at the edge.
 		const searchUrl = `${DEEZER_ARTIST_SEARCH}?q=${encodeURIComponent(q)}&limit=1`;
 		const searchRes = await fetchWithRetry(searchUrl, { signal: AbortSignal.timeout(8000) }, 2);
-		const searchData = (await searchRes.json()) as DzArtistSearchResponse;
+		// WR-05: fetchWithRetry RETURNS (does not throw) a 429/5xx once the retry budget is
+		// exhausted, and Deezer signals quota errors as 200 + {"error":{…}}. Both are TRANSIENT
+		// failures — return best-effort empty WITHOUT cache.put, or a single rate-limit window
+		// would pin "no albums" at the edge for a full day (no-negative-caching posture, T-17-13).
+		if (!searchRes.ok) return jsonResult(EMPTY, origin);
+		const searchData = (await searchRes.json()) as DzArtistSearchResponse & { error?: unknown };
+		if (searchData.error) return jsonResult(EMPTY, origin);
 		const rawId = searchData?.data?.[0]?.id;
 		// Validate the id as a positive integer BEFORE it enters the albums URL path (T-23-16).
 		const artistId = Math.floor(Number(rawId));
@@ -169,7 +175,11 @@ export const GET: RequestHandler = async ({ url, request }) => {
 		//    never raw user input). nb_tracks comes back natively per album (D-19).
 		const albumsUrl = `${DEEZER_ARTIST_ALBUMS}/${artistId}/albums?limit=50`;
 		const albumsRes = await fetchWithRetry(albumsUrl, { signal: AbortSignal.timeout(8000) }, 2);
-		const albumsData = (await albumsRes.json()) as DzAlbumsResponse;
+		// WR-05: same transient-failure guards as the search call — never negative-cache a
+		// rate-limited/erroring albums response as a genuine "artist has no albums".
+		if (!albumsRes.ok) return jsonResult(EMPTY, origin);
+		const albumsData = (await albumsRes.json()) as DzAlbumsResponse & { error?: unknown };
+		if (albumsData.error) return jsonResult(EMPTY, origin);
 		const list = Array.isArray(albumsData?.data) ? albumsData.data : [];
 		const result: DeezerArtistAlbumsResult = {
 			data: list.map(reshapeAlbum).filter((a): a is DeezerArtistAlbum => a !== null)

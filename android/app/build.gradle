@@ -7,10 +7,12 @@ android {
         applicationId "com.openmusic.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // versionCode/versionName are tag-derived in CI (Plan 999.1-05, Pitfall 5):
-        // the release workflow passes -PversionCode=$GITHUB_RUN_NUMBER (monotonic) and
-        // -PversionName=${GITHUB_REF_NAME#v} (e.g. v1.0.0 -> 1.0.0). Local/manual builds
-        // fall back to 1 / "1.0" when the properties are absent.
+        // versionCode/versionName are tag-derived in CI (Plan 999.1-05, Pitfall 5 / WR-07):
+        // the release workflow passes -PversionName=${GITHUB_REF_NAME#v} (e.g. v1.0.0 -> 1.0.0)
+        // and -PversionCode=MAJOR*10000+MINOR*100+PATCH encoded from the SAME tag (monotonic
+        // across ascending releases AND rename-proof — NOT GITHUB_RUN_NUMBER, which resets to 1
+        // if the workflow file is renamed/recreated and downgrade-blocks installed users).
+        // Local/manual builds fall back to 1 / "1.0" when the properties are absent.
         versionCode project.hasProperty('versionCode') ? project.property('versionCode').toInteger() : 1
         versionName project.hasProperty('versionName') ? project.property('versionName') : "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

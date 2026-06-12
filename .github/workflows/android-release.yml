@@ -7,13 +7,19 @@
 #
 # Versioning (Pitfall 5 — never downgrade-blocked):
 #   versionName  = ${GITHUB_REF_NAME#v}  (v1.0.0 -> 1.0.0, semver, tag-derived)
-#   versionCode  = ${GITHUB_RUN_NUMBER}  (monotonically increasing integer)
+#   versionCode  = MAJOR*10000 + MINOR*100 + PATCH, derived from the SAME tag (WR-07).
+#     GITHUB_RUN_NUMBER is scoped to the workflow FILE — renaming/moving/recreating it
+#     resets the counter to 1, producing a LOWER versionCode than installed users have and
+#     permanently downgrade-blocking updates. Encoding the semver tag is monotonic across
+#     ascending releases AND rename-proof (the tag is the single source of truth). Supports
+#     up to MINOR/PATCH 99 each, which is ample for this app's release cadence.
 # both are passed to gradle as -PversionName / -PversionCode and consumed in
 # android/app/build.gradle defaultConfig.
 #
 # Security (V6 / T-999.1-14): the keystore base64 + passwords live ONLY in GitHub
 # Actions secrets (auto-masked as ***). No step echoes a secret or enables shell
-# tracing on the signing step. The job is scoped to the v* tag trigger.
+# tracing on the signing step. Signing runs apksigner directly (WR-08) — no archived
+# third-party action ever touches the keystore. The job is scoped to the v* tag trigger.
 name: Android Release
 
 on:
@@ -49,10 +55,27 @@ jobs:
       - name: Sync Capacitor Android project
         run: npx cap sync android
 
-      - name: Derive versionName/versionCode from tag (Pitfall 5)
+      - name: Derive versionName/versionCode from tag (Pitfall 5 / WR-07)
         run: |
-          echo "VERSION_NAME=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
-          echo "VERSION_CODE=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          set -euo pipefail
+          VERSION_NAME="${GITHUB_REF_NAME#v}"
+          # Require a strict MAJOR.MINOR.PATCH tag so the encoded versionCode is well-defined.
+          if ! printf '%s' "$VERSION_NAME" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Tag '$GITHUB_REF_NAME' is not a vMAJOR.MINOR.PATCH semver tag" >&2
+            exit 1
+          fi
+          MAJOR="${VERSION_NAME%%.*}"
+          REST="${VERSION_NAME#*.}"
+          MINOR="${REST%%.*}"
+          PATCH="${REST#*.}"
+          if [ "$MINOR" -gt 99 ] || [ "$PATCH" -gt 99 ]; then
+            echo "::error::MINOR/PATCH must be <= 99 for the versionCode encoding (got $VERSION_NAME)" >&2
+            exit 1
+          fi
+          # Monotonic across ascending semver tags AND rename-proof (tag is the source of truth).
+          VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
+          echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
 
       - name: Assemble release APK
         run: |
@@ -61,23 +84,46 @@ jobs:
             -PversionName="$VERSION_NAME" \
             -PversionCode="$VERSION_CODE"
 
-      # Signs the unsigned assembleRelease APK with the consistent release keystore.
-      # All four inputs are GitHub secrets — auto-masked, never echoed.
-      - name: Sign release APK
+      # Sign the unsigned assembleRelease APK with the consistent release keystore using
+      # apksigner DIRECTLY (WR-08) — the archived r0adkll/sign-android-release action is gone,
+      # so no unmaintained third party (on a mutable tag) ever touches the keystore. zipalign +
+      # apksigner both ship on the GitHub runner image. Secrets are passed via env (auto-masked)
+      # and the keystore base64 is decoded to a RUNNER_TEMP file; passwords use the `env:` form so
+      # they never appear in `ps`/argv. No `set -x` / command echo near the secret use.
+      - name: Sign release APK (apksigner)
         id: sign_apk
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: android/app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.RELEASE_KEYSTORE }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
         env:
-          # Pin build-tools so zipalign/apksigner resolve on the runner image.
-          BUILD_TOOLS_VERSION: "34.0.0"
+          RELEASE_KEYSTORE: ${{ secrets.RELEASE_KEYSTORE }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS_VERSION="34.0.0"
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION"
+          RELEASE_DIR="android/app/build/outputs/apk/release"
+          UNSIGNED=$(find "$RELEASE_DIR" -name '*-unsigned.apk' | head -n1)
+          if [ -z "$UNSIGNED" ]; then
+            echo "::error::no unsigned release APK found in $RELEASE_DIR" >&2
+            exit 1
+          fi
+          KEYSTORE="$RUNNER_TEMP/release.keystore"
+          printf '%s' "$RELEASE_KEYSTORE" | base64 --decode > "$KEYSTORE"
+          ALIGNED="$RELEASE_DIR/app-release-aligned.apk"
+          SIGNED="$RELEASE_DIR/app-release-signed.apk"
+          "$BUILD_TOOLS/zipalign" -f -p 4 "$UNSIGNED" "$ALIGNED"
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks "$KEYSTORE" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:KEYSTORE_PASSWORD \
+            --key-pass env:KEY_PASSWORD \
+            --out "$SIGNED" \
+            "$ALIGNED"
+          "$BUILD_TOOLS/apksigner" verify "$SIGNED"
+          rm -f "$KEYSTORE"
 
       - name: Publish signed APK to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          files: android/app/build/outputs/apk/release/*-signed.apk
+          files: android/app/build/outputs/apk/release/app-release-signed.apk
           fail_on_unmatched_files: true

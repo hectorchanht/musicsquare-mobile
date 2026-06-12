@@ -12,5 +12,5 @@
 {#if toast.msg}<div class="toast" role="status" aria-live="polite" transition:fly={{ y: -20, duration: 180 }}>{toast.msg}</div>{/if}
 
 <style>
-	.toast { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 14px); z-index: 90; background: #000; color: #fff; padding: 10px 16px; border-radius: 999px; font-size: 13px; box-shadow: var(--shadow-lg); }
+	.toast { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 14px); z-index: 90; background: #000; color: #fff; padding: 10px 16px; border-radius: 999px; font-size: 13px; box-shadow: var(--shadow-lg); border-color: darkgrey;}
 </style>

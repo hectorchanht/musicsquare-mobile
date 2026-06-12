@@ -1,7 +1,8 @@
 // In-memory live SEARCH RESULT SET for the current session (D-02). Svelte 5 runes
 // singleton — mirrors overlays.svelte.ts / player.svelte.ts. Holds the query +
-// already-loaded results + pagination + scroll so the Search tab restores INSTANTLY
-// (no refetch) when the user navigates away and back within a session.
+// already-loaded results + pagination + scroll + artist tiles so the Search tab
+// restores INSTANTLY (no refetch) when the user navigates away and back within a
+// session.
 //
 // DISTINCT from the persisted `searchHistory` store (past QUERY STRINGS, D-05) and the
 // `history` store (recently-PLAYED tracks). This one is in-memory ONLY: cross-route
@@ -18,6 +19,9 @@ import type { Track } from '$lib/sources/types';
 
 const HAS_WINDOW = typeof window !== 'undefined';
 
+// Artist tile shape used by the search page (mirrors its local ArtistTile).
+export type ArtistTile = { name: string; image: string | null; trackCount: number };
+
 class SearchSession {
 	/** The active query string (trimmed on save). */
 	q = $state('');
@@ -31,6 +35,11 @@ class SearchSession {
 	scrollY = $state(0);
 	/** True once a search has actually run — drives "restore vs fresh" on mount. */
 	searched = $state(false);
+
+	/** Cached artist tiles row for the active query. */
+	artistTiles = $state<ArtistTile[]>([]);
+	/** Normalized query tag the artistTiles are cached for. */
+	artistTilesFor = $state('');
 
 	/**
 	 * True only when we hold a prior search to restore: a non-empty query AND a search
@@ -47,12 +56,26 @@ class SearchSession {
 	 * session is replaced wholesale, preserving the reset-on-new-query semantics. Does
 	 * NOT touch scrollY (scroll is captured separately on navigate-away).
 	 */
-	save(s: { q: string; results: Track[]; page: number; hasMore: boolean; searched: boolean }) {
+	save(s: {
+		q: string;
+		results: Track[];
+		page: number;
+		hasMore: boolean;
+		searched: boolean;
+		artistTiles?: ArtistTile[];
+		artistTilesFor?: string;
+	}) {
 		this.q = s.q;
 		this.results = s.results;
 		this.page = s.page;
 		this.hasMore = s.hasMore;
 		this.searched = s.searched;
+
+		// If artistTiles are provided (from run() after refreshArtistTiles), save them.
+		if (Array.isArray(s.artistTiles)) {
+			this.artistTiles = s.artistTiles;
+			this.artistTilesFor = s.artistTilesFor ?? '';
+		}
 	}
 
 	/** Record the current scroll offset (browser-guarded; no-op under SSR). */
@@ -69,6 +92,8 @@ class SearchSession {
 		this.hasMore = false;
 		this.scrollY = 0;
 		this.searched = false;
+		this.artistTiles = [];
+		this.artistTilesFor = '';
 	}
 }
 

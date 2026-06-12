@@ -205,7 +205,15 @@
 	// D-02: persist the live result set into the in-memory session so a tab return
 	// restores instantly. Called after run()/loadMore() settle (browser-side only).
 	function persistSession() {
-		searchSession.save({ q: q.trim(), results, page, hasMore, searched });
+		searchSession.save({
+			q: q.trim(),
+			results,
+			page,
+			hasMore,
+			searched,
+			artistTiles,
+			artistTilesFor
+		});
 	}
 
 	function fallbackCover(t: Track): string {
@@ -237,6 +245,7 @@
 		fetchSuggestions.cancel();
 		suggestAc?.abort();
 		suggestions = [];
+		queryInputEl?.blur();
 		ac = new AbortController();
 		const myAc = ac; // capture for the onPartial stale-guard (survives a later ac swap)
 		// D-05: record the user-intent query on submit (even a zero-result one, so a
@@ -354,6 +363,10 @@
 			page = searchSession.page;
 			hasMore = searchSession.hasMore;
 			searched = searchSession.searched;
+			// Restore artist tiles if cached for this query.
+			artistTiles = searchSession.artistTiles;
+			artistTilesFor = searchSession.artistTilesFor;
+
 			// Restore scroll AFTER the {#each results} renders so the document has height
 			// (the WINDOW scrolls — see the IO root:null below). Pitfall 6.
 			await tick();

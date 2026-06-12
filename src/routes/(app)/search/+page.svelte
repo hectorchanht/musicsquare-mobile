@@ -23,11 +23,31 @@
 	import { searchSession } from '$lib/stores/searchSession.svelte';
 	import { searchHistory } from '$lib/stores/searchHistory.svelte';
 	import { t } from '$lib/i18n';
-	import { LoaderCircle } from '@lucide/svelte';
+	import { LoaderCircle, ListEnd, Heart } from '@lucide/svelte';
 	import { longpress } from '$lib/actions/longpress';
+	import { swipeAction } from '$lib/actions/swipeAction';
 	import { dragScroll } from '$lib/actions/dragScroll';
+	import { library } from '$lib/stores/library.svelte';
+	import { toast } from '$lib/stores/toast.svelte';
+	import { tick as hapticTick } from '$lib/util/haptics';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import type { Track } from '$lib/sources/types';
+
+	// UX-04 / D-03/D-04: swipe-right = add to queue (TrackMenu addQueue semantics — append to
+	// end via player.addToQueue), swipe-left = toggle like (TrackMenu like() semantics). Both fire
+	// the global toast + a commit-tier haptic tick. The reveal layer renders BEHIND the row and the
+	// row's translateX (driven by swipeAction) slides to expose it; the row springs back on release.
+	function swipeQueue(track: Track) {
+		player.addToQueue(track);
+		toast.show(t('toast.addedToQueue'));
+		hapticTick();
+	}
+	function swipeLike(track: Track) {
+		const wasLiked = library.isLiked(track.uid);
+		library.toggleLike(track);
+		toast.show(wasLiked ? t('toast.unliked') : t('toast.liked'));
+		hapticTick();
+	}
 
 	let menuTrack = $state<Track | null>(null);
 	let menuOpen = $state(false);
@@ -509,8 +529,20 @@
 	{/if}
 	<ul class="list">
 		{#each results as t (t.uid)}
-			<li>
-				<button class="row" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); menuTrack = t; menuOpen = true; }} onclick={() => { player.play(t); player.setListQueue(results, 'search'); }}>
+			<li class="swipe-wrap">
+				<!-- UX-04 reveal layers sit BEHIND the row; the row translateX (use:swipeAction) slides
+				     to expose them. Right-drag exposes the left-anchored queue affordance; left-drag
+				     exposes the right-anchored like affordance. aria-hidden — the equivalent actions stay
+				     reachable via the long-press TrackMenu (swipe is an enhancement). -->
+				<span class="reveal reveal-queue" aria-hidden="true"><ListEnd size={20} /></span>
+				<span class="reveal reveal-like" aria-hidden="true"><Heart size={20} fill={library.isLiked(t.uid) ? 'currentColor' : 'none'} /></span>
+				<button
+					class="row"
+					use:longpress
+					onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); menuTrack = t; menuOpen = true; }}
+					onclick={() => { player.play(t); player.setListQueue(results, 'search'); }}
+					use:swipeAction={{ onSwipeRight: () => swipeQueue(t), onSwipeLeft: () => swipeLike(t) }}
+				>
 					<span
 						class="art"
 						use:lazyCover={{ track: t, onResolved: (uid, url) => { resolvedCovers = { ...resolvedCovers, [uid]: url }; } }}
@@ -594,8 +626,22 @@
 	}
 
 	.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+	/* UX-04: positioning context for the swipe reveal layers. The reveal spans sit BEHIND the row
+	   (the row carries an opaque background); the row's translateX (use:swipeAction) slides to
+	   expose the correct side. overflow:hidden clips the row's off-screen travel + keeps the
+	   reveal masked at rest. */
+	.swipe-wrap { position: relative; overflow: hidden; border-radius: 10px; }
+	.reveal {
+		position: absolute; top: 0; bottom: 0; width: 96px; display: flex; align-items: center;
+		justify-content: center; color: #fff; pointer-events: none;
+	}
+	/* Right-drag (queue, --color-primary) reveals from the LEFT edge; left-drag (like,
+	   --src-netease unlike field) reveals from the RIGHT edge — matching the drag direction. */
+	.reveal-queue { left: 0; background: var(--color-primary); }
+	.reveal-like { right: 0; background: var(--src-netease); }
 	.row {
-		width: 100%; display: flex; align-items: center; gap: 12px; padding: 8px; background: none;
+		width: 100%; display: flex; align-items: center; gap: 12px; padding: 8px;
+		background: var(--color-bg); position: relative; z-index: 1;
 		border: none; border-radius: 10px; cursor: pointer; text-align: left; transition: background 0.12s ease;
 	}
 	/* MENU-03 / D-12: hover-capable devices only — touch otherwise latches this :hover

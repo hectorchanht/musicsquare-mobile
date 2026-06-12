@@ -78,3 +78,6 @@ None — both actions only invoke caller-supplied callbacks (swipe) or manage lo
 
 ## Known Stubs
 None.
+
+## Self-Check: PASSED
+All created files present; all task commits (8a1aa4f, 75fc173, 95bdecd, 21f32b8) found in git log.

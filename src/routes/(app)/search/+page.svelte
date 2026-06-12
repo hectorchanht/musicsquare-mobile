@@ -598,7 +598,7 @@
 	.artist-tiles::-webkit-scrollbar { display: none; }
 	.artist-tile { flex: 0 0 96px; background: none; border: none; padding: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--color-text); }
 	.artist-avatar { width: 96px; height: 96px; border-radius: 50%; background-size: cover; background-position: center; }
-	.artist-name { font-size: 12px; font-weight: 600; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 96px; }
+	.artist-name { font-size: 12px; font-weight: 600; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 96px; color: var(--color-text);}
 	.warn { color: #ffcf66; font-size: 12px; margin: 0 0 10px; }
 
 	/* --- D-05 past-search suggestions --- */

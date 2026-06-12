@@ -1145,7 +1145,7 @@
 	.list li.lifted { position: relative; z-index: 2; opacity: 0.92; }
 	.list li.lifted .q-row { background: var(--color-surface); box-shadow: 0 6px 18px rgba(0,0,0,0.4); }
 	.list li.over .q-row { box-shadow: inset 0 2px 0 var(--color-primary); }
-	.r-title { font-size: calc(14px * var(--fs-title, 1)); font-weight: 600; }
+	.r-title { font-size: calc(14px * var(--fs-title, 1)); font-weight: 600; color: var(--color-text);}
 	.r-artist { font-size: calc(12px * var(--fs-artist, 1)); color: var(--color-text-muted); }
 	/* Side padding gives the active line's transform: scale + bold weight room to grow
 	   without bumping the parent's `overflow: hidden` clip. word-break/overflow-wrap force

@@ -504,6 +504,7 @@
 	let closedOffset = 300; // distance from full-top to closed/peek-top (measured at drag start)
 	let halfOffset = $state(150); // distance from full-top to half-open-top; reactive so the resting-half transform updates when re-measured
 	let snapTimer: ReturnType<typeof setTimeout> | null = null;
+	let gripSuppressTimer: ReturnType<typeof setTimeout> | null = null; // NP-xx: self-expiry handle for the window-level grip trailing-click suppressor (mirrors coverSwipe WR-05)
 	// Pointer-velocity tracker for the grip drag → a fast flick steps ONE state in the
 	// flick direction even when distance is small (slow-drag falls back to nearest-by-position).
 	const gripVel = createVelocityTracker();
@@ -535,8 +536,42 @@
 		halfOffset = Math.max(20, Math.min(closedOffset - 20, halfOffset));
 	}
 
+	// NP-xx grip ghost-click fix: a TAP on the grip synchronously moves the sheet, and the browser's
+	// trailing compatibility click (fired after pointerup at the tap coordinates) lands on whatever
+	// element now sits under the finger — the play toggle (.play onclick) or the seek slider (.track
+	// onclick={seek}) — causing an unwanted play/pause or a seek-back. This one-shot suppressor swallows
+	// that trailing click. It mirrors the coverSwipe.ts trailing-click-suppressor idiom (coverSwipe.ts
+	// lines 89-118 / 188-200) with ONE load-bearing deviation: coverSwipe arms on the gesture NODE
+	// (setPointerCapture retargets the click to that node), but the grip's ghost click does NOT target
+	// the grip — it targets the unrelated element (.play / .track) that slid under the finger after the
+	// sheet moved. So the listener MUST be at WINDOW level, CAPTURE phase, to intercept the click before
+	// it reaches its real (unrelated) target. A node-level / bubble-phase listener could not catch it.
+	function disarmGripClickSuppressor() {
+		window.removeEventListener('click', suppressGripClick, true);
+		if (gripSuppressTimer !== null) {
+			clearTimeout(gripSuppressTimer);
+			gripSuppressTimer = null;
+		}
+	}
+	function suppressGripClick(e: MouseEvent) {
+		e.stopPropagation();
+		e.preventDefault();
+		disarmGripClickSuppressor();
+	}
+	function armGripClickSuppressor() {
+		// Drop any stale suppressor first (a prior tap's trailing click may never have fired).
+		disarmGripClickSuppressor();
+		window.addEventListener('click', suppressGripClick, true);
+		// WR-05 self-expiry: a touch tap often produces NO trailing click, so the suppressor must
+		// self-disarm after a 350ms safety window rather than linger and swallow a later real click.
+		gripSuppressTimer = setTimeout(disarmGripClickSuppressor, 350);
+	}
+
 	function gripDown(e: PointerEvent) {
 		e.stopPropagation();
+		// A new gesture drops a stale suppressor from a prior tap whose trailing click never fired
+		// (mirror coverSwipe down() stale-suppressor cleanup, lines 122-124).
+		disarmGripClickSuppressor();
 		gripActive = true;
 		gripHandledPointer = true;
 		subnavMoved = false;
@@ -580,6 +615,10 @@
 				// closed) with priority over the generic toggle.
 				selectTab(gripStartTab);
 				gripStartTab = null;
+				// selectTab() is invoked directly here, so suppress the trailing click to prevent both
+				// the tab button's own onclick double-firing AND a ghost click when closed→half moves
+				// the sheet and the transport slides under the finger.
+				armGripClickSuppressor();
 				return;
 			}
 			if (gripStartPlainButton) {
@@ -592,6 +631,9 @@
 			// closed→half, half→closed, full→half.
 			sheetState = sheetState === 'closed' ? 'half' : sheetState === 'full' ? 'half' : 'closed';
 			gripStartTab = null;
+			// The reported bug: this state reassignment moves the sheet, and the trailing compatibility
+			// click lands on the .play toggle / .track seek slider that slid under the finger. Suppress it.
+			armGripClickSuppressor();
 			return;
 		}
 		gripStartTab = null;
@@ -941,13 +983,7 @@
 	>
 		<div class="grip" role="button" tabindex="0" aria-label={sheetState === 'closed' ? t('nowplaying.expandPanel') : t('nowplaying.collapsePanel')}
 			onpointerdown={gripDown} onpointermove={gripMove} onpointerup={gripUp} onpointercancel={gripUp}
-			onkeydown={gripKey}
-			onclick={(e) => {
-				if (gripActive) {
-					e.preventDefault();
-					e.stopPropagation();
-				}
-			}}>
+			onkeydown={gripKey}>
 			<span class="handle"></span>
 		</div>
 

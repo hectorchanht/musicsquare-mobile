@@ -749,13 +749,14 @@
 		rowDragY = 0;
 	}
 	function applyHalfInset() {
-		if (!sheetEl || !transportEl) return;
-		const np = sheetEl.closest('.np') as HTMLElement | null;
-		if (!np) return;
-		const npRect = np.getBoundingClientRect();
-		const tRect = transportEl.getBoundingClientRect();
-		const top = Math.round(tRect.bottom - npRect.top);
-		sheetEl.style.setProperty('--sheet-half-top', top + 'px');
+		return;
+		// if (!sheetEl || !transportEl) return;
+		// const np = sheetEl.closest('.np') as HTMLElement | null;
+		// if (!np) return;
+		// const npRect = np.getBoundingClientRect();
+		// const tRect = transportEl.getBoundingClientRect();
+		// const top = Math.round(tRect.bottom - npRect.top);
+		// sheetEl.style.setProperty('--sheet-half-top', top + 'px');
 	}
 </script>
 
@@ -909,7 +910,7 @@
 	<div
 		class="sheet"
 		class:half={sheetState === 'half'} 
-		class:full={sheetState !== 'closed'}		
+		class:full={sheetState === 'full'}		
 		class:dragging={sheetDragging}
 		bind:this={sheetEl}
 		style:transform={
@@ -926,8 +927,8 @@
 			sheetState === 'half'
 				? `var(--sheet-half-top, 260px) 0 0 0`
 				: sheetState !== 'closed'
-					? '0'
-					: 'undefined'
+					? '68px'
+					: undefined
 		}
 	>
 		<div class="grip" role="button" tabindex="0" aria-label={sheetState === 'closed' ? t('nowplaying.expandPanel') : t('nowplaying.collapsePanel')}
@@ -1151,8 +1152,7 @@
     inset: 0;
     z-index: 5;
     background: var(--color-bg);
-    padding: 0px 18px env(safe-area-inset-bottom);
-		margin-top: 64px;
+    padding: 4px 18px env(safe-area-inset-bottom);
 	}
 
 	/* Half-open: sheet occupies the real area below the transport row, no transform hack. */
@@ -1162,26 +1162,18 @@
 		inset: var(--sheet-half-top, 260px) 0 0 0;
 		z-index: 5;
 		background: var(--color-bg);
-		padding: 0px 18px env(safe-area-inset-bottom);
+		padding: 4px 18px env(safe-area-inset-bottom);
 		box-sizing: border-box;
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
 		min-height: 0;
-		margin-top: 0px;
 	}
 
 	/* Ensure the panel takes all available height in half/full so lyrics/queue scroll normally */
 	.sheet.half .panel,
 	.sheet.full .panel {
 		flex: 1;
-		min-height: 0;
-		overflow-y: auto;
-		overscroll-behavior-y: contain;
-	}
-
-	/* Full-open already defined above; just guarantee panel fill there as well */
-	.sheet.full .panel {
 		min-height: 0;
 		overflow-y: auto;
 		overscroll-behavior-y: contain;

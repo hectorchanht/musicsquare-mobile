@@ -495,6 +495,7 @@
 	let sheetDragY = $state(0); // px in full-coordinates (0 = full, closedOffset = closed)
 	let sheetDragging = $state(false); // forces absolute layout while dragging/snapping
 	let gripActive = $state(false); // true only while finger is down (transition off)
+	let gripHandledPointer = false;
 	let subnavMoved = $state(false); // set true when the gesture passed the 8px drag threshold
 	let gripStartY = 0;
 	let gripMoved = $state(0);
@@ -537,6 +538,7 @@
 	function gripDown(e: PointerEvent) {
 		e.stopPropagation();
 		gripActive = true;
+		gripHandledPointer = true;
 		subnavMoved = false;
 		gripStartY = e.clientY;
 		gripMoved = 0;
@@ -568,6 +570,7 @@
 	function gripUp() {
 		if (!gripActive) return;
 		gripActive = false;
+		gripHandledPointer = false;
 		if (Math.abs(gripMoved) < 8) {
 			// TAP → reset transient drag state regardless of branch taken below.
 			sheetDragging = false;
@@ -900,13 +903,13 @@
 	{/if}
 
 	<div class="transport" bind:this={transportEl}>
-		<button class="t" class:on={currentLiked} aria-pressed={currentLiked} aria-label={currentLiked ? t('menu.liked') : t('menu.like')} onclick={toggleCurrentLike}><Heart size={20} fill={currentLiked ? 'currentColor' : 'none'} /></button>
-		<button class="t" aria-label={t('nowplaying.previous')} onclick={() => player.prev()}><SkipBack size={26} /></button>
-		<button class="play" aria-label={t('nowplaying.playPause')} onclick={() => player.toggle()}>
+		<button class="t" class:on={currentLiked} aria-pressed={currentLiked} aria-label={currentLiked ? t('menu.liked') : t('menu.like')} onclick={!gripHandledPointer && toggleCurrentLike}><Heart size={20} fill={currentLiked ? 'currentColor' : 'none'} /></button>
+		<button class="t" aria-label={t('nowplaying.previous')} onclick={() => !gripHandledPointer && player.prev()}><SkipBack size={26} /></button>
+		<button class="play" aria-label={t('nowplaying.playPause')} onclick={() => !gripHandledPointer && player.toggle()}>
 			{#if player.playing}<Pause size={26} />{:else}<Play size={26} />{/if}
 		</button>
-		<button class="t" aria-label={t('nowplaying.next')} onclick={() => player.next()}><SkipForward size={26} /></button>
-		<button class="t" class:on={player.repeatMode !== 'off'} aria-pressed={player.repeatMode !== 'off'} aria-label={player.repeatMode === 'one' ? t('nowplaying.repeatModeOne') : t('nowplaying.repeat')} onclick={() => player.cycleRepeat()}>
+		<button class="t" aria-label={t('nowplaying.next')} onclick={() => !gripHandledPointer && player.next()}><SkipForward size={26} /></button>
+		<button class="t" class:on={player.repeatMode !== 'off'} aria-pressed={player.repeatMode !== 'off'} aria-label={player.repeatMode === 'one' ? t('nowplaying.repeatModeOne') : t('nowplaying.repeat')} onclick={() => !gripHandledPointer && player.cycleRepeat()}>
 			{#if player.repeatMode === 'one'}<Repeat1 size={20} />{:else}<Repeat size={20} />{/if}
 		</button>
 	</div>

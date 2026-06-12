@@ -17,7 +17,8 @@
 		"test:unit": "vitest",
 		"test": "vitest --run",
 		"gen": "wrangler types",
-		"cap:sync": "npx cap sync android"
+		"cap:sync": "npx cap sync android",
+		"deploy": "pnpm build && wrangler pages deploy .svelte-kit/cloudflare --project-name openmusic"
 	},
 	"devDependencies": {
 		"@capacitor/android": "8.4.0",

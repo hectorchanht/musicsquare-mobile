@@ -2,7 +2,8 @@
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
-	import { Heart, ListMusic, Download, Trash2, Play, Clock, Pencil, Check, Users } from '@lucide/svelte';
+	import { page } from '$app/state';
+	import { Heart, ListMusic, Download, Trash2, Play, Clock, Pencil, Check, Users, ListEnd } from '@lucide/svelte';
 	import { library } from '$lib/stores/library.svelte';
 	import { history } from '$lib/stores/history.svelte';
 	import { player } from '$lib/stores/player.svelte';
@@ -12,19 +13,45 @@
 	import { mapWithConcurrency } from '$lib/services/discovery';
 	import { t } from '$lib/i18n';
 	import { longpress } from '$lib/actions/longpress';
+	import { swipeAction } from '$lib/actions/swipeAction';
 	import { lazyCover } from '$lib/actions/lazyCover';
+	import { toast } from '$lib/stores/toast.svelte';
+	import { tick as hapticTick } from '$lib/util/haptics';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import type { Track } from '$lib/sources/types';
 	import type { QueueContext } from '$lib/config/defaults';
+
+	// UX-04 / D-03/D-04: swipe-right = add to queue (player.addToQueue, append-to-end), swipe-left
+	// = toggle like (library.toggleLike) — same semantics as TrackMenu, plus the global toast + a
+	// commit-tier haptic tick. Wired on the TRACK rows only (liked/downloads/history/playlist-detail);
+	// fav-artist + playlist-folder rows are not tracks and get no swipe.
+	function swipeQueue(track: Track) {
+		player.addToQueue(track);
+		toast.show(t('toast.addedToQueue'));
+		hapticTick();
+	}
+	function swipeLike(track: Track) {
+		const wasLiked = library.isLiked(track.uid);
+		library.toggleLike(track);
+		toast.show(wasLiked ? t('toast.unliked') : t('toast.liked'));
+		hapticTick();
+	}
 
 	type Tab = 'liked' | 'playlists' | 'downloads' | 'fav-artists' | 'history';
 	const VALID_TABS: ReadonlySet<Tab> = new Set(['liked', 'playlists', 'downloads', 'fav-artists', 'history']);
 	const TAB_KEY = 'openmusic:library:tab';
 	/** Persisted last-viewed tab — restored synchronously on the first read so the page
-	 *  renders the correct tab from frame 1. SSR-guarded; corrupt value falls back to 'liked'. */
+	 *  renders the correct tab from frame 1. SSR-guarded; corrupt value falls back to 'liked'.
+	 *  D-13: a `?tab=` query param (home library-mirror redirects) WINS over the stored value and
+	 *  is validated against VALID_TABS — an unknown/garbage tab falls back to the stored/default
+	 *  tab and never throws (T-23-10). */
 	function loadInitialTab(): Tab {
 		if (!browser) return 'liked';
 		try {
+			// A valid ?playlist deep-link forces the Playlists tab (its detail view lives there).
+			if (loadInitialPlaylist()) return 'playlists';
+			const qp = page.url.searchParams.get('tab');
+			if (qp && VALID_TABS.has(qp as Tab)) return qp as Tab;
 			const raw = localStorage.getItem(TAB_KEY);
 			if (raw && VALID_TABS.has(raw as Tab)) return raw as Tab;
 		} catch {
@@ -32,9 +59,31 @@
 		}
 		return 'liked';
 	}
+	/** D-13: per-playlist home shelves deep-link straight to that playlist's detail view (NOT the
+	 *  generic Playlists tab). A `?playlist=<id>` param, validated against existing playlist ids,
+	 *  pins the Playlists tab to a single playlist; an unknown id falls back to showing all
+	 *  playlists without crashing (T-23-10). Read synchronously so frame 1 is correct. */
+	function loadInitialPlaylist(): string | null {
+		if (!browser) return null;
+		try {
+			const pid = page.url.searchParams.get('playlist');
+			if (pid && library.playlists.some((p) => p.id === pid)) return pid;
+		} catch {
+			/* malformed url → no detail pin */
+		}
+		return null;
+	}
+	// When a valid ?playlist=<id> is present, pin the Playlists tab to that playlist's detail view.
+	let detailPlaylistId = $state<string | null>(loadInitialPlaylist());
 	let tab = $state<Tab>(loadInitialTab());
+	const detailPlaylist = $derived(
+		detailPlaylistId ? (library.playlists.find((p) => p.id === detailPlaylistId) ?? null) : null
+	);
 	function setTab(v: Tab) {
 		tab = v;
+		// A manual tab switch clears any ?playlist deep-link pin so the Playlists tab shows all
+		// playlists again (the deep-link is a one-shot entry, not a sticky filter).
+		detailPlaylistId = null;
 		if (!browser) return;
 		try { localStorage.setItem(TAB_KEY, v); } catch { /* quota — non-fatal */ }
 	}
@@ -155,19 +204,21 @@
      fit in a single row at any reasonable viewport width. aria-label preserves the
      accessible name for screen readers + tooltips. -->
 <nav class="tabs">
-	<button class:active={tab === 'liked'} aria-label={t('library.liked')} title={t('library.liked')} onclick={() => setTab('liked')}><Heart size={16} /></button>
-	<button class:active={tab === 'playlists'} aria-label={t('library.playlists')} title={t('library.playlists')} onclick={() => setTab('playlists')}><ListMusic size={16} /></button>
-	<button class:active={tab === 'downloads'} aria-label={t('library.downloads')} title={t('library.downloads')} onclick={() => setTab('downloads')}><Download size={16} /></button>
-	<button class:active={tab === 'fav-artists'} aria-label={t('library.favArtists')} title={t('library.favArtists')} onclick={() => setTab('fav-artists')}><Users size={16} /></button>
-	<button class:active={tab === 'history'} aria-label={t('history.heading')} title={t('history.heading')} onclick={() => setTab('history')}><Clock size={16} /></button>
+	<button class:active={tab === 'liked'} aria-pressed={tab === 'liked'} aria-current={tab === 'liked' ? 'page' : undefined} aria-label={t('library.liked')} title={t('library.liked')} onclick={() => setTab('liked')}><Heart size={16} /></button>
+	<button class:active={tab === 'playlists'} aria-pressed={tab === 'playlists'} aria-current={tab === 'playlists' ? 'page' : undefined} aria-label={t('library.playlists')} title={t('library.playlists')} onclick={() => setTab('playlists')}><ListMusic size={16} /></button>
+	<button class:active={tab === 'downloads'} aria-pressed={tab === 'downloads'} aria-current={tab === 'downloads' ? 'page' : undefined} aria-label={t('library.downloads')} title={t('library.downloads')} onclick={() => setTab('downloads')}><Download size={16} /></button>
+	<button class:active={tab === 'fav-artists'} aria-pressed={tab === 'fav-artists'} aria-current={tab === 'fav-artists' ? 'page' : undefined} aria-label={t('library.favArtists')} title={t('library.favArtists')} onclick={() => setTab('fav-artists')}><Users size={16} /></button>
+	<button class:active={tab === 'history'} aria-pressed={tab === 'history'} aria-current={tab === 'history' ? 'page' : undefined} aria-label={t('history.heading')} title={t('history.heading')} onclick={() => setTab('history')}><Clock size={16} /></button>
 </nav>
 
 {#if tab === 'liked'}
 	{#if library.liked.length}
 		<ul class="list" class:editing={editMode}>
 			{#each library.liked as track (track.uid)}
-				<li>
-					<button class="row" class:edit-row={editMode} use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => rowAction(track, library.liked)}>
+				<li class="swipe-wrap">
+					<span class="reveal reveal-queue" aria-hidden="true"><ListEnd size={20} /></span>
+					<span class="reveal reveal-like" aria-hidden="true"><Heart size={20} fill={library.isLiked(track.uid) ? 'currentColor' : 'none'} /></span>
+					<button class="row" class:edit-row={editMode} use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => rowAction(track, library.liked)} use:swipeAction={{ onSwipeRight: () => swipeQueue(track), onSwipeLeft: () => swipeLike(track) }}>
 						<span class="art" use:lazyCover={{ track, onResolved: onCoverResolved }} style:background-image={(resolvedCovers[track.uid] ?? track.cover) ? `url(${resolvedCovers[track.uid] ?? track.cover})` : fallbackCover(track)}></span>
 						<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
 						{#if editMode}<Trash2 size={16} />{:else}<Play size={16} />{/if}
@@ -178,7 +229,10 @@
 	{:else}<p class="empty"><Heart size={28} /><span>{t('library.noLiked')}</span></p>{/if}
 {:else if tab === 'playlists'}
 	{#if library.playlists.length}
-		{#each library.playlists as pl (pl.id)}
+		<!-- D-13: when deep-linked via ?playlist=<id> show ONLY that playlist's detail; otherwise
+		     all playlist folders. An unknown/removed id resolves detailPlaylist to null → falls back
+		     to the full list (never an empty crash). -->
+		{#each (detailPlaylist ? [detailPlaylist] : library.playlists) as pl (pl.id)}
 			<section class="pl">
 				<div class="pl-head">
 					<h2>{pl.name} <span class="count">{pl.tracks.length}</span></h2>
@@ -191,8 +245,10 @@
 				{#if pl.tracks.length}
 					<ul class="list">
 						{#each pl.tracks as track (track.uid)}
-							<li>
-								<button class="row" class:edit-row={editMode} use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => rowAction(track, pl.tracks, pl.id)}>
+							<li class="swipe-wrap">
+								<span class="reveal reveal-queue" aria-hidden="true"><ListEnd size={20} /></span>
+								<span class="reveal reveal-like" aria-hidden="true"><Heart size={20} fill={library.isLiked(track.uid) ? 'currentColor' : 'none'} /></span>
+								<button class="row" class:edit-row={editMode} use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => rowAction(track, pl.tracks, pl.id)} use:swipeAction={{ onSwipeRight: () => swipeQueue(track), onSwipeLeft: () => swipeLike(track) }}>
 									<span class="art" use:lazyCover={{ track, onResolved: onCoverResolved }} style:background-image={(resolvedCovers[track.uid] ?? track.cover) ? `url(${resolvedCovers[track.uid] ?? track.cover})` : fallbackCover(track)}></span>
 									<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
 									{#if editMode}<Trash2 size={16} />{:else}<Play size={16} />{/if}
@@ -208,8 +264,10 @@
 	{#if library.downloads.length}
 		<ul class="list">
 			{#each library.downloads as track (track.uid)}
-				<li>
-					<button class="row" class:edit-row={editMode} use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => rowAction(track, library.downloads)}>
+				<li class="swipe-wrap">
+					<span class="reveal reveal-queue" aria-hidden="true"><ListEnd size={20} /></span>
+					<span class="reveal reveal-like" aria-hidden="true"><Heart size={20} fill={library.isLiked(track.uid) ? 'currentColor' : 'none'} /></span>
+					<button class="row" class:edit-row={editMode} use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => rowAction(track, library.downloads)} use:swipeAction={{ onSwipeRight: () => swipeQueue(track), onSwipeLeft: () => swipeLike(track) }}>
 						<span class="art" use:lazyCover={{ track, onResolved: onCoverResolved }} style:background-image={(resolvedCovers[track.uid] ?? track.cover) ? `url(${resolvedCovers[track.uid] ?? track.cover})` : fallbackCover(track)}></span>
 						<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
 						{#if editMode}<Trash2 size={16} />{:else}<Play size={16} />{/if}
@@ -239,8 +297,10 @@
 		<ul class="list">
 			{#each history.entries as entry (entry.uid)}
 				{@const track = entry as Track}
-				<li>
-					<button class="row" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => playEntry(track)}>
+				<li class="swipe-wrap">
+					<span class="reveal reveal-queue" aria-hidden="true"><ListEnd size={20} /></span>
+					<span class="reveal reveal-like" aria-hidden="true"><Heart size={20} fill={library.isLiked(track.uid) ? 'currentColor' : 'none'} /></span>
+					<button class="row" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); openMenu(track); }} onclick={() => playEntry(track)} use:swipeAction={{ onSwipeRight: () => swipeQueue(track), onSwipeLeft: () => swipeLike(track) }}>
 						<span class="art" use:lazyCover={{ track, onResolved: onCoverResolved }} style:background-image={(resolvedCovers[track.uid] ?? track.cover) ? `url(${resolvedCovers[track.uid] ?? track.cover})` : fallbackCover(track)}></span>
 						<span class="meta"><span class="r-title">{names.dnTitle(track.title)}</span><span class="r-sub">{names.dnArtist(track.artist)}</span></span>
 						<Play size={16} />
@@ -267,7 +327,17 @@
 	.tabs button { flex: 1; display: inline-flex; align-items: center; justify-content: center; background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text-muted); padding: 10px 0; border-radius: 999px; cursor: pointer; min-width: 0; }
 	.tabs button.active { background: var(--color-primary); color: #fff; border-color: transparent; }
 	.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-	.row { width: 100%; text-align: left; background: none; border: none; padding: 8px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 12px; color: var(--color-text); }
+	/* UX-04: positioning context for the swipe reveal layers. The reveal spans sit BEHIND the row
+	   (the row carries an opaque background); the row's translateX (use:swipeAction) slides to
+	   expose the correct side. overflow:hidden masks the reveal at rest + clips the row travel. */
+	.swipe-wrap { position: relative; overflow: hidden; border-radius: 10px; }
+	.reveal {
+		position: absolute; top: 0; bottom: 0; width: 96px; display: flex; align-items: center;
+		justify-content: center; color: #fff; pointer-events: none;
+	}
+	.reveal-queue { left: 0; background: var(--color-primary); }
+	.reveal-like { right: 0; background: var(--src-netease); }
+	.row { width: 100%; text-align: left; background: var(--color-bg); position: relative; z-index: 1; border: none; padding: 8px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 12px; color: var(--color-text); }
 	/* MENU-03 / D-12: hover-capable devices only — touch otherwise latches this :hover
 	   background on a row under a held finger while the track menu opens. */
 	@media (hover: hover) { .row:hover { background: var(--color-surface); } }

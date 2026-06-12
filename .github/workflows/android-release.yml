@@ -1,0 +1,83 @@
+# Tag-triggered Android release pipeline (Plan 999.1-05 / D-07, D-08, D-09).
+#
+# Pushing a `v*` tag to the origin repo builds the native SvelteKit SPA, syncs the
+# Capacitor Android project, builds + signs a release APK with the CONSISTENT release
+# keystore stored in repo secrets (the Obtainium update trust anchor), and publishes
+# the signed APK as a GitHub Release asset for Obtainium-based updates.
+#
+# Versioning (Pitfall 5 — never downgrade-blocked):
+#   versionName  = ${GITHUB_REF_NAME#v}  (v1.0.0 -> 1.0.0, semver, tag-derived)
+#   versionCode  = ${GITHUB_RUN_NUMBER}  (monotonically increasing integer)
+# both are passed to gradle as -PversionName / -PversionCode and consumed in
+# android/app/build.gradle defaultConfig.
+#
+# Security (V6 / T-999.1-14): the keystore base64 + passwords live ONLY in GitHub
+# Actions secrets (auto-masked as ***). No step echoes a secret or enables shell
+# tracing on the signing step. The job is scoped to the v* tag trigger.
+name: Android Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Needed for softprops/action-gh-release to create the Release + upload the asset.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies (pinned pnpm, frozen lockfile)
+        run: corepack enable && pnpm install --frozen-lockfile
+
+      - name: Build native SPA
+        run: BUILD_TARGET=native VITE_API_BASE=https://openmusic.lol pnpm build
+
+      - name: Sync Capacitor Android project
+        run: npx cap sync android
+
+      - name: Derive versionName/versionCode from tag (Pitfall 5)
+        run: |
+          echo "VERSION_NAME=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+
+      - name: Assemble release APK
+        run: |
+          cd android
+          ./gradlew assembleRelease \
+            -PversionName="$VERSION_NAME" \
+            -PversionCode="$VERSION_CODE"
+
+      # Signs the unsigned assembleRelease APK with the consistent release keystore.
+      # All four inputs are GitHub secrets — auto-masked, never echoed.
+      - name: Sign release APK
+        id: sign_apk
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: android/app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.RELEASE_KEYSTORE }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+        env:
+          # Pin build-tools so zipalign/apksigner resolve on the runner image.
+          BUILD_TOOLS_VERSION: "34.0.0"
+
+      - name: Publish signed APK to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android/app/build/outputs/apk/release/*-signed.apk
+          fail_on_unmatched_files: true

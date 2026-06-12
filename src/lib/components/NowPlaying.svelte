@@ -413,6 +413,16 @@
 			if (e.isComposing) return;
 			if (isTextEntry(e.target)) return;
 			if (e.key === ' ' || e.code === 'Space') {
+				// WR-08: the focusTrap keeps focus on a NowPlaying control, and Space-activates-
+				// the-focused-button is the platform convention — let focused interactive
+				// elements win; only an unfocused-control Space toggles play/pause.
+				const el = e.target as HTMLElement | null;
+				if (
+					el instanceof HTMLButtonElement ||
+					el?.getAttribute('role') === 'button' ||
+					el?.getAttribute('role') === 'slider'
+				)
+					return;
 				e.preventDefault();
 				player.toggle();
 			} else if (e.key === 'ArrowLeft') {

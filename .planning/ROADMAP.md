@@ -569,9 +569,9 @@ Plans:
   5. Each section title has a right-arrow that navigates to a dedicated grid/chart page (sections mirroring library content redirect to the matching library tab); albums with no tracks are hidden from the artist page
 
 **Plans**: 8 plans
-- [ ] 23-01-PLAN.md — Feedback primitives: global toast store + ToastHost + inflightGuard + haptics (D-15/16/17)
-- [ ] 23-02-PLAN.md — Gesture/a11y primitives: swipeAction (generalize swipeRemove) + focusTrap (D-02, UX-06)
-- [ ] 23-03-PLAN.md — Home per-section density plumbing: resolveSectionDensity + settings (D-07)
+- [x] 23-01-PLAN.md — Feedback primitives: global toast store + ToastHost + inflightGuard + haptics (D-15/16/17)
+- [x] 23-02-PLAN.md — Gesture/a11y primitives: swipeAction (generalize swipeRemove) + focusTrap (D-02, UX-06)
+- [x] 23-03-PLAN.md — Home per-section density plumbing: resolveSectionDensity + settings (D-07)
 - [ ] 23-04-PLAN.md — Compact homepage: CompactRow/CompactPager + compact-by-default + section-title nav + settings UI (HOME-02/03/04)
 - [ ] 23-05-PLAN.md — Row swipe-actions + library aria-pressed/deep-link + album skeleton (UX-04/05/06, D-01/D-13)
 - [ ] 23-06-PLAN.md — Chart pages: /charts/top, /charts/tags/[tag], /charts/countries/[country] (HOME-04, D-11/D-12)
@@ -630,7 +630,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 | 20. Now-Playing Surface & Gestures | 4/4 | Complete    | 2026-06-11 |
 | 21. Search & Cover Pipeline Polish | 2/5 | In Progress|  |
 | 22. Lyrics Polish | 1/2 | In Progress|  |
-| 23. UX Audit & Homepage/Artist Polish | 0/TBD | Not started | - |
+| 23. UX Audit & Homepage/Artist Polish | 3/8 | In Progress|  |
 | 24. Offline App-Shell & Sharing/SEO | 0/TBD | Not started | - |
 
 ## Backlog

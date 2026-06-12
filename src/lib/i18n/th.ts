@@ -306,6 +306,12 @@ const th: Dict = {
 	'deezer.genres': 'Genres',
 	'deezer.tracks': 'Tracks',
 	'deezer.duration': 'Duration',
+	"home.seeAll": "ดูทั้งหมด",
+	"menu.options": "ตัวเลือก",
+	"charts.topTitle": "เพลงฮิต",
+	"charts.tagTitle": "{tag}",
+	"charts.countryTitle": "{country}",
+	"settings.homeSectionDensity": "เลย์เอาต์",
 
 };
 

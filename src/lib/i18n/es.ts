@@ -306,6 +306,12 @@ const es: Dict = {
 	'deezer.genres': 'Genres',
 	'deezer.tracks': 'Tracks',
 	'deezer.duration': 'Duration',
+	"home.seeAll": "Ver todo",
+	"menu.options": "Opciones",
+	"charts.topTitle": "Éxitos",
+	"charts.tagTitle": "{tag}",
+	"charts.countryTitle": "{country}",
+	"settings.homeSectionDensity": "Diseño",
 
 };
 

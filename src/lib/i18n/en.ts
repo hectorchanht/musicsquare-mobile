@@ -26,6 +26,13 @@ const en = {
 	'home.countryShelf': 'Top in {country}',
 	'home.unplayable': "Couldn't find a playable version",
 	'home.preparing': 'Loading…',
+	'home.seeAll': 'See all',
+
+	// --- compact-row option menu + chart pages (Phase 23 HOME-02/03/04) ---
+	'menu.options': 'Options',
+	'charts.topTitle': 'Top hits',
+	'charts.tagTitle': '{tag}',
+	'charts.countryTitle': '{country}',
 
 	// --- chart pages (HOME-04) ---
 	'charts.topTitle': 'Top hits',
@@ -183,6 +190,7 @@ const en = {
 	'settings.tileDensity': 'Tile density',
 	'settings.densityComfortable': 'Comfortable',
 	'settings.densityCompact': 'Compact',
+	'settings.homeSectionDensity': 'Layout',
 	'settings.homeChrome': 'Home controls',
 	'settings.showSearchPill': 'Show search bar',
 	'settings.showRandomize': 'Show Randomize button',

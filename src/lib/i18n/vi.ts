@@ -306,6 +306,12 @@ const vi: Dict = {
 	'deezer.genres': 'Genres',
 	'deezer.tracks': 'Tracks',
 	'deezer.duration': 'Duration',
+	"home.seeAll": "Xem tất cả",
+	"menu.options": "Tùy chọn",
+	"charts.topTitle": "Bài hát hàng đầu",
+	"charts.tagTitle": "{tag}",
+	"charts.countryTitle": "{country}",
+	"settings.homeSectionDensity": "Bố cục",
 
 };
 

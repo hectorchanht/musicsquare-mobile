@@ -10,11 +10,17 @@
 
 	interface Props {
 		items: T[];
+		/**
+		 * Stable identity for an item (WR-01): rows are keyed by this, NOT by index, so when
+		 * `items` change (e.g. Randomize) Svelte recreates rows instead of reusing CompactRow
+		 * instances whose locally-resolved cover would belong to the previous item.
+		 */
+		key: (item: T) => string;
 		/** Renders ONE item (the host supplies a CompactRow). */
 		row: Snippet<[T]>;
 	}
 
-	let { items, row }: Props = $props();
+	let { items, key, row }: Props = $props();
 
 	const ROWS_PER_COLUMN = 4;
 	// Chunk into columns of 4 (the last column may be short).
@@ -30,7 +36,7 @@
 <div class="pager">
 	{#each columns as col, ci (ci)}
 		<div class="column">
-			{#each col as item, ri (ri)}
+			{#each col as item (key(item))}
 				{@render row(item)}
 			{/each}
 		</div>

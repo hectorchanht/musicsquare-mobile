@@ -60,6 +60,14 @@
 	let resolvedCover = $state<string | null>(null);
 	const effectiveCover = $derived(resolvedCover ?? cover);
 
+	// WR-01 defense-in-depth: if this instance is ever reused for a DIFFERENT item (identity
+	// change = new seed), drop the previous item's resolved art so it can't paint over the new
+	// title. Pager rows are identity-keyed so this is normally a no-op.
+	$effect(() => {
+		void seed;
+		resolvedCover = null;
+	});
+
 	function fallbackGradient(s: string): string {
 		const h = (s.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 47) % 360;
 		return `linear-gradient(145deg, hsl(${h} 55% 32%), hsl(${(h + 40) % 360} 55% 18%))`;

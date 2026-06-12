@@ -743,7 +743,7 @@
 	{#if topArtists.length}
 		{@render titleNav(t('home.topArtists'), '/charts/top')}
 		{#if densityOf('top-artists') === 'compact'}
-			<CompactPager items={compactSlice(topArtists)}>
+			<CompactPager items={compactSlice(topArtists)} key={(a) => a.name}>
 				{#snippet row(a: DiscoveryArtist)}
 					<CompactRow
 						variant="artist"
@@ -773,7 +773,7 @@
 <!-- A reusable compact/comfortable discovery shelf (top-hits / tags / countries share it). -->
 {#snippet discoveryShelf(items: DiscoveryTrack[], compact: boolean)}
 	{#if compact}
-		<CompactPager items={compactSlice(items)}>
+		<CompactPager items={compactSlice(items)} key={(item) => item.artist + ' ' + item.title}>
 			{#snippet row(item: DiscoveryTrack)}
 				<CompactRow
 					title={names.dnTitle(item.title)}
@@ -828,7 +828,7 @@
 <!-- A reusable compact/comfortable library track shelf (liked / downloads / history / playlists). -->
 {#snippet libraryShelf(tracks: Track[], compact: boolean)}
 	{#if compact}
-		<CompactPager items={compactSlice(tracks)}>
+		<CompactPager items={compactSlice(tracks)} key={(track) => track.uid}>
 			{#snippet row(track: Track)}
 				<CompactRow
 					title={names.dnTitle(track.title)}
@@ -873,7 +873,7 @@
 	{#if favArtistsShelf.length}
 		{@render titleNav(t('settings.homeSectionFavArtists'), '/library?tab=fav-artists')}
 		{#if densityOf('fav-artists') === 'compact'}
-			<CompactPager items={compactSlice(favArtistsShelf)}>
+			<CompactPager items={compactSlice(favArtistsShelf)} key={(a) => a.name}>
 				{#snippet row(a: { name: string })}
 					<CompactRow
 						variant="artist"

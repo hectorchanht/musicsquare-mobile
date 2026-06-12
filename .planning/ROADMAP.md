@@ -357,7 +357,7 @@ Music never stops + offline downloads + a broad UX polish pass. This is a polish
 - [x] **Phase 20: Now-Playing Surface & Gestures** - Cover swipe prev/next (axis-locked), half-open scroll containment, tap-cover-closes-subnav, top running-line loader, nowbar horizontal swipe (completed 2026-06-11)
 - [ ] **Phase 21: Search & Cover Pipeline Polish** - Search scoring tune (short-title / artist-frequency boost, <60s 試聽 penalty), result cover fallback, empty-query autofocus, playing-track cover guarantee, scroll-into-view uid/name-keyed cache
 - [ ] **Phase 22: Lyrics Polish** - Tap-line-to-seek, touch-suspended auto-scroll (verify live), end-spacer centering, CN translation-line ordering fix, robust bracket hiding
-- [ ] **Phase 23: UX Audit & Homepage/Artist Polish** - Shape-matched skeletons everywhere, button toast + double-click guard, row swipe-actions, haptics, a11y pass, compact rows-of-4 homepage mode + section grid/library nav, hide trackless albums
+- [x] **Phase 23: UX Audit & Homepage/Artist Polish** - Shape-matched skeletons everywhere, button toast + double-click guard, row swipe-actions, haptics, a11y pass, compact rows-of-4 homepage mode + section grid/library nav, hide trackless albums (completed 2026-06-12)
 - [ ] **Phase 24: Offline App-Shell & Sharing/SEO** - Service-worker app-shell (never caches /api or audio), downloaded-track offline playback, graceful offline degradation; per-entity SSR OG + readable slugs + per-page SEO
 
 ### Phase Details (v1.2)
@@ -572,11 +572,11 @@ Plans:
 - [x] 23-01-PLAN.md — Feedback primitives: global toast store + ToastHost + inflightGuard + haptics (D-15/16/17)
 - [x] 23-02-PLAN.md — Gesture/a11y primitives: swipeAction (generalize swipeRemove) + focusTrap (D-02, UX-06)
 - [x] 23-03-PLAN.md — Home per-section density plumbing: resolveSectionDensity + settings (D-07)
-- [ ] 23-04-PLAN.md — Compact homepage: CompactRow/CompactPager + compact-by-default + section-title nav + settings UI (HOME-02/03/04)
-- [ ] 23-05-PLAN.md — Row swipe-actions + library aria-pressed/deep-link + album skeleton (UX-04/05/06, D-01/D-13)
-- [ ] 23-06-PLAN.md — Chart pages: /charts/top, /charts/tags/[tag], /charts/countries/[country] (HOME-04, D-11/D-12)
-- [ ] 23-07-PLAN.md — Trackless-album gate + Deezer artist-albums proxy (ART-01, D-18/D-19)
-- [ ] 23-08-PLAN.md — A11y/feedback finish: toast migration + aria-pressed + focusTrap on NowPlaying/TrackMenu/SleepTimerSheet (UX-02/05/06)
+- [x] 23-04-PLAN.md — Compact homepage: CompactRow/CompactPager + compact-by-default + section-title nav + settings UI (HOME-02/03/04)
+- [x] 23-05-PLAN.md — Row swipe-actions + library aria-pressed/deep-link + album skeleton (UX-04/05/06, D-01/D-13)
+- [x] 23-06-PLAN.md — Chart pages: /charts/top, /charts/tags/[tag], /charts/countries/[country] (HOME-04, D-11/D-12)
+- [x] 23-07-PLAN.md — Trackless-album gate + Deezer artist-albums proxy (ART-01, D-18/D-19)
+- [x] 23-08-PLAN.md — A11y/feedback finish: toast migration + aria-pressed + focusTrap on NowPlaying/TrackMenu/SleepTimerSheet (UX-02/05/06)
 **UI hint**: yes
 **Research flag**: LOW — cross-cutting polish over existing components; no new infrastructure.
 
@@ -630,7 +630,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 | 20. Now-Playing Surface & Gestures | 4/4 | Complete    | 2026-06-11 |
 | 21. Search & Cover Pipeline Polish | 2/5 | In Progress|  |
 | 22. Lyrics Polish | 1/2 | In Progress|  |
-| 23. UX Audit & Homepage/Artist Polish | 3/8 | In Progress|  |
+| 23. UX Audit & Homepage/Artist Polish | 8/8 | Complete   | 2026-06-12 |
 | 24. Offline App-Shell & Sharing/SEO | 0/TBD | Not started | - |
 
 ## Backlog

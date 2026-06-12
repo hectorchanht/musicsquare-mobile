@@ -29,12 +29,9 @@ const zhHant: Dict = {
 	'home.preparing': '載入中…',
 
 	// --- chart pages (HOME-04) ---
-	'charts.topTitle': '熱門金曲',
 	'charts.topArtists': '熱門歌手',
 	'charts.topTracksTab': '歌曲',
 	'charts.topArtistsTab': '歌手',
-	'charts.tagTitle': '{tag}',
-	'charts.countryTitle': '{country}',
 
 	// --- search ---
 	'search.title': '搜尋',

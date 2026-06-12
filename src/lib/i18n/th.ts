@@ -24,12 +24,9 @@ const th: Dict = {
 	"home.preparing": "กำลังโหลด...",
 
 	// --- chart pages (HOME-04) ---
-	"charts.topTitle": "เพลงฮิตยอดนิยม",
 	"charts.topArtists": "ศิลปินยอดนิยม",
 	"charts.topTracksTab": "เพลง",
 	"charts.topArtistsTab": "ศิลปิน",
-	"charts.tagTitle": "{tag}",
-	"charts.countryTitle": "{country}",
 	"search.title": "ค้นหา",
 	"search.placeholder": "ค้นหาเพลง ศิลปินจากทุกแหล่ง",
 	"search.go": "ไป",

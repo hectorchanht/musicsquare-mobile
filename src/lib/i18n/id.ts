@@ -24,12 +24,9 @@ const id: Dict = {
 	"home.preparing": "Memuat…",
 
 	// --- chart pages (HOME-04) ---
-	"charts.topTitle": "Hits teratas",
 	"charts.topArtists": "Artis teratas",
 	"charts.topTracksTab": "Lagu",
 	"charts.topArtistsTab": "Artis",
-	"charts.tagTitle": "{tag}",
-	"charts.countryTitle": "{country}",
 	"search.title": "Cari",
 	"search.placeholder": "Cari lagu, artis di semua sumber",
 	"search.go": "Pergi",

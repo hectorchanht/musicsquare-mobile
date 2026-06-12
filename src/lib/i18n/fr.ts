@@ -24,12 +24,9 @@ const fr: Dict = {
 	"home.preparing": "Chargement…",
 
 	// --- chart pages (HOME-04) ---
-	"charts.topTitle": "Top des titres",
 	"charts.topArtists": "Top des artistes",
 	"charts.topTracksTab": "Titres",
 	"charts.topArtistsTab": "Artistes",
-	"charts.tagTitle": "{tag}",
-	"charts.countryTitle": "{country}",
 	"search.title": "Rechercher",
 	"search.placeholder": "Rechercher des chansons et des artistes dans toutes les sources",
 	"search.go": "Allez",

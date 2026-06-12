@@ -30,9 +30,6 @@ const en = {
 
 	// --- compact-row option menu + chart pages (Phase 23 HOME-02/03/04) ---
 	'menu.options': 'Options',
-	'charts.topTitle': 'Top hits',
-	'charts.tagTitle': '{tag}',
-	'charts.countryTitle': '{country}',
 
 	// --- chart pages (HOME-04) ---
 	'charts.topTitle': 'Top hits',

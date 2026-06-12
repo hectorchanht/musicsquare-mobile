@@ -24,12 +24,9 @@ const de: Dict = {
 	"home.preparing": "Laden…",
 
 	// --- chart pages (HOME-04) ---
-	"charts.topTitle": "Top-Hits",
 	"charts.topArtists": "Top-Künstler",
 	"charts.topTracksTab": "Songs",
 	"charts.topArtistsTab": "Künstler",
-	"charts.tagTitle": "{tag}",
-	"charts.countryTitle": "{country}",
 	"search.title": "Suchen",
 	"search.placeholder": "Suchen Sie nach Liedern und Künstlern aus allen Quellen",
 	"search.go": "Geh",

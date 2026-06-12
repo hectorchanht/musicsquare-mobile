@@ -24,12 +24,9 @@ const es: Dict = {
 	"home.preparing": "Cargando…",
 
 	// --- chart pages (HOME-04) ---
-	"charts.topTitle": "Éxitos principales",
 	"charts.topArtists": "Artistas principales",
 	"charts.topTracksTab": "Canciones",
 	"charts.topArtistsTab": "Artistas",
-	"charts.tagTitle": "{tag}",
-	"charts.countryTitle": "{country}",
 	"search.title": "Buscar",
 	"search.placeholder": "Busque canciones y artistas en todas las fuentes.",
 	"search.go": "ir",

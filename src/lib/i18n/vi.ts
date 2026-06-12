@@ -24,12 +24,9 @@ const vi: Dict = {
 	"home.preparing": "Đang tải…",
 
 	// --- chart pages (HOME-04) ---
-	"charts.topTitle": "Bài hát hàng đầu",
 	"charts.topArtists": "Nghệ sĩ hàng đầu",
 	"charts.topTracksTab": "Bài hát",
 	"charts.topArtistsTab": "Nghệ sĩ",
-	"charts.tagTitle": "{tag}",
-	"charts.countryTitle": "{country}",
 	"search.title": "Tìm kiếm",
 	"search.placeholder": "Tìm kiếm bài hát, nghệ sĩ trên tất cả các nguồn",
 	"search.go": "Đi",

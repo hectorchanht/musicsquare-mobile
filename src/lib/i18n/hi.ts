@@ -24,12 +24,9 @@ const hi: Dict = {
 	"home.preparing": "लोड हो रहा है...",
 
 	// --- chart pages (HOME-04) ---
-	"charts.topTitle": "टॉप हिट्स",
 	"charts.topArtists": "टॉप कलाकार",
 	"charts.topTracksTab": "गाने",
 	"charts.topArtistsTab": "कलाकार",
-	"charts.tagTitle": "{tag}",
-	"charts.countryTitle": "{country}",
 	"search.title": "खोजें",
 	"search.placeholder": "सभी स्रोतों में गाने, कलाकार खोजें",
 	"search.go": "जाओ",

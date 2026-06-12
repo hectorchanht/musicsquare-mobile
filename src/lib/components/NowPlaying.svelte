@@ -555,6 +555,7 @@
 		measureOffsets();
 		sheetDragging = true;
 		sheetDragY = offsetFor(sheetState);
+		applyHalfInset();
 	}
 	function gripMove(e: PointerEvent) {
 		if (!gripActive) return;
@@ -564,6 +565,7 @@
 		if (Math.abs(gripMoved) >= 8) subnavMoved = true;
 		const start = offsetFor(sheetState);
 		sheetDragY = Math.max(0, Math.min(closedOffset, start + gripMoved));
+		applyHalfInset();
 	}
 	function gripUp() {
 		if (!gripActive) return;
@@ -593,6 +595,7 @@
 		}
 		gripStartTab = null;
 		gripStartPlainButton = false;
+		applyHalfInset();
 		let target: SheetState;
 		// FLICK → a fast pointer velocity steps ONE state in the flick direction, regardless
 		// of how far the finger travelled (down = toward closed, up = toward full), clamped at

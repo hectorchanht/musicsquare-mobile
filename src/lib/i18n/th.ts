@@ -22,6 +22,14 @@ const th: Dict = {
 	"home.countryShelf": "Top in {country}",
 	"home.unplayable": "ไม่พบเวอร์ชันที่สามารถเล่นได้",
 	"home.preparing": "กำลังโหลด...",
+
+	// --- chart pages (HOME-04) ---
+	"charts.topTitle": "เพลงฮิตยอดนิยม",
+	"charts.topArtists": "ศิลปินยอดนิยม",
+	"charts.topTracksTab": "เพลง",
+	"charts.topArtistsTab": "ศิลปิน",
+	"charts.tagTitle": "{tag}",
+	"charts.countryTitle": "{country}",
 	"search.title": "ค้นหา",
 	"search.placeholder": "ค้นหาเพลง ศิลปินจากทุกแหล่ง",
 	"search.go": "ไป",

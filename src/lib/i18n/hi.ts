@@ -22,6 +22,14 @@ const hi: Dict = {
 	"home.countryShelf": "Top in {country}",
 	"home.unplayable": "खेलने योग्य संस्करण नहीं मिल सका",
 	"home.preparing": "लोड हो रहा है...",
+
+	// --- chart pages (HOME-04) ---
+	"charts.topTitle": "टॉप हिट्स",
+	"charts.topArtists": "टॉप कलाकार",
+	"charts.topTracksTab": "गाने",
+	"charts.topArtistsTab": "कलाकार",
+	"charts.tagTitle": "{tag}",
+	"charts.countryTitle": "{country}",
 	"search.title": "खोजें",
 	"search.placeholder": "सभी स्रोतों में गाने, कलाकार खोजें",
 	"search.go": "जाओ",

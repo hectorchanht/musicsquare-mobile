@@ -27,6 +27,14 @@ const en = {
 	'home.unplayable': "Couldn't find a playable version",
 	'home.preparing': 'Loading…',
 
+	// --- chart pages (HOME-04) ---
+	'charts.topTitle': 'Top hits',
+	'charts.topArtists': 'Top artists',
+	'charts.topTracksTab': 'Songs',
+	'charts.topArtistsTab': 'Artists',
+	'charts.tagTitle': '{tag}',
+	'charts.countryTitle': '{country}',
+
 	// --- search ---
 	'search.title': 'Search',
 	'search.placeholder': 'Search songs, artists across all sources',

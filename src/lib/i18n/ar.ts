@@ -22,6 +22,14 @@ const ar: Dict = {
 	"home.countryShelf": "الأعلى في {country}",
 	"home.unplayable": "تعذر العثور على نسخة قابلة للتشغيل",
 	"home.preparing": "جارٍ التحميل…",
+
+	// --- chart pages (HOME-04) ---
+	"charts.topTitle": "أبرز الأغاني",
+	"charts.topArtists": "أبرز الفنانين",
+	"charts.topTracksTab": "الأغاني",
+	"charts.topArtistsTab": "الفنانون",
+	"charts.tagTitle": "{tag}",
+	"charts.countryTitle": "{country}",
 	"search.title": "بحث",
 	"search.placeholder": "بحث الأغاني والفنانين عبر جميع المصادر",
 	"search.go": "اذهب",

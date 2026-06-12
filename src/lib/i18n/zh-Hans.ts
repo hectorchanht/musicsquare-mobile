@@ -28,6 +28,14 @@ const zhHans: Dict = {
 	'home.unplayable': '找不到可播放的版本',
 	'home.preparing': '加载中…',
 
+	// --- chart pages (HOME-04) ---
+	'charts.topTitle': '热门金曲',
+	'charts.topArtists': '热门歌手',
+	'charts.topTracksTab': '歌曲',
+	'charts.topArtistsTab': '歌手',
+	'charts.tagTitle': '{tag}',
+	'charts.countryTitle': '{country}',
+
 	// --- search ---
 	'search.title': '搜索',
 	'search.placeholder': '搜索歌曲、歌手（跨所有来源）',

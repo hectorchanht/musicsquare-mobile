@@ -1108,7 +1108,7 @@
 	.np-error { color: #ff6b6b; font-size: 13px; text-align: center; margin: 2px 2px 10px; }
 	.prog { margin: 4px 0; }
 	.track { position: relative; height: 14px; display: flex; align-items: center; cursor: pointer; }
-	.track::before { content: ''; position: absolute; left: 0; right: 0; height: 4px; border-radius: 4px; background: rgba(255,255,255,0.18); }
+	.track::before { content: ''; position: absolute; left: 0; right: 0; height: 4px; border-radius: 4px; background: var(--color-text-muted); opacity: 0.3; }
 	.fill { position: absolute; left: 0; height: 4px; border-radius: 4px; background: var(--color-primary); }
 	.knob { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: var(--color-text-muted); transform: translateX(-50%); }
 	.times { display: flex; justify-content: space-between; font-size: 11px; color: var(--color-text-muted); margin-top: 4px; }
@@ -1161,7 +1161,7 @@
 	/* D-11/LYR-03: end spacer — height is set inline from spacerH (≈ half the visible band) so the
 	   last lines can reach the vertical center. flex-shrink:0 keeps it from collapsing inside the
 	   flex column. */
-	.lyrics-end-spacer { width: 100%; flex-shrink: 0; }
+	.lyrics-end-spacer { width: 100%; flex-shrink: 0; height: 50vw; }
 	.tr-hint { text-align: center; font-size: 11px; color: var(--color-primary); margin: 0 0 6px; }
 	.empty { color: var(--color-text-muted); font-size: 14px; text-align: center; padding: 24px; }
 </style>

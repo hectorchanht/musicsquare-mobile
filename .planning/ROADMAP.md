@@ -639,7 +639,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 
 **Goal:** Ship an installable, signed Android APK of MusicSquare via Capacitor 8 — full background audio + lock-screen controls, downloads to device storage, distributed by sideload (GitHub Releases / Obtainium), with the web Cloudflare deploy untouched. (iOS slice + API worker extraction deferred.)
 **Requirements:** none mapped (backlog phase — covers CONTEXT.md decisions D-01..D-12)
-**Plans:** 4/6 plans executed
+**Plans:** 6/6 plans complete
 
 Decided context (assessment 2026-06-11, full doc: `~/.claude/plans/i-m-planning-to-make-fluffy-star.md`):
 
@@ -657,7 +657,7 @@ Plans:
 - [x] 999.1-02-PLAN.md — dual-adapter build switch (D-01) + Capacitor Android scaffold (D-12); first foreground-playing debug APK [wave 2]
 - [x] 999.1-03-PLAN.md — blob-store filesystem platform-switch (D-10) + public-Music vs app-private storage decision (D-11) [wave 3]
 - [x] 999.1-04-PLAN.md — background audio: plugin Cap-8 compat spike + native media-session bridge + FGS (D-04/D-05/D-06); device-gated [wave 4]
-- [ ] 999.1-05-PLAN.md — GitHub Actions signed-APK release pipeline + Obtainium versioning (D-07/D-08/D-09) [wave 5]
+- [x] 999.1-05-PLAN.md — GitHub Actions signed-APK release pipeline + Obtainium versioning (D-07/D-08/D-09) [wave 5]
 
 **Cross-cutting constraints:**
 

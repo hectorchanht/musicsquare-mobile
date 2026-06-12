@@ -7,6 +7,7 @@
 	import { longpress } from '$lib/actions/longpress';
 	import { marquee } from '$lib/actions/marquee';
 	import { swipeAction } from '$lib/actions/swipeAction';
+	import { shouldRun } from '$lib/actions/inflightGuard';
 	import { player } from '$lib/stores/player.svelte';
 	import { library } from '$lib/stores/library.svelte';
 	import { names } from '$lib/stores/names.svelte';
@@ -84,21 +85,43 @@
 		}
 	}
 
+	// D-16 / WR-03: per-row-per-action in-flight guard — a second swipe on the same row while
+	// its resolve is in flight is a no-op (no duplicate addToQueue / racing toggleLike).
+	let swipeInFlight = $state(new Set<string>());
+
 	async function swipeQueue(it: DiscoveryTrack) {
-		const tr = await resolveStub(it.artist, it.title);
-		if (!tr) { toast.show(t('home.unplayable')); return; }
-		player.addToQueue(tr);
-		haptics.tick();
-		toast.show(t('toast.addedToQueue'));
+		const key = `q:${rowKey(it)}`;
+		if (!shouldRun(swipeInFlight, key)) return;
+		swipeInFlight = new Set(swipeInFlight).add(key);
+		try {
+			const tr = await resolveStub(it.artist, it.title);
+			if (!tr) { toast.show(t('home.unplayable')); return; }
+			player.addToQueue(tr);
+			haptics.tick();
+			toast.show(t('toast.addedToQueue'));
+		} finally {
+			const n = new Set(swipeInFlight);
+			n.delete(key);
+			swipeInFlight = n;
+		}
 	}
 
 	async function swipeLike(it: DiscoveryTrack) {
-		const tr = await resolveStub(it.artist, it.title);
-		if (!tr) { toast.show(t('home.unplayable')); return; }
-		const wasLiked = library.isLiked(tr.uid);
-		library.toggleLike(tr);
-		haptics.tick();
-		toast.show(wasLiked ? t('toast.unliked') : t('toast.liked'));
+		const key = `l:${rowKey(it)}`;
+		if (!shouldRun(swipeInFlight, key)) return;
+		swipeInFlight = new Set(swipeInFlight).add(key);
+		try {
+			const tr = await resolveStub(it.artist, it.title);
+			if (!tr) { toast.show(t('home.unplayable')); return; }
+			const wasLiked = library.isLiked(tr.uid);
+			library.toggleLike(tr);
+			haptics.tick();
+			toast.show(wasLiked ? t('toast.unliked') : t('toast.liked'));
+		} finally {
+			const n = new Set(swipeInFlight);
+			n.delete(key);
+			swipeInFlight = n;
+		}
 	}
 
 	let fetchGen = 0;

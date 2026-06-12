@@ -16,6 +16,7 @@
 	import { dragClose } from '$lib/actions/dragClose';
 	import { longpress } from '$lib/actions/longpress';
 	import { swipeAction } from '$lib/actions/swipeAction';
+	import { shouldRun } from '$lib/actions/inflightGuard';
 	import { lazyCover } from '$lib/actions/lazyCover';
 	import { toast as globalToast } from '$lib/stores/toast.svelte';
 	import { tick as hapticTick } from '$lib/util/haptics';
@@ -242,20 +243,42 @@
 	// commit. swipe-right = add to queue (player.addToQueue, append-to-end), swipe-left = toggle
 	// like (library.toggleLike). Both fire the GLOBAL toast (Plan 01) + a commit-tier haptic tick;
 	// a stub that resolves to no CN-source match degrades to the existing unplayable toast (no throw).
+	// D-16 / WR-03: per-row-per-action in-flight guard — a second swipe on the same row while
+	// its resolve is in flight is a no-op (no duplicate addToQueue / racing toggleLike).
+	let swipeInFlight = $state(new Set<string>());
+
 	async function swipeQueue(stub: AlbumStub) {
-		const tr = await resolveStub(stub.artist, stub.title).catch(() => null);
-		if (!tr) { toast(t('album.unplayable')); return; }
-		player.addToQueue(tr);
-		globalToast.show(t('toast.addedToQueue'));
-		hapticTick();
+		const key = `q:${stubUid(stub)}`;
+		if (!shouldRun(swipeInFlight, key)) return;
+		swipeInFlight = new Set(swipeInFlight).add(key);
+		try {
+			const tr = await resolveStub(stub.artist, stub.title).catch(() => null);
+			if (!tr) { toast(t('album.unplayable')); return; }
+			player.addToQueue(tr);
+			globalToast.show(t('toast.addedToQueue'));
+			hapticTick();
+		} finally {
+			const n = new Set(swipeInFlight);
+			n.delete(key);
+			swipeInFlight = n;
+		}
 	}
 	async function swipeLike(stub: AlbumStub) {
-		const tr = await resolveStub(stub.artist, stub.title).catch(() => null);
-		if (!tr) { toast(t('album.unplayable')); return; }
-		const wasLiked = library.isLiked(tr.uid);
-		library.toggleLike(tr);
-		globalToast.show(wasLiked ? t('toast.unliked') : t('toast.liked'));
-		hapticTick();
+		const key = `l:${stubUid(stub)}`;
+		if (!shouldRun(swipeInFlight, key)) return;
+		swipeInFlight = new Set(swipeInFlight).add(key);
+		try {
+			const tr = await resolveStub(stub.artist, stub.title).catch(() => null);
+			if (!tr) { toast(t('album.unplayable')); return; }
+			const wasLiked = library.isLiked(tr.uid);
+			library.toggleLike(tr);
+			globalToast.show(wasLiked ? t('toast.unliked') : t('toast.liked'));
+			hapticTick();
+		} finally {
+			const n = new Set(swipeInFlight);
+			n.delete(key);
+			swipeInFlight = n;
+		}
 	}
 
 	// ---- Album-level actions (between hero + tracklist) ----

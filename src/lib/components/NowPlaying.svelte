@@ -497,7 +497,7 @@
 	let gripActive = $state(false); // true only while finger is down (transition off)
 	let subnavMoved = $state(false); // set true when the gesture passed the 8px drag threshold
 	let gripStartY = 0;
-	let gripMoved = 0;
+	let gripMoved = $state(0);
 	let gripStartTab: Tab | null = null; // gesture-transient: the subnav tab the gesture started on (null = grip/empty)
 	let gripStartPlainButton = false; // gesture-transient: started on a subnav button WITHOUT data-tab (e.g. Clear) — WR-02
 	let closedOffset = 300; // distance from full-top to closed/peek-top (measured at drag start)
@@ -763,7 +763,7 @@
 <section
 	class="np"
 	class:reflow={sheetState !== 'closed'}
-	class:fullshrink={sheetState === 'full'}
+	class:fullshrink={sheetState == 'full'}
 	transition:fly={{ y: 600, duration: 320, easing: cubicOut }}
 	style:transform={dragY ? `translateY(${dragY}px)` : undefined}
 	style:transition={dragging ? 'none' : 'transform 0.28s cubic-bezier(.22,1,.36,1)'}
@@ -807,6 +807,11 @@
 		onpointermove={npTopMove}
 		onpointerup={npTopUp}
 		onpointercancel={npTopUp}
+		style:transform={
+			(sheetDragging)
+				? `translateY(${gripMoved}px)`
+				: undefined
+		}
 	>
 	<!-- AXIS-ARBITRATION CONTRACT (D-05 / Pitfall 7 — the highest-risk interaction in v1.2):
 	     The cover region hosts THREE pointer paths that must NEVER both capture:
@@ -914,8 +919,8 @@
 		class:dragging={sheetDragging}
 		bind:this={sheetEl}
 		style:transform={
-			(sheetDragging && sheetState !== 'half')
-				? `translateY(${sheetDragY}px)`
+			(sheetDragging)
+				? `translateY(${gripMoved}px)`
 				: undefined
 		}
 		style:transition={
@@ -1148,17 +1153,17 @@
 	.play { width: 62px; height: 62px; border-radius: 50%; border: none; background: #fff; color: #000; cursor: pointer; display: grid; place-items: center; }
 	.sheet { display: flex; flex-direction: column; flex: 1; min-height: 0; will-change: transform; user-select: none; -webkit-user-select: none; }
 	.sheet.full {
-    position: absolute;
+    /* position: absolute; */
     inset: 0;
     z-index: 5;
     background: var(--color-bg);
     padding: 4px 18px env(safe-area-inset-bottom);
-		margin-top: 68px;
+		/* margin-top: 68px; */
 	}
 
 	/* Half-open: sheet occupies the real area below the transport row, no transform hack. */
 	.sheet.half {
-		position: absolute;
+		/* position: absolute; */
 		/* inset-top will be set via inline style using halfSheetTop() */
 		inset: var(--sheet-half-top, 260px) 0 0 0;
 		z-index: 5;

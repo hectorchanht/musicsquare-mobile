@@ -18,11 +18,13 @@
 	import { lazyCover } from '$lib/actions/lazyCover';
 	import { dragScroll } from '$lib/actions/dragScroll';
 	import { marquee } from '$lib/actions/marquee';
+	import { swipeAction } from '$lib/actions/swipeAction';
+	import { tick as hapticTick } from '$lib/util/haptics';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
 	import TagChips from '$lib/components/TagChips.svelte';
-	import { enrichArtist, getArtistTopAlbums, type EnrichResult, type DiscoveryAlbum } from '$lib/services/lastfm';
+	import { enrichArtist, getArtistTopAlbums, getAlbumTracklist, type EnrichResult, type DiscoveryAlbum } from '$lib/services/lastfm';
 	import { getSimilarArtists } from '$lib/services/similar';
-	import { deezerArtistCover, deezerArtist, type DeezerArtistInfo } from '$lib/services/deezer';
+	import { deezerArtistCover, deezerArtist, deezerArtistAlbums, type DeezerArtistInfo } from '$lib/services/deezer';
 	import { mergeEnrichArtist } from '$lib/services/enrich-merge';
 	import { mapWithConcurrency } from '$lib/services/discovery';
 	import PageOg from '$lib/components/PageOg.svelte';
@@ -55,12 +57,16 @@
 	// leave the skeleton up forever — so track the settle explicitly).
 	let enrichLoading = $state(true);
 
-	// ---- Real Last.fm top-albums (Phase 9, D-04) ----
-	// REPLACES the old searchAll-grouped-by-`track.album` approximation. A SEPARATE
-	// race-guarded $effect (clone of the enrichedFor pattern, own `albumsFor` guard)
-	// void-fires getArtistTopAlbums(name) and assigns the result only if `name` still
-	// matches. [] on absent key / CN artist not on Last.fm → the section simply hides.
-	let albums = $state<DiscoveryAlbum[]>([]);
+	// ---- Artist albums — trackless-album gate (Phase 9 D-04 + Phase 23 ART-01 / D-18 / D-19) ----
+	// Verify-before-render (D-18): show album-card skeletons until track-counts are KNOWN, then
+	// render ONLY non-empty albums. Source priority (§8.2 AUGMENT): Deezer `deezerArtistAlbums`
+	// returns each album's nb_tracks natively (zero per-album fetches); if Deezer covers this
+	// artist we filter to nb_tracks > 0 for free. If Deezer returns [] (artist not covered), fall
+	// back to Last.fm getArtistTopAlbums + a CAPPED per-album track-count verification. Either path
+	// yields identical UX. The render block consumes a unified { name, image } shape so nav (which
+	// keys on the album name) is unchanged.
+	type RenderAlbum = { name: string; image: string | null };
+	let albums = $state<RenderAlbum[]>([]);
 	let albumsFor = '';
 	// In-flight flag for the Albums skeleton (an empty result and "still loading" are both
 	// `albums.length === 0`, so the settle is tracked explicitly).
@@ -121,6 +127,19 @@
 		const was = favArtist;
 		library.toggleFavArtist(name);
 		toast(was ? t('toast.artistUnfavorited') : t('toast.artistFavorited'));
+	}
+
+	// Swipe-action commit handlers (UX-04 D-03/D-04) — same semantics as TrackMenu addQueue()/
+	// like(): right = append to queue, left = toggle like. Commit-tier haptic tick + toast (D-17).
+	function queueTrack(track: Track) {
+		player.addToQueue(track);
+		hapticTick();
+		toast(t('toast.addedToQueue'));
+	}
+	function likeTrack(track: Track) {
+		library.toggleLike(track);
+		hapticTick();
+		toast(library.isLiked(track.uid) ? t('toast.liked') : t('toast.unliked'));
 	}
 
 	function playArtistRandom() {
@@ -187,21 +206,59 @@
 		}
 	});
 
-	// SEPARATE top-albums effect (D-04). Mirrors the enrichedFor race guard with its
-	// own `albumsFor` key. Never blocks the Hit-songs / bio load; [] → section hides.
+	// Drop obvious stubs UP FRONT before any verification (D-18): an empty / whitespace-only name,
+	// or a known placeholder string. Applied to BOTH the Deezer and the Last.fm list paths.
+	function isStubAlbumName(raw: string | null | undefined): boolean {
+		const s = (raw ?? '').trim().toLowerCase();
+		if (!s) return true;
+		return s === '(null)' || s === 'null' || s === 'undefined' || s === 'unknown album' || s === 'unknown';
+	}
+
+	// SEPARATE albums effect (D-04 + ART-01 D-18/D-19). Mirrors the enrichedFor race guard with
+	// its own `albumsFor` key. Never blocks the Hit-songs / bio load; an empty settle → the
+	// section hides. Verify-before-render: skeleton stays up until track-counts are known.
 	$effect(() => {
 		const n = name;
 		if (n && albumsFor !== n) {
 			albumsFor = n;
 			albums = [];
 			albumsLoading = true;
-			void getArtistTopAlbums(n)
-				.then((r) => {
-					if (albumsFor === n) albums = r; // race guard — discard if name changed
-				})
-				.finally(() => {
+			void (async () => {
+				try {
+					// Path A (preferred, D-19): Deezer carries nb_tracks natively → trackless
+					// filtering is free with zero per-album fetches.
+					const dzAlbums = await deezerArtistAlbums(n).catch(() => []);
+					if (albumsFor !== n) return; // race guard
+					if (dzAlbums.length) {
+						const kept = dzAlbums
+							.filter((a) => !isStubAlbumName(a.title) && a.nb_tracks > 0)
+							.map((a) => ({ name: a.title, image: a.cover }) satisfies RenderAlbum);
+						if (albumsFor === n) albums = kept;
+						return;
+					}
+					// Path B (fallback, §8.2): Deezer does not cover this artist → Last.fm album
+					// list + a CAPPED per-album track-count verification. Drop stubs up front, then
+					// hide any album that resolves to 0 tracks (or fails verification).
+					const lfAlbums = await getArtistTopAlbums(n).catch((): DiscoveryAlbum[] => []);
+					if (albumsFor !== n) return; // race guard
+					const candidates = lfAlbums.filter((a) => !isStubAlbumName(a.name));
+					if (!candidates.length) {
+						if (albumsFor === n) albums = [];
+						return;
+					}
+					const verified = await mapWithConcurrency(candidates, 4, async (a: DiscoveryAlbum) => {
+						// deezerAlbum returns nb_tracks when Deezer has the album; otherwise verify
+						// via the Last.fm album.getInfo tracklist length. Either never throws.
+						const tracks = await getAlbumTracklist(a.name, n).catch(() => []);
+						return tracks.length > 0 ? ({ name: a.name, image: a.image }) : null;
+					});
+					if (albumsFor === n) {
+						albums = verified.filter((a): a is RenderAlbum => a !== null);
+					}
+				} finally {
 					if (albumsFor === n) albumsLoading = false;
-				});
+				}
+			})();
 		}
 	});
 
@@ -381,7 +438,7 @@
 			<ul class="list">
 				{#each songs.slice(0, 30) as track, i (track.uid)}
 					<li>
-						<button class="row" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); menuTrack = track; menuOpen = true; }} onclick={() => { player.play(track); player.setListQueue(songs, 'artist'); }}>
+						<button class="row" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); menuTrack = track; menuOpen = true; }} use:swipeAction={{ onSwipeRight: () => queueTrack(track), onSwipeLeft: () => likeTrack(track) }} onclick={() => { player.play(track); player.setListQueue(songs, 'artist'); }}>
 							<span class="rank">{i + 1}</span>
 							<span class="art" use:lazyCover={{ track, onResolved: onCoverResolved }} style:background-image={(resolvedCovers[track.uid] ?? track.cover) ? `url(${resolvedCovers[track.uid] ?? track.cover})` : fallbackCover(track)}></span>
 							<span class="meta">

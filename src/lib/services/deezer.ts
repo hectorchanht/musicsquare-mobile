@@ -32,6 +32,8 @@ const RELATED_PATH = '/api/deezer/related';
 // Phase 17, ENRICH-04 — artist/album info enrichment proxy paths.
 const ARTIST_PATH = '/api/deezer/artist';
 const ALBUM_PATH = '/api/deezer/album';
+// Phase 23, ART-01 / D-19 — artist-albums LIST proxy (each album carries nb_tracks natively).
+const ARTIST_ALBUMS_PATH = '/api/deezer/artist-albums';
 const FETCH_TIMEOUT_MS = 6000;
 // k3y client-side TTLs (longer per lry-followup: a music app's catalogue + cover data is
 // stable for days, and the same-session repeat hit pattern dominates the network surface).
@@ -295,4 +297,40 @@ export async function deezerAlbum(
 		if (!res.ok) throw new Error(String(res.status));
 		return (await res.json()) as DeezerAlbumInfo;
 	}).catch(() => null); // never throws → caller leaves section absent (D-14)
+}
+
+// ---- Phase 23, ART-01 / D-19 — artist-albums LIST with native nb_tracks --------------------
+// The artist page uses this to hide trackless albums with ZERO per-album fetches: Deezer's
+// artist/{id}/albums endpoint returns nb_tracks per album natively (UI-SPEC §8.2 AUGMENT path).
+// Last.fm getArtistTopAlbums stays the graceful fallback for artists Deezer does not cover.
+
+/** Client-facing artist-album reshape (mirrors the /api/deezer/artist-albums DeezerArtistAlbum). */
+export interface DeezerArtistAlbum {
+	title: string;
+	nb_tracks: number;
+	cover: string | null;
+}
+
+/**
+ * List an artist's albums (each with its native `nb_tracks`) via the OWN-ORIGIN proxy. Returns
+ * the reshaped array, or [] on already-aborted signal / empty name / non-ok / abort / throw /
+ * malformed JSON (never throws). Mirrors deezerSearchTopN's WR-03 cache posture exactly: a
+ * transient failure REJECTS inside cached() (never pinned for the TTL) and maps to [] OUTSIDE
+ * the cache, so the next visit retries; a SUCCESSFUL response (incl. a genuine empty list) IS
+ * cached. A [] result → the artist page falls back to the Last.fm album list (§8.2).
+ */
+export async function deezerArtistAlbums(
+	name: string,
+	signal?: AbortSignal
+): Promise<DeezerArtistAlbum[]> {
+	if (signal?.aborted) return [];
+	const clean = (name ?? '').trim();
+	if (!clean) return [];
+	return cached(`dz:artistalbums:${clean}`, TTL_ARTIST, async () => {
+		const url = `${ARTIST_ALBUMS_PATH}?${new URLSearchParams({ q: clean }).toString()}`;
+		const res = await fetch(apiUrl(url), { signal: combinedSignal(signal) }); // abort/timeout REJECT
+		if (!res.ok) throw new Error(String(res.status));
+		const data = (await res.json()) as { data?: DeezerArtistAlbum[] };
+		return Array.isArray(data?.data) ? data!.data! : [];
+	}).catch(() => [] as DeezerArtistAlbum[]); // never throws → caller falls back to Last.fm (§8.2)
 }

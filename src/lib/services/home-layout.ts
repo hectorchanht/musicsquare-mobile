@@ -204,6 +204,27 @@ export function clampShelfSize(n: unknown): number {
 
 /** Tile density for the home shelves/grid. */
 export type HomeDensity = 'comfortable' | 'compact';
+
+/**
+ * Resolve the EFFECTIVE density for one home section (HOME-02 / D-07). A per-section override
+ * wins ONLY when it is exactly 'comfortable' or 'compact'; any other input — a missing key, an
+ * undefined map, or a garbage/non-enum value — falls back to `globalDefault`. This mirrors
+ * resolveSubset's "unknown/garbage → fallback, never blank" posture so an attacker-influenceable
+ * persisted `homeSectionDensity` map can never throw or blank the render (threats T-23-06/07).
+ *
+ * Compact-by-default (D-07 "all compact by default") is achieved by the CALLER passing 'compact'
+ * as `globalDefault` (Plan 04 wires this); the persisted `homeDensity` field semantics are
+ * unchanged — this resolver only layers a per-section override on top of whatever default the
+ * caller chooses.
+ */
+export function resolveSectionDensity(
+	sectionId: HomeSectionId,
+	perSection: Partial<Record<HomeSectionId, HomeDensity>> | undefined,
+	globalDefault: HomeDensity
+): HomeDensity {
+	const v = perSection?.[sectionId];
+	return v === 'comfortable' || v === 'compact' ? v : globalDefault;
+}
 /** Which bottom-nav tab the app opens on at `/`. */
 export type HomeLandingTab = 'home' | 'search' | 'library';
 

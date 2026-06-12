@@ -13,6 +13,7 @@
 	import NowPlaying from '$lib/components/NowPlaying.svelte';
 	import Nowbar from '$lib/components/Nowbar.svelte';
 	import SleepTimerSheet from '$lib/components/SleepTimerSheet.svelte';
+	import ToastHost from '$lib/components/ToastHost.svelte';
 
 	let { children } = $props();
 
@@ -157,6 +158,10 @@
 	<!-- Sleep-timer sheet: mounted ONCE, UNGATED — reachable from the nowbar (collapsed) AND the
 	     expanded now-playing. Driven by the shared sleepTimer.sheetOpen flag (TIMER-01). -->
 	<SleepTimerSheet />
+
+	<!-- Single global toast host (D-15): mounted ONCE here so every page shares it. Pages call
+	     toast.show(msg); this is the only place the message is rendered. -->
+	<ToastHost />
 
 	<nav class="tabbar">
 		{#each tabs as tab (tab.href)}

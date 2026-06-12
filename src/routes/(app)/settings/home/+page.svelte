@@ -10,7 +10,9 @@
 		SlidersHorizontal,
 		Compass,
 		LayoutList,
-		ToggleRight
+		ToggleRight,
+		TableOfContents,
+		DiscAlbum
 	} from '@lucide/svelte';
 	import { settings } from '$lib/stores/settings.svelte';
 	import {
@@ -177,7 +179,17 @@
 							aria-pressed={sectionDensity(id) === d.v}
 							aria-label={`${t(sectionLabel[id])} · ${t(d.key)}`}
 							onclick={() => setSectionDensity(id, d.v)}
-						>{t(d.key)}</button>
+						>
+							<!-- {t(d.key)} -->
+							{#if d.v === 'comfortable'}
+								<DiscAlbum size={14} />
+							{:else if d.v === 'compact'}
+								<TableOfContents size={14} />
+							{:else}
+								<!-- fallback, e.g. compact -->
+								<TableOfContents size={14} />
+							{/if}
+						</button>
 					{/each}
 				</span>
 				<button class="sw" class:on={!settings.homeHidden.includes(id)} aria-label={t(sectionLabel[id])} onclick={() => toggleHidden(id)}></button>

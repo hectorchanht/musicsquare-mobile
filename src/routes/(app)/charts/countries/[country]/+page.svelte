@@ -89,6 +89,10 @@
 	// its resolve is in flight is a no-op (no duplicate addToQueue / racing toggleLike).
 	let swipeInFlight = $state(new Set<string>());
 
+	// WR-04: liked state per row key, recorded AFTER a swipeLike resolves (the stub's uid is
+	// always '' so library.isLiked(stub.uid) could never light the reveal Heart).
+	let likedRows = $state<Record<string, boolean>>({});
+
 	async function swipeQueue(it: DiscoveryTrack) {
 		const key = `q:${rowKey(it)}`;
 		if (!shouldRun(swipeInFlight, key)) return;
@@ -115,6 +119,8 @@
 			if (!tr) { toast.show(t('home.unplayable')); return; }
 			const wasLiked = library.isLiked(tr.uid);
 			library.toggleLike(tr);
+			// WR-04: record the post-toggle liked state by row key for the reveal Heart.
+			likedRows = { ...likedRows, [rowKey(it)]: !wasLiked };
 			haptics.tick();
 			toast.show(wasLiked ? t('toast.unliked') : t('toast.liked'));
 		} finally {
@@ -169,7 +175,7 @@
 {:else if tracks.length > 0}
 	<ul class="list">
 		{#each tracks as it (rowKey(it))}
-			{@const liked = library.isLiked(stubTrack(it).uid)}
+			{@const liked = likedRows[rowKey(it)] ?? false}
 			<li class="row-wrap">
 				<span class="reveal reveal-right" aria-hidden="true"><ListEnd size={20} /></span>
 				<span class="reveal reveal-left" class:on={liked} aria-hidden="true"><Heart size={20} /></span>

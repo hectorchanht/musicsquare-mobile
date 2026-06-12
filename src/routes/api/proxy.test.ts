@@ -156,6 +156,24 @@ describe('hooks.server handle() — single CORS seam for all /api/* (D-02)', () 
 		expect(res.headers.get('vary')).toContain('Origin');
 	});
 
+	it('allows a POST preflight for /api/translate from https://localhost (Capacitor native — CR-01)', async () => {
+		const event = hookEvent('OPTIONS', '/api/translate', 'https://localhost');
+		const headers = new Headers(event.request.headers);
+		headers.set('access-control-request-method', 'POST');
+		headers.set('access-control-request-headers', 'content-type');
+		const reqEvent = {
+			url: event.url,
+			request: new Request(event.url, { method: 'OPTIONS', headers })
+		};
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const res = await handle({ event: reqEvent, resolve: resolveStub } as any);
+		expect(res.status).toBe(204);
+		const allowMethods = res.headers.get('access-control-allow-methods') ?? '';
+		expect(allowMethods).toContain('POST');
+		expect(res.headers.get('access-control-allow-origin')).toBe('https://localhost');
+		expect(resolveStub).not.toHaveBeenCalled();
+	});
+
 	it('answers OPTIONS preflight on /api/* with 204 WITHOUT resolving downstream', async () => {
 		const event = hookEvent('OPTIONS', '/api/joox/search', 'https://localhost');
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any

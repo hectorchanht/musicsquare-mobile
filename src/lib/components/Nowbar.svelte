@@ -162,6 +162,7 @@
         margin: 0 auto;
         z-index: 20;
         overflow: hidden;
+        border-top: 1px solid var(--color-border);
     }
 
     /* Ensure child content stays interactive and on top */

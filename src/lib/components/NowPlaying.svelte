@@ -750,7 +750,7 @@
 	}
 	function applyHalfInset() {
 		if (!sheetEl || !transportEl) return;
-		const np = sheetEl.closest('.np-top') as HTMLElement | null;
+		const np = sheetEl.closest('.np') as HTMLElement | null;
 		if (!np) return;
 		const npRect = np.getBoundingClientRect();
 		const tRect = transportEl.getBoundingClientRect();
@@ -1151,7 +1151,7 @@
     inset: 0;
     z-index: 5;
     background: var(--color-bg);
-    padding: 4px 18px env(safe-area-inset-bottom);
+    padding: 0px 18px env(safe-area-inset-bottom);
 		margin-top: 64px;
 	}
 
@@ -1162,7 +1162,7 @@
 		inset: var(--sheet-half-top, 260px) 0 0 0;
 		z-index: 5;
 		background: var(--color-bg);
-		padding: 4px 18px env(safe-area-inset-bottom);
+		padding: 0px 18px env(safe-area-inset-bottom);
 		box-sizing: border-box;
 		overflow: hidden;
 		display: flex;

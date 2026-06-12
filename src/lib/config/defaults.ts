@@ -122,6 +122,10 @@ export const HOME_DEFAULTS = {
 	homeShelfSize: SHELF_DEFAULT,
 	homeLandingTab: 'home' as HomeLandingTab,
 	homeDensity: 'comfortable' as HomeDensity,
+	/** Per-section density OVERRIDE map (HOME-02 / D-07). Empty = every section uses the
+	 *  caller-supplied global default (Plan 04 passes 'compact' for compact-by-default). A
+	 *  per-section entry flips just that section; resolved via resolveSectionDensity. */
+	homeSectionDensity: {} as Partial<Record<HomeSectionId, HomeDensity>>,
 	homeShowSearchPill: true,
 	homeShowRandomize: true
 } as const;

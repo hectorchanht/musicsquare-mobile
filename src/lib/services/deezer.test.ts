@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { buildDeezerSearchUrl, deezerSongCover, deezerArtistCover, deezerArtist, deezerAlbum } from './deezer';
+import {
+	buildDeezerSearchUrl,
+	deezerSongCover,
+	deezerArtistCover,
+	deezerArtist,
+	deezerAlbum,
+	deezerArtistAlbums
+} from './deezer';
 import { __clearSearchCache } from './ttl-cache';
 
 // deezer.ts (quick-260606-wv8) is the thin, never-throws client that fetches the
@@ -345,5 +352,111 @@ describe('WR-03 — failed Deezer lookups retry on the next call (no negative ca
 		await expect(deezerSongCover('A', 'T')).resolves.toBeNull();
 		await expect(deezerSongCover('A', 'T')).resolves.toBeNull();
 		expect(fetchMock).toHaveBeenCalledTimes(1); // a real answer is memoized; only failures retry
+	});
+});
+
+// ---- Phase 23, ART-01 / D-19 — deezerArtistAlbums (artist-albums list with nb_tracks) -------
+// Mirrors the never-throws + own-origin + cached() + WR-03 posture of the other Deezer client
+// fns: success → reshaped { title, nb_tracks, cover } array; any failure/abort/malformed → []
+// (never throws), and that failure is NOT negative-cached (rejects inside the cached factory).
+
+const ARTIST_ALBUMS = {
+	data: [
+		{ title: 'Discovery', nb_tracks: 14, cover: 'https://cdn-images.dzcdn.net/images/cover/a/1000x1000.jpg' },
+		{ title: 'Homework', nb_tracks: 16, cover: 'https://cdn-images.dzcdn.net/images/cover/b/1000x1000.jpg' }
+	]
+};
+
+describe('deezerArtistAlbums — resolve an artist album list (with nb_tracks) via the own-origin proxy', () => {
+	it('fetches /api/deezer/artist-albums?q=<encoded> and returns the reshaped array', async () => {
+		const fetchMock = vi.fn(async (_url: string) => jsonResponse(ARTIST_ALBUMS));
+		vi.stubGlobal('fetch', fetchMock);
+
+		const out = await deezerArtistAlbums('Daft Punk');
+		expect(out).toEqual(ARTIST_ALBUMS.data);
+		const called = String(fetchMock.mock.calls[0][0]);
+		expect(called.startsWith('/api/deezer/artist-albums?')).toBe(true);
+		// Never api.deezer.com directly (CORS / no-key posture).
+		expect(called).not.toContain('api.deezer.com');
+		const params = new URLSearchParams(called.split('?')[1]);
+		expect(params.get('q')).toBe('Daft Punk');
+		// Each reshaped album carries nb_tracks (D-19).
+		expect(out[0].nb_tracks).toBe(14);
+	});
+
+	it('encodes special chars in the name (no raw spaces / & leak)', async () => {
+		const fetchMock = vi.fn(async (_url: string) => jsonResponse(ARTIST_ALBUMS));
+		vi.stubGlobal('fetch', fetchMock);
+		await deezerArtistAlbums('A&B Band');
+		const called = String(fetchMock.mock.calls[0][0]);
+		expect(called).not.toContain(' ');
+		const params = new URLSearchParams(called.split('?')[1]);
+		expect(params.get('q')).toBe('A&B Band');
+	});
+
+	it('returns [] on an empty name (no fetch)', async () => {
+		const fetchMock = vi.fn(async () => jsonResponse(ARTIST_ALBUMS));
+		vi.stubGlobal('fetch', fetchMock);
+		await expect(deezerArtistAlbums('   ')).resolves.toEqual([]);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('returns [] immediately on an already-aborted signal (no fetch)', async () => {
+		const fetchMock = vi.fn(async () => jsonResponse(ARTIST_ALBUMS));
+		vi.stubGlobal('fetch', fetchMock);
+		const ac = new AbortController();
+		ac.abort();
+		await expect(deezerArtistAlbums('Aborted Artist', ac.signal)).resolves.toEqual([]);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('returns [] on a non-ok response (never throws)', async () => {
+		vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(ARTIST_ALBUMS, false)));
+		await expect(deezerArtistAlbums('NonOk Artist')).resolves.toEqual([]);
+	});
+
+	it('returns [] (never throws) when fetch itself throws', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => {
+				throw new Error('network down');
+			})
+		);
+		await expect(deezerArtistAlbums('Throwing Artist')).resolves.toEqual([]);
+	});
+
+	it('returns [] on malformed JSON (json() throws — never throws)', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					({
+						ok: true,
+						json: async () => {
+							throw new Error('bad json');
+						}
+					}) as unknown as Response
+			)
+		);
+		await expect(deezerArtistAlbums('Malformed Artist')).resolves.toEqual([]);
+	});
+
+	it('a SUCCESSFUL empty ({ data: [] }) result IS cached (genuine miss, no refetch)', async () => {
+		const fetchMock = vi.fn(async () => jsonResponse({ data: [] }));
+		vi.stubGlobal('fetch', fetchMock);
+		await expect(deezerArtistAlbums('Empty Artist')).resolves.toEqual([]);
+		await expect(deezerArtistAlbums('Empty Artist')).resolves.toEqual([]);
+		expect(fetchMock).toHaveBeenCalledTimes(1); // a real answer is memoized; only failures retry
+	});
+
+	it('WR-03: a failed lookup is NOT cached — the next call refetches and succeeds', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(jsonResponse({}, false)) // first call: upstream 500 → []
+			.mockResolvedValueOnce(jsonResponse(ARTIST_ALBUMS)); // second call: healthy again
+		vi.stubGlobal('fetch', fetchMock);
+		await expect(deezerArtistAlbums('Flaky Artist')).resolves.toEqual([]);
+		await expect(deezerArtistAlbums('Flaky Artist')).resolves.toEqual(ARTIST_ALBUMS.data);
+		expect(fetchMock).toHaveBeenCalledTimes(2); // second call hit the network (no pinned [])
 	});
 });

@@ -298,6 +298,12 @@ const id: Dict = {
 	'deezer.genres': 'Genres',
 	'deezer.tracks': 'Tracks',
 	'deezer.duration': 'Duration',
+	"home.seeAll": "Lihat semua",
+	"menu.options": "Opsi",
+	"charts.topTitle": "Lagu teratas",
+	"charts.tagTitle": "{tag}",
+	"charts.countryTitle": "{country}",
+	"settings.homeSectionDensity": "Tata letak",
 
 };
 

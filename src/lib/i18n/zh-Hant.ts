@@ -330,6 +330,12 @@ const zhHant: Dict = {
 	'deezer.genres': '曲風',
 	'deezer.tracks': '曲目',
 	'deezer.duration': '時長',
+	"home.seeAll": "查看全部",
+	"menu.options": "選項",
+	"charts.topTitle": "熱門金曲",
+	"charts.tagTitle": "{tag}",
+	"charts.countryTitle": "{country}",
+	"settings.homeSectionDensity": "版面",
 
 };
 

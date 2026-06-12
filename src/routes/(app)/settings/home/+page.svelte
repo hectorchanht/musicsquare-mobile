@@ -61,6 +61,19 @@
 		settings.save();
 	}
 
+	// D-07: per-section density override. The home page resolves with 'compact' as the global
+	// default (compact-by-default), so the EFFECTIVE density of a section with no stored override
+	// is 'compact'. We surface that here by treating an absent key as 'compact'. Writing a value
+	// persists the override; the resolver clamps any garbage back to the default at render time.
+	function sectionDensity(id: HomeSectionId): HomeDensity {
+		const v = settings.homeSectionDensity[id];
+		return v === 'comfortable' || v === 'compact' ? v : 'compact';
+	}
+	function setSectionDensity(id: HomeSectionId, v: HomeDensity) {
+		settings.homeSectionDensity = { ...settings.homeSectionDensity, [id]: v };
+		settings.save();
+	}
+
 	// Tag/country multiselect: toggle membership, persist. resolveSubset handles the
 	// empty-selection → full-pool fallback at render time on the home page.
 	function toggleTag(tag: string) {
@@ -154,6 +167,19 @@
 			<li class="rrow" data-reorder-index={i}>
 				<span class="grip" data-reorder-handle aria-label={t('settings.dragToReorder')}><GripVertical size={18} /></span>
 				<span class="rlabel">{t(sectionLabel[id])}</span>
+				<!-- D-07: per-section density (compact/comfortable). aria-pressed reflects the
+				     active mode; aria-label names the section + option for screen readers. -->
+				<span class="density-seg" role="group" aria-label={t('settings.homeSectionDensity')}>
+					{#each densities as d (d.v)}
+						<button
+							class="dseg-btn"
+							class:on={sectionDensity(id) === d.v}
+							aria-pressed={sectionDensity(id) === d.v}
+							aria-label={`${t(sectionLabel[id])} · ${t(d.key)}`}
+							onclick={() => setSectionDensity(id, d.v)}
+						>{t(d.key)}</button>
+					{/each}
+				</span>
 				<button class="sw" class:on={!settings.homeHidden.includes(id)} aria-label={t(sectionLabel[id])} onclick={() => toggleHidden(id)}></button>
 			</li>
 		{/each}
@@ -245,6 +271,11 @@
 	.grip { display: grid; place-items: center; color: var(--color-text-muted); cursor: grab; touch-action: none; flex: none; }
 	.grip:active { cursor: grabbing; }
 	.rlabel { flex: 1; min-width: 0; font-size: 14px; }
+	/* D-07: compact/comfortable per-section density segment — a small two-button segmented
+	   control. The active option carries aria-pressed + the accent fill. */
+	.density-seg { display: inline-flex; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 999px; padding: 2px; gap: 2px; flex: none; }
+	.dseg-btn { background: none; border: none; color: var(--color-text-muted); padding: 5px 10px; border-radius: 999px; font-size: 11px; cursor: pointer; white-space: nowrap; }
+	.dseg-btn.on { background: var(--color-primary); color: #fff; }
 	/* Chips (multiselect) */
 	.chips { display: flex; flex-wrap: wrap; gap: 8px; }
 	.chip { background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text); padding: 8px 14px; border-radius: 999px; font-size: 13px; cursor: pointer; }

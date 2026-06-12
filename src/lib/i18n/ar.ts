@@ -298,6 +298,12 @@ const ar: Dict = {
 	'deezer.genres': 'Genres',
 	'deezer.tracks': 'Tracks',
 	'deezer.duration': 'Duration',
+	"home.seeAll": "عرض الكل",
+	"menu.options": "خيارات",
+	"charts.topTitle": "الأكثر رواجًا",
+	"charts.tagTitle": "{tag}",
+	"charts.countryTitle": "{country}",
+	"settings.homeSectionDensity": "التخطيط",
 
 };
 

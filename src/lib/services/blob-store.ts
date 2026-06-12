@@ -90,40 +90,42 @@ function clearStoredUri(uid: string): void {
 	}
 }
 
-/** Base64-encode a Blob's bytes for the saveToMusic bridge call. Never throws on a valid Blob. */
-async function blobToBase64(blob: Blob): Promise<string> {
-	const bytes = new Uint8Array(await blob.arrayBuffer());
-	let binary = '';
-	for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-	return btoa(binary);
-}
-
 async function nativePut(uid: string, blob: Blob): Promise<boolean> {
+	// Step 1 — app-private offline copy (the get() read source) via capacitor-blob-writer, which
+	// streams the Blob straight to disk (NO base64 round-trip). This copy is what get() serves
+	// playback from, so its success/failure IS the put() result.
 	try {
-		// 1. App-private offline copy (the get() read source) — no base64 round-trip.
 		await write_blob({ path: nativePath(uid), directory: NATIVE_DIR, blob, recursive: true });
-		// 2. Public Music/OpenMusic/ copy via the MediaStore bridge (D-11) — record the content URI.
-		const base64 = await blobToBase64(blob);
-		const { uri } = await MediaStoreSaver.saveToMusic({ fileName: nativeFileName(uid), base64 });
-		if (uri) setStoredUri(uid, uri);
-		return true;
 	} catch {
 		return false;
 	}
+	// Step 2 — public Music/OpenMusic/ copy via the MediaStore bridge (D-11). This is visibility-only
+	// and best-effort: WR-01 — a public-copy failure (CR-03's runtime-permission case, a transient
+	// MediaStore error, etc.) must NOT fail the whole put() when the app-private offline copy already
+	// landed and is fully readable by get(). WR-02 — we pass the on-disk file PATH (no blob bytes over
+	// the JS bridge); the Kotlin side streams the source file into the MediaStore entry in chunks,
+	// eliminating the whole-blob base64 OOM/ANR risk for large lossless files.
+	try {
+		const { uri: sourcePath } = await Filesystem.getUri({ path: nativePath(uid), directory: NATIVE_DIR });
+		const { uri } = await MediaStoreSaver.saveToMusic({ fileName: nativeFileName(uid), sourcePath });
+		if (uri) setStoredUri(uid, uri);
+	} catch {
+		// public copy is visibility-only — best-effort; the offline copy already landed (WR-01).
+	}
+	return true;
 }
 
 async function nativeGet(uid: string): Promise<Blob | null> {
 	try {
-		// Reads the app-private copy (the offline-read source). Binary read returns base64 (no
-		// Encoding passed). Convert back to a Blob; the web shim may hand back a Blob directly.
-		const res = await Filesystem.readFile({ path: nativePath(uid), directory: NATIVE_DIR });
-		const data = res.data;
-		if (data instanceof Blob) return data;
-		if (typeof data !== 'string') return null;
-		const binary = atob(data);
-		const bytes = new Uint8Array(binary.length);
-		for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-		return new Blob([bytes]);
+		// Read the app-private copy (the offline-read source) WITHOUT a whole-file base64 round-trip
+		// (WR-03 — Filesystem.readFile would return the entire file base64-encoded in one string and
+		// we'd atob it byte-by-byte, the same OOM spike as the old write path on EVERY offline play).
+		// Resolve the file's URI and let the WebView stream it natively via convertFileSrc + fetch —
+		// no per-byte JS work, no giant intermediate string.
+		const { uri } = await Filesystem.getUri({ path: nativePath(uid), directory: NATIVE_DIR });
+		const res = await fetch(Capacitor.convertFileSrc(uri));
+		if (!res.ok) return null;
+		return await res.blob();
 	} catch {
 		return null;
 	}

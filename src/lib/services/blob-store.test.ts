@@ -14,7 +14,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const isNativePlatform = vi.fn(() => false);
 vi.mock('@capacitor/core', () => ({
 	Capacitor: {
-		isNativePlatform: () => isNativePlatform()
+		isNativePlatform: () => isNativePlatform(),
+		// WR-03: native get() resolves the file URI and streams it via convertFileSrc + fetch.
+		convertFileSrc: (uri: string) => `http://localhost/_capacitor_file_${uri}`
 	}
 }));
 
@@ -25,22 +27,25 @@ const writeBlob = vi.fn((_opts: { path: string; blob: Blob; directory: string; r
 vi.mock('capacitor-blob-writer', () => ({ default: (opts: unknown) => writeBlob(opts as never) }));
 
 // --- native read/delete backend (@capacitor/filesystem) ---
-const readFile = vi.fn((_opts: { path: string; directory: string }) =>
-	Promise.resolve<{ data: string | Blob }>({ data: '' })
+// WR-02/WR-03: nativePut/nativeGet now resolve the on-disk URI via getUri (no base64 bytes over
+// the bridge). getUri returns the app-private file:// URI for the uid's path.
+const getUri = vi.fn((_opts: { path: string; directory: string }) =>
+	Promise.resolve({ uri: 'file:///data/user/0/com.openmusic.app/files/downloads/x' })
 );
 const deleteFile = vi.fn((_opts: { path: string; directory: string }) => Promise.resolve());
 vi.mock('@capacitor/filesystem', () => ({
 	Filesystem: {
-		readFile: (opts: unknown) => readFile(opts as never),
+		getUri: (opts: unknown) => getUri(opts as never),
 		deleteFile: (opts: unknown) => deleteFile(opts as never)
 	},
 	Directory: { Data: 'DATA', External: 'EXTERNAL' }
 }));
 
 // --- public Music/ MediaStore bridge (999.1-06, D-11) ---
-// nativePut also routes the file into public Music/ via saveToMusic({ fileName, base64 }) and
+// nativePut also routes the file into public Music/ via saveToMusic({ fileName, sourcePath }) and
 // records the returned content URI; nativeDel removes that entry via deleteFromMusic({ uri }).
-const saveToMusic = vi.fn((_opts: { fileName: string; base64: string }) =>
+// WR-02: the file PATH crosses the bridge (the Kotlin side streams the file), NOT blob bytes.
+const saveToMusic = vi.fn((_opts: { fileName: string; sourcePath: string }) =>
 	Promise.resolve({ uri: 'content://media/external/audio/media/42' })
 );
 const deleteFromMusic = vi.fn((_opts: { uri: string }) => Promise.resolve());
@@ -73,7 +78,9 @@ import { blobStore, put, get, del } from './blob-store';
 beforeEach(() => {
 	isNativePlatform.mockReturnValue(false);
 	writeBlob.mockReset().mockResolvedValue('file:///data/downloads/x');
-	readFile.mockReset();
+	getUri
+		.mockReset()
+		.mockResolvedValue({ uri: 'file:///data/user/0/com.openmusic.app/files/downloads/x' });
 	deleteFile.mockReset().mockResolvedValue(undefined);
 	saveToMusic.mockReset().mockResolvedValue({ uri: 'content://media/external/audio/media/42' });
 	deleteFromMusic.mockReset().mockResolvedValue(undefined);
@@ -110,7 +117,7 @@ describe('blob-store — web branch (isNativePlatform false)', () => {
 		isNativePlatform.mockReturnValue(false);
 		const v = await get('netease-1');
 		expect(v).toBeNull();
-		expect(readFile).not.toHaveBeenCalled();
+		expect(getUri).not.toHaveBeenCalled();
 	});
 
 	it('del falls through to the IDB path (resolves void), not the native backend', async () => {
@@ -137,24 +144,33 @@ describe('blob-store — native branch put (isNativePlatform true)', () => {
 	});
 
 	// --- 999.1-06 (D-11): native put ALSO routes the file into public Music/ via the bridge ---
-	it('put routes the file into public Music/ via MediaStoreSaver.saveToMusic with a base64 payload', async () => {
+	// WR-02: the file PATH (resolved via getUri) crosses the bridge, NOT blob bytes/base64.
+	it('put routes the file into public Music/ via MediaStoreSaver.saveToMusic with a sourcePath (no base64)', async () => {
 		const ok = await put('netease-123', new Blob(['audio-bytes']));
 		expect(ok).toBe(true);
+		expect(getUri).toHaveBeenCalledTimes(1);
 		expect(saveToMusic).toHaveBeenCalledTimes(1);
-		const opts = saveToMusic.mock.calls[0][0] as { fileName: string; base64: string };
+		const opts = saveToMusic.mock.calls[0][0] as { fileName: string; sourcePath: string };
 		expect(opts.fileName).toContain('netease-123');
-		// base64 of the blob bytes is passed (non-empty string)
-		expect(typeof opts.base64).toBe('string');
-		expect(opts.base64.length).toBeGreaterThan(0);
+		// the on-disk file path is passed (no base64 round-trip over the bridge)
+		expect(typeof opts.sourcePath).toBe('string');
+		expect(opts.sourcePath).toContain('downloads');
+		expect(opts).not.toHaveProperty('base64');
 		// the returned content URI is recorded so get/del can resolve it later
 		expect(localStorage.getItem('openmusic-blob-uri:netease-123')).toBe(
 			'content://media/external/audio/media/42'
 		);
 	});
 
-	it('put resolves false (never rejects) when saveToMusic rejects', async () => {
+	// WR-01: a public-Music copy failure must NOT fail put() — the app-private offline copy landed.
+	it('put STILL resolves true when saveToMusic rejects (public copy is best-effort — WR-01)', async () => {
 		saveToMusic.mockRejectedValue(new Error('MediaStore insert returned null'));
-		await expect(put('netease-1', new Blob(['a']))).resolves.toBe(false);
+		const ok = await put('netease-1', new Blob(['a']));
+		expect(ok).toBe(true);
+		// the app-private offline copy (the get() read source) still landed
+		expect(writeBlob).toHaveBeenCalledTimes(1);
+		// no stale URI recorded since the public copy failed
+		expect(localStorage.getItem('openmusic-blob-uri:netease-1')).toBeNull();
 	});
 
 	it('put returns false on empty uid without touching the backend', async () => {
@@ -173,11 +189,18 @@ describe('blob-store — native branch put (isNativePlatform true)', () => {
 describe('blob-store — native branch get (isNativePlatform true)', () => {
 	beforeEach(() => isNativePlatform.mockReturnValue(true));
 
-	it('get reads the file back and returns a Blob on a hit', async () => {
-		// Filesystem.readFile returns base64 for binary reads.
-		readFile.mockResolvedValue({ data: btoa('audio-bytes') });
+	// WR-03: native get() resolves the file URI then streams it via convertFileSrc + fetch (no
+	// whole-file base64 decode on every offline play).
+	it('get streams the file via convertFileSrc + fetch and returns a Blob on a hit', async () => {
+		const fetchMock = vi.fn(
+			async (_url: RequestInfo | URL) => new Response('audio-bytes', { status: 200 })
+		);
+		vi.stubGlobal('fetch', fetchMock);
 		const v = await get('netease-123');
-		expect(readFile).toHaveBeenCalledTimes(1);
+		expect(getUri).toHaveBeenCalledTimes(1);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		// the fetched URL is the convertFileSrc-wrapped file URI (no base64 anywhere)
+		expect(String(fetchMock.mock.calls[0][0])).toContain('_capacitor_file_');
 		expect(v).toBeInstanceOf(Blob);
 		expect(await (v as Blob).text()).toBe('audio-bytes');
 	});
@@ -185,12 +208,22 @@ describe('blob-store — native branch get (isNativePlatform true)', () => {
 	it('get returns null on empty uid without touching the backend', async () => {
 		const v = await get('');
 		expect(v).toBeNull();
-		expect(readFile).not.toHaveBeenCalled();
+		expect(getUri).not.toHaveBeenCalled();
 	});
 
 	it('get resolves null (never rejects) on a miss / read error', async () => {
-		readFile.mockRejectedValue(new Error('File does not exist'));
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => {
+				throw new Error('File does not exist');
+			})
+		);
 		await expect(get('netease-missing')).resolves.toBeNull();
+	});
+
+	it('get resolves null (never rejects) when the streamed response is not ok', async () => {
+		vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 404 })));
+		await expect(get('netease-404')).resolves.toBeNull();
 	});
 });
 

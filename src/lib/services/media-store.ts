@@ -15,10 +15,13 @@ import { registerPlugin } from '@capacitor/core';
 
 export interface MediaStoreSaverPlugin {
 	/**
-	 * Insert `base64`-decoded audio bytes into the public `Music/OpenMusic/` collection under
-	 * `fileName`. Resolves the content URI of the created entry; rejects on any MediaStore failure.
+	 * Copy the audio file at `sourcePath` (a `file://` URI of the app-private offline copy, resolved
+	 * via `Filesystem.getUri`) into the public `Music/OpenMusic/` collection under `fileName`. The
+	 * Kotlin side STREAMS the source file into the MediaStore entry in chunks — no bytes cross the JS
+	 * bridge, eliminating the whole-blob base64 round-trip OOM/ANR risk for large lossless files
+	 * (WR-02). Resolves the content URI of the created entry; rejects on any MediaStore failure.
 	 */
-	saveToMusic(opts: { fileName: string; base64: string }): Promise<{ uri: string }>;
+	saveToMusic(opts: { fileName: string; sourcePath: string }): Promise<{ uri: string }>;
 	/**
 	 * Delete the MediaStore entry previously created by `saveToMusic` (the `uri` it returned).
 	 * Resolves even when the entry is already absent (the plugin swallows not-found).

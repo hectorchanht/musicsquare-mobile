@@ -17,7 +17,12 @@ import { buildDiversePicks } from '$lib/services/picks';
 import { buildSimilarQueue } from '$lib/services/similar';
 import { buildOfflineQueue } from '$lib/services/downloads-queue';
 import { dedupeBest, sameSongKey } from '$lib/services/dedupe';
-import { buildArtwork, safePositionState, playbackStateFor } from '$lib/services/media-session';
+import {
+	buildArtwork,
+	makeMetadata,
+	safePositionState,
+	playbackStateFor
+} from '$lib/services/media-session';
 import {
 	createNativeMediaSession,
 	type PlayerMediaSession
@@ -1332,7 +1337,7 @@ class Player {
 					this.persist();
 					const ms = this.ms;
 					if (ms) {
-						ms.metadata = new MediaMetadata({
+						ms.metadata = makeMetadata({
 							title: names.dnTitle(track.title),
 							artist: names.dnArtist(track.artist),
 							album: track.album,
@@ -1397,7 +1402,7 @@ class Player {
 			// for the active display language (returns the original under SSR/off). Guarded via `ms`.
 			const ms = this.ms;
 			if (ms) {
-				ms.metadata = new MediaMetadata({
+				ms.metadata = makeMetadata({
 					title: names.dnTitle(resolved.title),
 					artist: names.dnArtist(resolved.artist),
 					album: resolved.album,
@@ -1490,7 +1495,7 @@ class Player {
 		const ms = this.ms;
 		if (ms) {
 			// A FRESH MediaMetadata so the OS repaints the lock-screen art (never an in-place mutate).
-			ms.metadata = new MediaMetadata({
+			ms.metadata = makeMetadata({
 				title: names.dnTitle(resolved.title),
 				artist: names.dnArtist(resolved.artist),
 				album: resolved.album,

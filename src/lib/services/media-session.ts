@@ -42,6 +42,27 @@ export function buildArtwork(cover: string | null): MediaImage[] {
 }
 
 /**
+ * Build a `MediaMetadata` for `ms.metadata` WITHOUT assuming the constructor exists
+ * (CR-02). In Chromium the `MediaMetadata` constructor is gated behind the SAME
+ * MediaSession feature as `navigator.mediaSession`, and the Android System WebView
+ * exposes neither — so `new MediaMetadata(...)` throws a `ReferenceError` on the native
+ * path, aborting `play()` before `audio.src` is ever set. The native adapter only ever
+ * reads `.title/.artist/.album/.artwork` (native-media-session.ts), so a plain structural
+ * literal satisfies it. On the web path (where the constructor exists) we keep the real
+ * object so the browser's own MediaSession integration is unaffected.
+ */
+export function makeMetadata(init: MediaMetadataInit): MediaMetadata {
+	return typeof MediaMetadata !== 'undefined'
+		? new MediaMetadata(init)
+		: ({
+				title: init.title ?? '',
+				artist: init.artist ?? '',
+				album: init.album ?? '',
+				artwork: init.artwork ?? []
+			} as unknown as MediaMetadata);
+}
+
+/**
  * Build a guarded `MediaPositionState`, or `null` when no valid state is possible
  * (MS-04, T-kyf-02). `setPositionState` THROWS on a non-finite/≤0 duration or a
  * position outside `[0, duration]`, so this is the single guard that keeps the hot

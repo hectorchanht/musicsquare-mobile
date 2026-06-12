@@ -10,6 +10,7 @@
 	import { fly } from 'svelte/transition';
 	import { Moon } from '@lucide/svelte';
 	import { dragClose } from '$lib/actions/dragClose';
+	import { focusTrap } from '$lib/actions/focusTrap';
 	import { overlays } from '$lib/stores/overlays.svelte';
 	import { sleepTimer } from '$lib/stores/sleepTimer.svelte';
 	import { player, fmtTime } from '$lib/stores/player.svelte';
@@ -58,7 +59,7 @@
 
 {#if sleepTimer.sheetOpen}
 	<button class="scrim" aria-label={t('menu.close')} onclick={close}></button>
-	<div class="menu" transition:fly={{ y: 240, duration: 200 }} use:dragClose={{ onclose: close }}>
+	<div class="menu" transition:fly={{ y: 240, duration: 200 }} use:dragClose={{ onclose: close }} use:focusTrap>
 		<div class="menu-head">
 			{t('menu.sleepTimer')}{#if sleepTimer.active && sleepTimer.mode === 'minutes'} · {fmtTime(sleepTimer.remaining / 1000)}{/if}
 		</div>

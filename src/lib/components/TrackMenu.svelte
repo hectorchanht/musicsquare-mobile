@@ -10,7 +10,10 @@
 	import { names } from '$lib/stores/names.svelte';
 	import { overlays } from '$lib/stores/overlays.svelte';
 	import { dragClose } from '$lib/actions/dragClose';
+	import { focusTrap } from '$lib/actions/focusTrap';
 	import { marquee } from '$lib/actions/marquee';
+	import { toast } from '$lib/stores/toast.svelte';
+	import { tick as hapticTick } from '$lib/util/haptics';
 	import { isGatedReady, shouldStartResolve } from './track-menu-gate';
 	import { t } from '$lib/i18n';
 	import { ensureTrackDetails } from '$lib/services/catalog';
@@ -25,13 +28,6 @@
 
 	let pickerOpen = $state(false);
 	let detailTrack = $state<Track | null>(null);
-	let toastMsg = $state('');
-	let toastTimer: ReturnType<typeof setTimeout> | null = null;
-	function toast(m: string) {
-		toastMsg = m;
-		if (toastTimer) clearTimeout(toastTimer);
-		toastTimer = setTimeout(() => (toastMsg = ''), 2000);
-	}
 	const liked = $derived(track ? library.isLiked(track.uid) : false);
 
 	// MENU-01 (D-02/D-03): per-action in-flight set drives the inline row spinners. A gated
@@ -47,10 +43,10 @@
 		inFlight = new Set(inFlight).add(key);
 		try {
 			const resolved = await ensureTrackDetails(track);
-			if (!resolved.audioUrl) { toast(t('toast.noAudio')); return; } // graceful fail, no stuck spinner
+			if (!resolved.audioUrl) { toast.show(t('toast.noAudio')); return; } // graceful fail, no stuck spinner
 			await run(resolved);
 		} catch {
-			toast(t('toast.noAudio')); // never a stuck spinner on throw
+			toast.show(t('toast.noAudio')); // never a stuck spinner on throw
 		} finally {
 			const next = new Set(inFlight); next.delete(key); inFlight = next;
 		}
@@ -60,8 +56,8 @@
 		pickerOpen = false;
 		onclose();
 	}
-	function playNext() { if (track) { player.playNext(track); toast(t('toast.playingNext')); } close(); }
-	function addQueue() { if (track) { player.addToQueue(track); toast(t('toast.addedToQueue')); } close(); }
+	function playNext() { if (track) { player.playNext(track); toast.show(t('toast.playingNext')); } close(); }
+	function addQueue() { if (track) { hapticTick(); player.addToQueue(track); toast.show(t('toast.addedToQueue')); } close(); }
 	// ii6: Shuffle moved off the NowPlaying transport row into the menu. Shown only when
 	// there's a queue to shuffle (otherwise the action would be a no-op).
 	function shuffleQueue() { player.toggleShuffle(); close(); }
@@ -70,10 +66,11 @@
 	function clearQueue() { player.clearQueue(); close(); }
 	function like() {
 		if (!track) return;
+		hapticTick();
 		library.toggleLike(track);
 		// Post-toggle: isLiked == true means we just LIKED it; false means we just UNLIKED.
 		// Use past-tense toast keys (ii6 — previously read 'menu.like' which is the action verb).
-		toast(library.isLiked(track.uid) ? t('toast.liked') : t('toast.unliked'));
+		toast.show(library.isLiked(track.uid) ? t('toast.liked') : t('toast.unliked'));
 	}
 	// goto* navigate away (TrackMenu unmounts) so a local toast can't render — the page change
 	// IS the feedback. like()/detail keep their on-page feedback (toast / heart toggle / sheet).
@@ -100,7 +97,7 @@
 	// user's DOWNLOAD quality (separate from the streaming default the gate resolved at).
 	async function doDownload(resolved: Track) {
 		onclose();
-		toast(t('toast.preparingDownload'));
+		toast.show(t('toast.preparingDownload'));
 		// Re-resolve at the user's DOWNLOAD quality (separate from the streaming default).
 		// WR-07: the tier is threaded through ensureTrackDetails as an explicit per-call
 		// parameter — never the old temporary settings.defaultQuality swap, which raced
@@ -113,7 +110,7 @@
 			settings.downloadQuality
 		).catch(() => resolved);
 		library.addDownload(r);
-		if (!r.audioUrl) return toast(t('toast.noAudio'));
+		if (!r.audioUrl) return toast.show(t('toast.noAudio'));
 		try {
 			const resp = await fetch(r.audioUrl);
 			const blob = await resp.blob();
@@ -128,10 +125,10 @@
 			a.download = `${r.artist} - ${r.title}.${ext}`.replace(/[/\\?%*:|"<>]/g, '_');
 			a.click();
 			URL.revokeObjectURL(a.href);
-			toast(t('toast.downloaded'));
+			toast.show(t('toast.downloaded'));
 		} catch {
 			window.open(r.audioUrl, '_blank');
-			toast(t('toast.openedAudio'));
+			toast.show(t('toast.openedAudio'));
 		}
 	}
 	async function doShare() {
@@ -143,7 +140,7 @@
 		try {
 			const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
 			if (nav.share) await nav.share({ title: `${track.title} — ${track.artist}`, url });
-			else { await navigator.clipboard.writeText(url); toast(t('toast.shareCopied')); }
+			else { await navigator.clipboard.writeText(url); toast.show(t('toast.shareCopied')); }
 		} catch { /* cancelled */ }
 	}
 	// Gated run callback (D-02): the gate already resolved the track, so just open the detail sheet
@@ -158,15 +155,15 @@
 	// 19-01); play(seed,{fresh:true}) → regenerate → dedupeBest([seed, ...manualEntries, ...auto])
 	// preserves manual pins (D-05) and discards the prior generated tail. Gated → seed has audioUrl.
 	function doRemix(seed: Track) {
-		toast(t('toast.remixing'));
+		toast.show(t('toast.remixing'));
 		player.setQueue([seed], 'remix');
 		void player.play(seed, { fresh: true });
 		close();
 	}
-	function addToPlaylist(id: string) { if (track) library.addToPlaylist(id, track); pickerOpen = false; toast(t('toast.addedToPlaylist')); }
+	function addToPlaylist(id: string) { if (track) library.addToPlaylist(id, track); pickerOpen = false; toast.show(t('toast.addedToPlaylist')); }
 	function newPlaylist() {
 		const name = prompt(t('menu.newPlaylistPrompt'));
-		if (name && track) { const pl = library.createPlaylist(name); library.addToPlaylist(pl.id, track); toast(t('toast.playlistCreated')); }
+		if (name && track) { const pl = library.createPlaylist(name); library.addToPlaylist(pl.id, track); toast.show(t('toast.playlistCreated')); }
 		pickerOpen = false;
 	}
 
@@ -210,7 +207,7 @@
 
 {#if open && track}
 	<button class="scrim" aria-label={t('menu.closeMenu')} onclick={close}></button>
-	<div class="menu" transition:fly={{ y: 240, duration: 200 }} use:dragClose={{ onclose: close }}>
+	<div class="menu" transition:fly={{ y: 240, duration: 200 }} use:dragClose={{ onclose: close }} use:focusTrap>
 		<!-- D-08/D-09/D-10: two-row marquee header (song/artist, display-only) + a top-right
 		     Like+Close cluster. Replaces the old single ellipsised `{title} · {artist}` line.
 		     {#key track.uid} remounts the clips on a stub→resolved reassignment so use:marquee
@@ -303,8 +300,6 @@
 	</div>
 {/if}
 
-{#if toastMsg}<div class="toast" transition:fly={{ y: -20, duration: 180 }}>{toastMsg}</div>{/if}
-
 <style>
 	.scrim { position: fixed; inset: 0; z-index: 80; background: rgba(0,0,0,0.45); border: none; }
 	.menu, .modal { position: fixed; left: 12px; right: 12px; bottom: 16px; z-index: 81; background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: 16px; padding: 8px; max-width: 680px; margin: 0 auto; box-shadow: 0 -10px 40px rgba(0,0,0,0.5); max-height: 80vh; overflow-y: auto; }
@@ -339,5 +334,4 @@
 	.detail dd { margin: 0; font-size: 13px; }
 	.mono { font-family: ui-monospace, monospace; font-size: 11px; }
 	.break { word-break: break-all; }
-	.toast { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 14px); z-index: 90; background: #000; color: #fff; padding: 10px 16px; border-radius: 999px; font-size: 13px; box-shadow: var(--shadow-lg); }
 </style>

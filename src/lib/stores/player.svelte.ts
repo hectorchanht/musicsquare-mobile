@@ -1706,10 +1706,10 @@ class Player {
 		// WR-07: store an i18n KEY (the now-bar/NowPlaying render it via t()) so the inline error
 		// matches the localized toast for the same event instead of raw English.
 		this.error = 'toast.playbackStopped';
-		if (this.consecutiveFailures >= Player.FAILURE_CAP) {
-			this.tripLoopGuard();
-			return;
-		}
+		// if (this.consecutiveFailures >= Player.FAILURE_CAP) {
+		// 	this.tripLoopGuard();
+		// 	return;
+		// }
 		// D-02 below the cap: emit a batched skip notice and auto-skip to the next track.
 		this.emitSkipNotice(failed.title);
 		this.next();

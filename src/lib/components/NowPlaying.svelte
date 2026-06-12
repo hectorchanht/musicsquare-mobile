@@ -938,7 +938,13 @@
 	>
 		<div class="grip" role="button" tabindex="0" aria-label={sheetState === 'closed' ? t('nowplaying.expandPanel') : t('nowplaying.collapsePanel')}
 			onpointerdown={gripDown} onpointermove={gripMove} onpointerup={gripUp} onpointercancel={gripUp}
-			onkeydown={gripKey}>
+			onkeydown={gripKey}
+			onclick={(e) => {
+				if (gripActive) {
+					e.preventDefault();
+					e.stopPropagation();
+				}
+			}}>
 			<span class="handle"></span>
 		</div>
 

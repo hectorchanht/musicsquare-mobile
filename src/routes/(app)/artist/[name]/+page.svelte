@@ -5,7 +5,6 @@
 	// Not a true artist catalog — an approximation from cross-source search.
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { fly } from 'svelte/transition';
 	import { ChevronLeft, Heart, Play, Share2 } from '@lucide/svelte';
 	import { searchAll } from '$lib/services/catalog';
 	import { dedupeBest } from '$lib/services/dedupe';
@@ -13,6 +12,7 @@
 	import { player } from '$lib/stores/player.svelte';
 	import { library } from '$lib/stores/library.svelte';
 	import { names } from '$lib/stores/names.svelte';
+	import { toast } from '$lib/stores/toast.svelte';
 	import { t } from '$lib/i18n';
 	import { longpress } from '$lib/actions/longpress';
 	import { lazyCover } from '$lib/actions/lazyCover';
@@ -114,19 +114,12 @@
 	// random hit + queues all songs from this artist; share uses Web Share API.
 	const favArtist = $derived(library.isFavArtist(name));
 
-	// Local toast (same lightweight pattern as TrackMenu / home).
-	let toastMsg = $state('');
-	let toastTimer: ReturnType<typeof setTimeout> | null = null;
-	function toast(m: string) {
-		toastMsg = m;
-		if (toastTimer) clearTimeout(toastTimer);
-		toastTimer = setTimeout(() => (toastMsg = ''), 2000);
-	}
-
+	// WR-06 / D-15: feedback goes through the GLOBAL toast store (rendered once by ToastHost) —
+	// the local toastMsg/toastTimer copy this page shipped was re-consolidated away.
 	function toggleFavourite() {
 		const was = favArtist;
 		library.toggleFavArtist(name);
-		toast(was ? t('toast.artistUnfavorited') : t('toast.artistFavorited'));
+		toast.show(was ? t('toast.artistUnfavorited') : t('toast.artistFavorited'));
 	}
 
 	// Swipe-action commit handlers (UX-04 D-03/D-04) — same semantics as TrackMenu addQueue()/
@@ -134,12 +127,12 @@
 	function queueTrack(track: Track) {
 		player.addToQueue(track);
 		hapticTick();
-		toast(t('toast.addedToQueue'));
+		toast.show(t('toast.addedToQueue'));
 	}
 	function likeTrack(track: Track) {
 		library.toggleLike(track);
 		hapticTick();
-		toast(library.isLiked(track.uid) ? t('toast.liked') : t('toast.unliked'));
+		toast.show(library.isLiked(track.uid) ? t('toast.liked') : t('toast.unliked'));
 	}
 
 	function playArtistRandom() {
@@ -163,7 +156,7 @@
 		try {
 			const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
 			if (nav.share) await nav.share({ title, text: title, url });
-			else { await navigator.clipboard.writeText(url); toast(t('toast.shareCopied')); }
+			else { await navigator.clipboard.writeText(url); toast.show(t('toast.shareCopied')); }
 		} catch {
 			/* user dismissed / clipboard blocked — no toast on cancel */
 		}
@@ -482,7 +475,6 @@
 
 <TrackMenu track={menuTrack} open={menuOpen} onclose={() => (menuOpen = false)} />
 
-{#if toastMsg}<div class="toast" transition:fly={{ y: -20, duration: 180 }}>{toastMsg}</div>{/if}
 
 <style>
 	.hero { padding: 14px 0 18px; text-align: center; }
@@ -506,7 +498,6 @@
 	.act.on { color: var(--color-primary); border-color: var(--color-primary); }
 	.act.primary { background: var(--color-primary); color: #fff; border-color: transparent; }
 	.act.primary:hover { filter: brightness(1.06); }
-	.toast { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text); padding: 8px 14px; border-radius: 999px; font-size: 13px; z-index: 80; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
 	.bio { text-align: left; margin: 16px 0 0; }
 	.bio h2 { font-size: calc(1.1rem * var(--fs-title, 1)); margin: 0 0 8px; }
 	.bio p { color: var(--color-text-muted); font-size: 13px; line-height: 1.55; margin: 0; }

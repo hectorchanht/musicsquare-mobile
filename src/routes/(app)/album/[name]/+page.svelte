@@ -129,15 +129,9 @@
 		return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 	}
 
-	// Component-local toast (same lightweight pattern as the home page) for the unplayable
-	// case when a stub resolves to no CN-source match.
-	let toastMsg = $state('');
-	let toastTimer: ReturnType<typeof setTimeout> | null = null;
-	function toast(m: string) {
-		toastMsg = m;
-		if (toastTimer) clearTimeout(toastTimer);
-		toastTimer = setTimeout(() => (toastMsg = ''), 2000);
-	}
+	// WR-06 / D-15: ALL feedback goes through the GLOBAL toast store (rendered once by
+	// ToastHost) — the local toastMsg/toastTimer copy was re-consolidated away so a single
+	// gesture never surfaces feedback through two different pipelines.
 
 	// ---- Real album.getInfo ordered tracklist (D-05) ----
 	// REPLACES the old searchAll-grouped-by-track.album approximation. Race-guarded on
@@ -225,7 +219,7 @@
 	async function playStub(stub: AlbumStub) {
 		const tr = await player.playStub(stub.artist, stub.title, null, 'album');
 		if (tr === null) {
-			if (player.pendingTrack == null) toast(t('album.unplayable'));
+			if (player.pendingTrack == null) globalToast.show(t('album.unplayable'));
 			return;
 		}
 		// album-and-next-song-bug fix: playStub installs a one-track queue ([tr]) for the optimistic
@@ -253,7 +247,7 @@
 		swipeInFlight = new Set(swipeInFlight).add(key);
 		try {
 			const tr = await resolveStub(stub.artist, stub.title).catch(() => null);
-			if (!tr) { toast(t('album.unplayable')); return; }
+			if (!tr) { globalToast.show(t('album.unplayable')); return; }
 			player.addToQueue(tr);
 			globalToast.show(t('toast.addedToQueue'));
 			hapticTick();
@@ -269,7 +263,7 @@
 		swipeInFlight = new Set(swipeInFlight).add(key);
 		try {
 			const tr = await resolveStub(stub.artist, stub.title).catch(() => null);
-			if (!tr) { toast(t('album.unplayable')); return; }
+			if (!tr) { globalToast.show(t('album.unplayable')); return; }
 			const wasLiked = library.isLiked(tr.uid);
 			library.toggleLike(tr);
 			globalToast.show(wasLiked ? t('toast.unliked') : t('toast.liked'));
@@ -312,7 +306,7 @@
 		try {
 			const tr = await resolveStub(stub.artist, stub.title).catch(() => null);
 			if (!menuOpen) return; // user dismissed during resolve — discard
-			if (!tr) { menuOpen = false; toast(t('album.unplayable')); return; }
+			if (!tr) { menuOpen = false; globalToast.show(t('album.unplayable')); return; }
 			menuTrack = tr;
 		} finally {
 			menuLoading = false;
@@ -355,7 +349,7 @@
 		try {
 			const first = await player.playStub(tracks[0].artist, tracks[0].title, null, 'album');
 			if (!first) {
-				if (player.pendingTrack == null) toast(t('album.unplayable'));
+				if (player.pendingTrack == null) globalToast.show(t('album.unplayable'));
 				return;
 			}
 			const all = await resolveAllCached();
@@ -379,7 +373,7 @@
 	async function downloadAlbum() {
 		if (!tracks.length || busyAction === 'download') return;
 		busyAction = 'download';
-		toast(t('toast.preparingDownload'));
+		globalToast.show(t('toast.preparingDownload'));
 		try {
 			const resolved = await resolveAllCached();
 			let saved = 0;
@@ -422,7 +416,7 @@
 				// Stagger so browser doesn't squash concurrent downloads / hit per-origin caps.
 				await new Promise((r) => setTimeout(r, 250));
 			}
-			toast(saved > 0 ? t('toast.downloaded') : resolved.length ? t('toast.noAudio') : t('album.unplayable'));
+			globalToast.show(saved > 0 ? t('toast.downloaded') : resolved.length ? t('toast.noAudio') : t('album.unplayable'));
 		} finally {
 			busyAction = null;
 		}
@@ -435,20 +429,20 @@
 	async function likeAlbum() {
 		if (!tracks.length || busyAction === 'like') return;
 		busyAction = 'like';
-		toast(t('toast.preparingDownload'));
+		globalToast.show(t('toast.preparingDownload'));
 		try {
 			const resolved = await resolveAllCached();
 			if (!resolved.length) {
-				toast(t('album.unplayable'));
+				globalToast.show(t('album.unplayable'));
 				return;
 			}
 			const allLiked = resolved.every((tr) => library.isLiked(tr.uid));
 			if (allLiked) {
 				for (const tr of resolved) library.toggleLike(tr);
-				toast(t('toast.unliked')); // ii6: past-tense; matches the heart returning to outline
+				globalToast.show(t('toast.unliked')); // ii6: past-tense; matches the heart returning to outline
 			} else {
 				for (const tr of resolved) if (!library.isLiked(tr.uid)) library.toggleLike(tr);
-				toast(t('toast.liked'));
+				globalToast.show(t('toast.liked'));
 			}
 		} finally {
 			busyAction = null;
@@ -466,7 +460,7 @@
 			if (nav.share) await nav.share({ title: `${name} — ${albumArtist}`, url });
 			else {
 				await navigator.clipboard.writeText(url);
-				toast(t('toast.shareCopied'));
+				globalToast.show(t('toast.shareCopied'));
 			}
 		} catch {
 			/* cancelled */
@@ -482,11 +476,11 @@
 		pickerOpen = false;
 		if (busyAction === 'addToPlaylist') return;
 		busyAction = 'addToPlaylist';
-		toast(t('toast.preparingDownload'));
+		globalToast.show(t('toast.preparingDownload'));
 		try {
 			const resolved = await resolveAllCached();
 			for (const tr of resolved) library.addToPlaylist(id, tr);
-			toast(resolved.length ? t('toast.addedToPlaylist') : t('album.unplayable'));
+			globalToast.show(resolved.length ? t('toast.addedToPlaylist') : t('album.unplayable'));
 		} finally {
 			busyAction = null;
 		}
@@ -495,7 +489,7 @@
 		const nm = prompt(t('menu.newPlaylistPrompt'));
 		if (!nm) return;
 		const pl = library.createPlaylist(nm);
-		toast(t('toast.playlistCreated'));
+		globalToast.show(t('toast.playlistCreated'));
 		void addAlbumToPlaylist(pl.id);
 	}
 
@@ -600,7 +594,6 @@
 	<p class="muted">{t('album.noTracks', { name: names.dnTitle(name) })}</p>
 {/if}
 
-{#if toastMsg}<div class="toast" transition:fly={{ y: -20, duration: 180 }}>{toastMsg}</div>{/if}
 
 <!-- ii6 #4: long-press on a track row opens TrackMenu against the resolved track.
      resolveStub runs while menuLoading=true → menu shows its skeleton placeholder. -->
@@ -655,7 +648,6 @@
 	.meta { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 	.r-title { font-size: calc(14px * var(--fs-title, 1)); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.r-sub { font-size: calc(12px * var(--fs-artist, 1)); color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-	.toast { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 14px); z-index: 90; background: #000; color: #fff; padding: 10px 16px; border-radius: 999px; font-size: 13px; box-shadow: var(--shadow-lg); }
 
 	/* ---- loading skeletons (global .sk in app.css supplies the grey + shimmer; these size the
 	   blocks to match the real content) ---- */

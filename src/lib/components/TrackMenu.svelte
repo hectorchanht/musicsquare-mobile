@@ -275,7 +275,7 @@
 
 {#if pickerOpen && track}
 	<button class="scrim" aria-label={t('menu.close')} onclick={() => (pickerOpen = false)}></button>
-	<div class="menu" transition:fly={{ y: 240, duration: 200 }} use:dragClose={{ onclose: () => (pickerOpen = false) }}>
+	<div class="menu" transition:fly={{ y: 240, duration: 200 }} use:dragClose={{ onclose: () => (pickerOpen = false) }} use:focusTrap>
 		<div class="menu-head">{t('menu.addToPlaylist')}</div>
 		{#each library.playlists as pl (pl.id)}
 			<button class="mi" onclick={() => addToPlaylist(pl.id)}><ListPlus size={18} /> {pl.name} <span class="count">{pl.tracks.length}</span></button>
@@ -286,7 +286,7 @@
 
 {#if detailTrack}
 	<button class="scrim" aria-label={t('menu.close')} onclick={() => (detailTrack = null)}></button>
-	<div class="modal" transition:fly={{ y: 240, duration: 200 }} use:dragClose={{ onclose: () => (detailTrack = null) }}>
+	<div class="modal" transition:fly={{ y: 240, duration: 200 }} use:dragClose={{ onclose: () => (detailTrack = null) }} use:focusTrap>
 		<div class="menu-head row"><span>{t('menu.trackDetail')}</span><button class="x" aria-label={t('menu.close')} onclick={() => (detailTrack = null)}><X size={18} /></button></div>
 		<dl class="detail">
 			<dt>{t('menu.detailTitle')}</dt><dd>{detailTrack.title}</dd>

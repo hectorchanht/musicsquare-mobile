@@ -43,6 +43,10 @@ export const focusTrap: Action<HTMLElement> = (node) => {
 
 	function onKeydown(e: KeyboardEvent) {
 		if (e.key !== 'Tab') return; // focus-only: Escape/dismissal is the host overlay's concern
+		// WR-07: traps can NEST (e.g. TrackMenu mounted inside the trapped NowPlaying). Stop the
+		// Tab from bubbling to an outer trap so only the INNERMOST mounted trap arbitrates —
+		// otherwise the outer trap could cycle focus through the scrimmed background controls.
+		e.stopPropagation();
 		const focusable = focusableWithin(node);
 		if (focusable.length === 0) {
 			// Nothing focusable inside — keep focus on the container, never let Tab escape the trap.

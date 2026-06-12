@@ -14,6 +14,7 @@
 	import { names } from '$lib/stores/names.svelte';
 	import { overlays } from '$lib/stores/overlays.svelte';
 	import { dragClose } from '$lib/actions/dragClose';
+	import { focusTrap } from '$lib/actions/focusTrap';
 	import { longpress } from '$lib/actions/longpress';
 	import { swipeAction } from '$lib/actions/swipeAction';
 	import { shouldRun } from '$lib/actions/inflightGuard';
@@ -602,7 +603,7 @@
 <!-- Add-album-to-playlist picker (back-to-close sheet, mirrors the track menu's picker). -->
 {#if pickerOpen}
 	<button class="scrim" aria-label={t('menu.close')} onclick={() => (pickerOpen = false)}></button>
-	<div class="picker" transition:fly={{ y: 240, duration: 200 }} use:dragClose={{ onclose: () => (pickerOpen = false) }}>
+	<div class="picker" transition:fly={{ y: 240, duration: 200 }} use:dragClose={{ onclose: () => (pickerOpen = false) }} use:focusTrap>
 		<div class="picker-head">{t('menu.addToPlaylist')}</div>
 		<button class="mi" onclick={newPlaylistForAlbum}><Plus size={18} /> {t('menu.newPlaylist')}</button>
 		{#each library.playlists as pl (pl.id)}

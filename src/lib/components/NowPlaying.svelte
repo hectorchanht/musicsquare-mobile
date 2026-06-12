@@ -270,15 +270,6 @@
 			.finally(() => { if (trKey === key) translating = false; });
 	});
 	const showTr = $derived(settings.lyricsLang !== 'off' && translated.length === lines.length);
-	// Compute the top (in px from .np top) where .sheet should start in half-open.
-	function halfSheetTop(): number {
-		if (!transportEl || !sheetEl) return 260; // safe fallback
-		const np = sheetEl.closest('.np') as HTMLElement | null;
-		if (!np) return 260;
-		const npRect = np.getBoundingClientRect();
-		const tRect = transportEl.getBoundingClientRect();
-		return Math.round(tRect.bottom - npRect.top);
-	}
 	// ---- related ----
 	let related = $state<Track[]>([]);
 	let relatedFor = '';
@@ -757,7 +748,7 @@
 	}
 	function applyHalfInset() {
 		if (!sheetEl || !transportEl) return;
-		const np = sheetEl.closest('.np') as HTMLElement | null;
+		const np = sheetEl.closest('.np-top') as HTMLElement | null;
 		if (!np) return;
 		const npRect = np.getBoundingClientRect();
 		const tRect = transportEl.getBoundingClientRect();
@@ -1175,7 +1166,7 @@
 		display: flex;
 		flex-direction: column;
 		min-height: 0;
-		margin-top: 88px;
+		margin-top: 0px;
 	}
 
 	/* Ensure the panel takes all available height in half/full so lyrics/queue scroll normally */

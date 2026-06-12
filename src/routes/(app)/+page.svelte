@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { fly } from 'svelte/transition';
-	import { Search, Settings, RotateCw } from '@lucide/svelte';
+	import { Search, Settings, RotateCw, ChevronRight } from '@lucide/svelte';
 	import Logo from '$lib/components/Logo.svelte';
 	import { buildDiversePicks } from '$lib/services/picks';
 	import {
@@ -24,7 +23,9 @@
 	import {
 		resolveSectionOrder,
 		resolveSubset,
-		clampShelfSize
+		clampShelfSize,
+		resolveSectionDensity,
+		type HomeSectionId
 	} from '$lib/services/home-layout';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { deezerChart } from '$lib/services/deezer';
@@ -40,7 +41,10 @@
 	import { dragScroll } from '$lib/actions/dragScroll';
 	import { marquee } from '$lib/actions/marquee';
 	import TrackMenu from '$lib/components/TrackMenu.svelte';
+	import CompactRow from '$lib/components/CompactRow.svelte';
+	import CompactPager from '$lib/components/CompactPager.svelte';
 	import PageOg from '$lib/components/PageOg.svelte';
+	import { toast } from '$lib/stores/toast.svelte';
 	import type { PageData } from './$types';
 	import type { Track } from '$lib/sources/types';
 
@@ -213,14 +217,8 @@
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 
-	// Component-local toast (same lightweight pattern as TrackMenu) for the unplayable case.
-	let toastMsg = $state('');
-	let toastTimer: ReturnType<typeof setTimeout> | null = null;
-	function toast(m: string) {
-		toastMsg = m;
-		if (toastTimer) clearTimeout(toastTimer);
-		toastTimer = setTimeout(() => (toastMsg = ''), 2000);
-	}
+	// D-15: the home local toast copy migrated to the global `toast` store (rendered once by
+	// ToastHost in the (app) layout). Call sites use `toast.show(...)`.
 
 	function fallbackCover(seed: string): string {
 		const h = (seed.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 47) % 360;
@@ -523,7 +521,7 @@
 	// passed so the optimistic bar shows real art immediately when available.
 	async function playStub(item: DiscoveryTrack) {
 		const tr = await player.playStub(item.artist, item.title, item.image, 'home-discovery');
-		if (tr === null && player.pendingTrack == null) toast(t('home.unplayable'));
+		if (tr === null && player.pendingTrack == null) toast.show(t('home.unplayable'));
 	}
 
 	// Long-press a discovery tile → open the track menu. The tile is an unresolved stub, so the
@@ -553,8 +551,35 @@
 		} else {
 			menuOpen = false;
 			menuLoading = false;
-			toast(t('home.unplayable'));
+			toast.show(t('home.unplayable'));
 		}
+	}
+
+	// --- Compact homepage mode (HOME-02/03, D-05/07/10) --------------------------------
+	// D-07: ALL sections compact BY DEFAULT — we pass 'compact' as resolveSectionDensity's
+	// globalDefault, so a section is comfortable only when the user explicitly overrides it
+	// in /settings/home (settings.homeSectionDensity[id] === 'comfortable'). A corrupt/garbage
+	// override falls back to 'compact' (resolveSectionDensity, T-23-09 — never blanks).
+	function densityOf(id: HomeSectionId): 'comfortable' | 'compact' {
+		return resolveSectionDensity(id, settings.homeSectionDensity, 'compact');
+	}
+	// D-10: compact item count = homeShelfSize rounded UP to the nearest full column of 4, so a
+	// pager never shows a ragged trailing column shorter than the others would imply.
+	const compactCount = $derived(Math.ceil(clampShelfSize(settings.homeShelfSize) / 4) * 4);
+	function compactSlice<T>(arr: T[]): T[] {
+		return arr.slice(0, compactCount);
+	}
+
+	// Library-track row play (matches librarySongRow's comfortable behavior) + its menu open.
+	function playLibraryTrack(track: Track) {
+		player.play(track, { fresh: true });
+	}
+	function openTrackMenu(track: Track) {
+		menuTrack = track;
+		menuOpen = true;
+	}
+	function libraryRowCover(track: Track): string | null {
+		return track.cover ?? getCachedCover(track.artist, track.title);
 	}
 
 	onMount(() => {
@@ -636,8 +661,11 @@
 	</div>
 
 	{#if loading && !useFallback && !topHits.length && !topArtists.length && !tagShelves.length && !countryShelves.length && !fallbackSongs.length}
-		<div class="albumrow">
-			{#each Array(6) as _, i (i)}<div class="album"><span class="al-cover skeleton"></span></div>{/each}
+		<!-- Cold-load skeleton: compact-by-default, so match the compact pager shape — a column
+		     of 4 compact-row placeholders (40px art + 2 bars), with the next column peeking. -->
+		<div class="compact-skel-pager">
+			{@render compactSkeletonColumn()}
+			{@render compactSkeletonColumn()}
 		</div>
 	{:else if error}
 		<p class="error">{error} — <button class="retry" onclick={() => refresh(true)}>{t('common.retry')}</button></p>
@@ -679,34 +707,93 @@
 	{/if}
 </section>
 
+<!-- D-14: the whole section-title row is one tap target → its destination (chart page /
+     library tab / playlist detail). `dest` is built from FIXED in-app paths with any dynamic
+     segment encodeURIComponent-wrapped (T-23-08 — same-origin goto, no open redirect). -->
+{#snippet titleNav(label: string, dest: string)}
+	<button class="subhead-nav" aria-label={`${label}, ${t('home.seeAll')}`} onclick={() => goto(dest)}>
+		<span class="subhead-label">{label}</span>
+		<ChevronRight class="subhead-chev" size={18} />
+	</button>
+{/snippet}
+
+<!-- Compact-row skeleton (UI-SPEC §2): 40px art + 2 bars (62%/40%), 4 per column. -->
+{#snippet compactSkeletonColumn()}
+	<div class="compact-skel-col" aria-hidden="true">
+		{#each Array(4) as _, i (i)}
+			<div class="compact-skel-row">
+				<span class="cs-art sk"></span>
+				<span class="cs-meta">
+					<span class="cs-bar cs-bar-title sk"></span>
+					<span class="cs-bar cs-bar-sub sk"></span>
+				</span>
+			</div>
+		{/each}
+	</div>
+{/snippet}
+
 {#snippet topHitsBlock()}
 	{#if topHits.length}
-		<div class="subhead">{t('home.topHits')}</div>
+		{@render titleNav(t('home.topHits'), '/charts/top')}
+		{@render discoveryShelf(topHits, densityOf('top-hits') === 'compact')}
+	{/if}
+{/snippet}
+
+{#snippet topArtistsBlock()}
+	{#if topArtists.length}
+		{@render titleNav(t('home.topArtists'), '/charts/top')}
+		{#if densityOf('top-artists') === 'compact'}
+			<CompactPager items={compactSlice(topArtists)}>
+				{#snippet row(a: DiscoveryArtist)}
+					<CompactRow
+						variant="artist"
+						title={names.dnArtist(a.name)}
+						cover={tileCover({ image: a.image, mbid: a.mbid, artistName: a.name })}
+						seed={a.name}
+						onopen={() => goto('/artist/' + encodeURIComponent(a.name))}
+					/>
+				{/snippet}
+			</CompactPager>
+		{:else}
+			<div class="albumrow" use:dragScroll>
+				{#each topArtists as a (a.name)}
+					{@const artistCover = tileCover({ image: a.image, mbid: a.mbid, artistName: a.name })}
+					<button class="album" onclick={() => goto('/artist/' + encodeURIComponent(a.name))}>
+						<span class="al-cover round" style:background-image={fallbackCover(a.name)}>
+							{#if artistCover}<img class="al-cover-img" src={artistCover} loading="lazy" alt="" onerror={hideOnError} />{/if}
+						</span>
+						<span class="al-name center" use:marquee><span class="marquee-inner">{names.dnArtist(a.name)}</span></span>
+					</button>
+				{/each}
+			</div>
+		{/if}
+	{/if}
+{/snippet}
+
+<!-- A reusable compact/comfortable discovery shelf (top-hits / tags / countries share it). -->
+{#snippet discoveryShelf(items: DiscoveryTrack[], compact: boolean)}
+	{#if compact}
+		<CompactPager items={compactSlice(items)}>
+			{#snippet row(item: DiscoveryTrack)}
+				<CompactRow
+					title={names.dnTitle(item.title)}
+					subtitle={names.dnArtist(item.artist)}
+					cover={tileCover(item)}
+					seed={item.artist + item.title}
+					onplay={() => playStub(item)}
+					onrequestmenu={() => tileMenu(item)}
+				/>
+			{/snippet}
+		</CompactPager>
+	{:else}
 		<div class="albumrow" use:dragScroll>
-			{#each topHits as item (item.artist + ' ' + item.title)}
+			{#each items as item (item.artist + ' ' + item.title)}
 				<button class="album" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); tileMenu(item); }} onclick={() => playStub(item)}>
 					<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
 						{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
 					</span>
 					<span class="al-name" use:marquee><span class="marquee-inner">{names.dnTitle(item.title)}</span></span>
 					<span class="al-count" use:marquee><span class="marquee-inner">{names.dnArtist(item.artist)}</span></span>
-				</button>
-			{/each}
-		</div>
-	{/if}
-{/snippet}
-
-{#snippet topArtistsBlock()}
-	{#if topArtists.length}
-		<div class="subhead">{t('home.topArtists')}</div>
-		<div class="albumrow" use:dragScroll>
-			{#each topArtists as a (a.name)}
-				{@const artistCover = tileCover({ image: a.image, mbid: a.mbid, artistName: a.name })}
-				<button class="album" onclick={() => goto('/artist/' + encodeURIComponent(a.name))}>
-					<span class="al-cover round" style:background-image={fallbackCover(a.name)}>
-						{#if artistCover}<img class="al-cover-img" src={artistCover} loading="lazy" alt="" onerror={hideOnError} />{/if}
-					</span>
-					<span class="al-name center" use:marquee><span class="marquee-inner">{names.dnArtist(a.name)}</span></span>
 				</button>
 			{/each}
 		</div>
@@ -715,35 +802,15 @@
 
 {#snippet tagsBlock()}
 	{#each tagShelves as shelf (shelf.label)}
-		<div class="subhead">{t('home.tagShelf', { tag: shelf.label })}</div>
-		<div class="albumrow" use:dragScroll>
-			{#each shelf.tracks as item (item.artist + ' ' + item.title)}
-				<button class="album" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); tileMenu(item); }} onclick={() => playStub(item)}>
-					<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
-						{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
-					</span>
-					<span class="al-name" use:marquee><span class="marquee-inner">{names.dnTitle(item.title)}</span></span>
-					<span class="al-count" use:marquee><span class="marquee-inner">{names.dnArtist(item.artist)}</span></span>
-				</button>
-			{/each}
-		</div>
+		{@render titleNav(t('home.tagShelf', { tag: shelf.label }), '/charts/tags/' + encodeURIComponent(shelf.label))}
+		{@render discoveryShelf(shelf.tracks, densityOf('tags') === 'compact')}
 	{/each}
 {/snippet}
 
 {#snippet countriesBlock()}
 	{#each countryShelves as shelf (shelf.label)}
-		<div class="subhead">{t('home.countryShelf', { country: shelf.label })}</div>
-		<div class="albumrow" use:dragScroll>
-			{#each shelf.tracks as item (item.artist + ' ' + item.title)}
-				<button class="album" use:longpress onlongpress={(e) => { (e.currentTarget as HTMLElement)?.blur(); tileMenu(item); }} onclick={() => playStub(item)}>
-					<span class="al-cover" style:background-image={fallbackCover(item.artist + item.title)}>
-						{#if tileCover(item)}<img class="al-cover-img" src={tileCover(item)} loading="lazy" alt="" onerror={hideOnError} />{/if}
-					</span>
-					<span class="al-name" use:marquee><span class="marquee-inner">{names.dnTitle(item.title)}</span></span>
-					<span class="al-count" use:marquee><span class="marquee-inner">{names.dnArtist(item.artist)}</span></span>
-				</button>
-			{/each}
-		</div>
+		{@render titleNav(t('home.countryShelf', { country: shelf.label }), '/charts/countries/' + encodeURIComponent(shelf.label))}
+		{@render discoveryShelf(shelf.tracks, densityOf('countries') === 'compact')}
 	{/each}
 {/snippet}
 
@@ -758,62 +825,91 @@
 	</button>
 {/snippet}
 
+<!-- A reusable compact/comfortable library track shelf (liked / downloads / history / playlists). -->
+{#snippet libraryShelf(tracks: Track[], compact: boolean)}
+	{#if compact}
+		<CompactPager items={compactSlice(tracks)}>
+			{#snippet row(track: Track)}
+				<CompactRow
+					title={names.dnTitle(track.title)}
+					subtitle={names.dnArtist(track.artist)}
+					cover={libraryRowCover(track)}
+					seed={track.uid}
+					track={track}
+					onplay={() => playLibraryTrack(track)}
+					onrequestmenu={() => openTrackMenu(track)}
+				/>
+			{/snippet}
+		</CompactPager>
+	{:else}
+		<div class="albumrow" use:dragScroll>
+			{#each tracks as track (track.uid)}{@render librarySongRow(track)}{/each}
+		</div>
+	{/if}
+{/snippet}
+
 {#snippet likedBlock()}
 	{#if likedShelf.length}
-		<div class="subhead">{t('settings.homeSectionLiked')}</div>
-		<div class="albumrow" use:dragScroll>
-			{#each likedShelf as track (track.uid)}{@render librarySongRow(track)}{/each}
-		</div>
+		{@render titleNav(t('settings.homeSectionLiked'), '/library?tab=liked')}
+		{@render libraryShelf(likedShelf, densityOf('liked') === 'compact')}
 	{/if}
 {/snippet}
 
 {#snippet downloadsBlock()}
 	{#if downloadsShelf.length}
-		<div class="subhead">{t('settings.homeSectionDownloads')}</div>
-		<div class="albumrow" use:dragScroll>
-			{#each downloadsShelf as track (track.uid)}{@render librarySongRow(track)}{/each}
-		</div>
+		{@render titleNav(t('settings.homeSectionDownloads'), '/library?tab=downloads')}
+		{@render libraryShelf(downloadsShelf, densityOf('downloads') === 'compact')}
 	{/if}
 {/snippet}
 
 {#snippet historyBlock()}
 	{#if historyShelf.length}
-		<div class="subhead">{t('settings.homeSectionHistory')}</div>
-		<div class="albumrow" use:dragScroll>
-			{#each historyShelf as track (track.uid)}{@render librarySongRow(track)}{/each}
-		</div>
+		{@render titleNav(t('settings.homeSectionHistory'), '/library?tab=history')}
+		{@render libraryShelf(historyShelf, densityOf('history') === 'compact')}
 	{/if}
 {/snippet}
 
 {#snippet favArtistsBlock()}
 	{#if favArtistsShelf.length}
-		<div class="subhead">{t('settings.homeSectionFavArtists')}</div>
-		<div class="albumrow" use:dragScroll>
-			{#each favArtistsShelf as a (a.name)}
-				{@const artistCover = tileCover({ image: null, mbid: null, artistName: a.name })}
-				<button class="album" onclick={() => goto('/artist/' + encodeURIComponent(a.name))}>
-					<span class="al-cover round" style:background-image={fallbackCover(a.name)}>
-						{#if artistCover}<img class="al-cover-img" src={artistCover} loading="lazy" alt="" onerror={hideOnError} />{/if}
-					</span>
-					<span class="al-name center" use:marquee><span class="marquee-inner">{names.dnArtist(a.name)}</span></span>
-				</button>
-			{/each}
-		</div>
+		{@render titleNav(t('settings.homeSectionFavArtists'), '/library?tab=fav-artists')}
+		{#if densityOf('fav-artists') === 'compact'}
+			<CompactPager items={compactSlice(favArtistsShelf)}>
+				{#snippet row(a: { name: string })}
+					<CompactRow
+						variant="artist"
+						title={names.dnArtist(a.name)}
+						cover={tileCover({ image: null, mbid: null, artistName: a.name })}
+						seed={a.name}
+						onopen={() => goto('/artist/' + encodeURIComponent(a.name))}
+					/>
+				{/snippet}
+			</CompactPager>
+		{:else}
+			<div class="albumrow" use:dragScroll>
+				{#each favArtistsShelf as a (a.name)}
+					{@const artistCover = tileCover({ image: null, mbid: null, artistName: a.name })}
+					<button class="album" onclick={() => goto('/artist/' + encodeURIComponent(a.name))}>
+						<span class="al-cover round" style:background-image={fallbackCover(a.name)}>
+							{#if artistCover}<img class="al-cover-img" src={artistCover} loading="lazy" alt="" onerror={hideOnError} />{/if}
+						</span>
+						<span class="al-name center" use:marquee><span class="marquee-inner">{names.dnArtist(a.name)}</span></span>
+					</button>
+				{/each}
+			</div>
+		{/if}
 	{/if}
 {/snippet}
 
 {#snippet playlistsBlock()}
 	{#each playlistShelves as shelf (shelf.id)}
-		<div class="subhead">{shelf.name}</div>
-		<div class="albumrow" use:dragScroll>
-			{#each shelf.tracks as track (track.uid)}{@render librarySongRow(track)}{/each}
-		</div>
+		<!-- D-13: per-playlist shelf deep-links to THAT playlist's detail (tab=playlists +
+		     the playlist id), NOT the generic Playlists tab. id is encodeURIComponent-wrapped. -->
+		{@render titleNav(shelf.name, '/library?tab=playlists&playlist=' + encodeURIComponent(shelf.id))}
+		{@render libraryShelf(shelf.tracks, densityOf('playlists') === 'compact')}
 	{/each}
 {/snippet}
 
 <TrackMenu track={menuTrack} open={menuOpen} loading={menuLoading} onclose={() => { menuOpen = false; menuLoading = false; menuGen++; }} />
-
-{#if toastMsg}<div class="toast" transition:fly={{ y: -20, duration: 180 }}>{toastMsg}</div>{/if}
 
 <style>
 	.topnav { display: flex; align-items: center; justify-content: space-between; padding: 14px 0 10px; }
@@ -828,7 +924,37 @@
 	}
 	.section .head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
 	.section h2 { font-size: calc(1.1rem * var(--fs-title, 1)); margin: 0; }
-	.subhead { font-size: calc(0.95rem * var(--fs-title, 1)); font-weight: 700; margin: 14px 0 8px; color: var(--color-text); }
+	/* D-14: section title is a full-row tap target (title + trailing chevron). Keeps the old
+	   .subhead typography (0.95rem/700); ≥44px touch height; chevron pushed right. */
+	.subhead-nav {
+		width: 100%;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-height: 44px;
+		margin: 14px 0 8px;
+		padding: 0;
+		background: none;
+		border: none;
+		cursor: pointer;
+		text-align: left;
+		color: var(--color-text);
+		font-size: calc(0.95rem * var(--fs-title, 1));
+		font-weight: 700;
+	}
+	.subhead-label { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+	.subhead-nav :global(.subhead-chev) { margin-left: auto; flex: none; color: var(--color-text-muted); }
+	@media (hover: hover) { .subhead-nav:hover .subhead-label { color: var(--color-text-muted); } }
+	/* Compact-row cold-load skeleton (UI-SPEC §2): mirrors the compact pager column shape. */
+	.compact-skel-pager { display: flex; gap: 12px; overflow: hidden; }
+	.compact-skel-col { flex: 0 0 90vw; max-width: 90vw; display: flex; flex-direction: column; gap: 8px; }
+	@media (min-width: 640px) { .compact-skel-col { flex-basis: 420px; max-width: 420px; } }
+	.compact-skel-row { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+	.cs-art { width: 40px; height: 40px; border-radius: 6px; flex: none; }
+	.cs-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+	.cs-bar { height: 11px; border-radius: 5px; }
+	.cs-bar-title { width: 62%; }
+	.cs-bar-sub { width: 40%; height: 9px; }
 	.more, .retry {
 		background: none; border: 1px solid var(--color-border); color: var(--color-text-muted);
 		padding: 5px 12px; border-radius: 999px; font-size: 12px; cursor: pointer;
@@ -857,8 +983,6 @@
 	/* FIX-B: real cover (Last.fm or CAA) layered over the gradient span; onerror hides it
 	   (a 404 → the gradient shows). inherit border-radius so the round variant clips it. */
 	.al-cover-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
-	.al-cover.skeleton { background: linear-gradient(110deg, #1a1a22 30%, #24242f 50%, #1a1a22 70%); background-size: 200% 100%; animation: sk 1.2s infinite; }
-	@keyframes sk { to { background-position: -200% 0; } }
 	.al-name { font-size: calc(12px * var(--fs-title, 1)); font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.al-name.center { text-align: center; }
 	.al-count { font-size: calc(11px * var(--fs-artist, 1)); color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -881,5 +1005,4 @@
 	.t-artist { font-size: calc(10px * var(--fs-artist, 1)); color: #d8d8de; margin-top: 2px; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.q { position: absolute; top: 6px; right: 6px; font-size: 8px; font-weight: 700; padding: 2px 5px; border-radius: 4px; background: rgba(0,0,0,0.55); color: #fff; }
 	.error { color: #ff7a90; font-size: 14px; }
-	.toast { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 14px); z-index: 90; background: #000; color: #fff; padding: 10px 16px; border-radius: 999px; font-size: 13px; box-shadow: var(--shadow-lg); }
 </style>

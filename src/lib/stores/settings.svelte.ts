@@ -20,7 +20,7 @@ import {
 // Pure util (no DOM/browser/store imports) — settings stays a LEAF store. Used by
 // applyTheme() to derive --color-primary-hover from the chosen accent (UX-07 root-cause fix).
 import { darken } from '$lib/services/color';
-import { clampShelfSize, type HomeDensity, type HomeLandingTab } from '$lib/services/home-layout';
+import { clampShelfSize, type HomeDensity, type HomeLandingTab, type HomeSectionId } from '$lib/services/home-layout';
 
 export type LyricsLang =
 	| 'off'
@@ -183,6 +183,10 @@ class Settings {
 	homeLandingTab = $state<HomeLandingTab>(HOME_DEFAULTS.homeLandingTab);
 	/** Home tile density. */
 	homeDensity = $state<HomeDensity>(HOME_DEFAULTS.homeDensity);
+	/** Per-section density OVERRIDE map (HOME-02 / D-07). Empty/absent → each section uses the
+	 *  caller-supplied global default (Plan 04 passes 'compact'). A per-section entry flips just
+	 *  that section back to comfortable. Object-not-array load guard mirrors enabledSources. */
+	homeSectionDensity = $state<Partial<Record<HomeSectionId, HomeDensity>>>({ ...HOME_DEFAULTS.homeSectionDensity });
 	/** Show the search pill on home (default TRUE = today). */
 	homeShowSearchPill = $state<boolean>(HOME_DEFAULTS.homeShowSearchPill);
 	/** Show the Randomize button on home (default TRUE = today). */
@@ -285,6 +289,13 @@ class Settings {
 				this.homeShelfSize = clampShelfSize(v.homeShelfSize);
 				this.homeLandingTab = (v.homeLandingTab as HomeLandingTab) ?? HOME_DEFAULTS.homeLandingTab;
 				this.homeDensity = (v.homeDensity as HomeDensity) ?? HOME_DEFAULTS.homeDensity;
+				// Per-section density map (HOME-02 / D-07): same object-not-array guard as
+				// enabledSources (T-23-06 — a malformed Array/non-object → safe {}). Per-section
+				// VALUE cleanup happens at render time in resolveSectionDensity.
+				this.homeSectionDensity =
+					v.homeSectionDensity && typeof v.homeSectionDensity === 'object' && !Array.isArray(v.homeSectionDensity)
+						? (v.homeSectionDensity as Partial<Record<HomeSectionId, HomeDensity>>)
+						: {};
 				// Booleans default TRUE via nullish-coalescing — NOT `!!v.x`, which would flip
 				// an ABSENT field to false and HIDE the chrome for a returning user (regression).
 				this.homeShowSearchPill = v.homeShowSearchPill ?? HOME_DEFAULTS.homeShowSearchPill;
@@ -345,6 +356,7 @@ class Settings {
 					homeShelfSize: this.homeShelfSize,
 					homeLandingTab: this.homeLandingTab,
 					homeDensity: this.homeDensity,
+					homeSectionDensity: this.homeSectionDensity,
 					homeShowSearchPill: this.homeShowSearchPill,
 					homeShowRandomize: this.homeShowRandomize
 				})
@@ -459,6 +471,7 @@ class Settings {
 		this.homeShelfSize = d.homeShelfSize;
 		this.homeLandingTab = d.homeLandingTab;
 		this.homeDensity = d.homeDensity;
+		this.homeSectionDensity = { ...d.homeSectionDensity };
 		this.homeShowSearchPill = d.homeShowSearchPill;
 		this.homeShowRandomize = d.homeShowRandomize;
 		this.save();

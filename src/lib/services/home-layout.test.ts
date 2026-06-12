@@ -4,6 +4,7 @@ import {
 	DEFAULT_SECTION_ORDER,
 	resolveSectionOrder,
 	resolveSubset,
+	resolveSectionDensity,
 	clampShelfSize,
 	SHELF_MIN,
 	SHELF_MAX,
@@ -203,5 +204,32 @@ describe('LANDING_PATHS', () => {
 		expect(LANDING_PATHS.home).toBe('/');
 		expect(LANDING_PATHS.search).toBe('/search');
 		expect(LANDING_PATHS.library).toBe('/library');
+	});
+});
+
+// resolveSectionDensity (HOME-02 / D-07) — per-section density override resolver. Mirrors the
+// resolveSubset "unknown/garbage → fallback, never blank" posture (threats T-23-06/07): an
+// attacker-influenceable persisted map must never throw and never blank the render — any
+// invalid per-section value (or a missing/undefined map) falls back to the globalDefault. The
+// compact-by-default requirement (D-07) ships by Plan 04 passing 'compact' as globalDefault.
+describe('resolveSectionDensity (HOME-02 / D-07)', () => {
+	it('a valid per-section override wins over the global default', () => {
+		expect(resolveSectionDensity('tags', { tags: 'comfortable' }, 'compact')).toBe('comfortable');
+	});
+
+	it('an empty map falls back to the global default', () => {
+		expect(resolveSectionDensity('tags', {}, 'compact')).toBe('compact');
+	});
+
+	it('a garbage per-section value falls back to the global default (never blanks)', () => {
+		expect(resolveSectionDensity('tags', { tags: 'garbage' as never }, 'compact')).toBe('compact');
+	});
+
+	it('an undefined map falls back to the global default (never blanks)', () => {
+		expect(resolveSectionDensity('tags', undefined, 'compact')).toBe('compact');
+	});
+
+	it('honours the global default value passed in (comfortable) when there is no override', () => {
+		expect(resolveSectionDensity('countries', {}, 'comfortable')).toBe('comfortable');
 	});
 });

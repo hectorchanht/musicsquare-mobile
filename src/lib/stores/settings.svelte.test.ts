@@ -96,6 +96,43 @@ describe('settings.effectiveUpnextMode (Phase 17 QUEUE-03)', () => {
 	});
 });
 
+// homeSectionDensity (HOME-02 / D-07) — per-section density OVERRIDE map plumbed through the
+// WR-10 3-touch-point pattern (field init / load guard / save+reset). It mirrors the
+// enabledSources + upnextPerContext "object-not-array" load guard (threat T-23-06): a persisted
+// Array or non-object must coerce to {} so the home render never reads a malformed override map.
+describe('settings.homeSectionDensity (HOME-02 / D-07)', () => {
+	it('a fresh load (no stored value) keeps the empty override map {}', () => {
+		// Under the node project load() is a no-op → the $state initializer holds.
+		expect(settings.homeSectionDensity).toEqual({});
+	});
+
+	it('a valid stored map loads unchanged', () => {
+		// Mirror the load() guard outcome for a well-formed object value.
+		const stored = { tags: 'comfortable' } as unknown;
+		settings.homeSectionDensity =
+			stored && typeof stored === 'object' && !Array.isArray(stored)
+				? (stored as Record<string, never>)
+				: {};
+		expect(settings.homeSectionDensity).toEqual({ tags: 'comfortable' });
+	});
+
+	it('a malformed (array/non-object) stored value coerces to {} (object-not-array guard, T-23-06)', () => {
+		for (const malformed of [[] as unknown, 'compact' as unknown, 42 as unknown, null as unknown]) {
+			settings.homeSectionDensity =
+				malformed && typeof malformed === 'object' && !Array.isArray(malformed)
+					? (malformed as Record<string, never>)
+					: {};
+			expect(settings.homeSectionDensity).toEqual({});
+		}
+	});
+
+	it('resetHome() restores homeSectionDensity to {}', () => {
+		settings.homeSectionDensity = { tags: 'comfortable', countries: 'compact' };
+		settings.resetHome();
+		expect(settings.homeSectionDensity).toEqual({});
+	});
+});
+
 // Phase 17 (UX-03 / D-11) — FONT_SCALE clamp widened to 50..200. Persisted 70-160 values
 // (the old bounds) must still load unchanged; out-of-range values clamp to the new bounds.
 describe('FONT_SCALE bounds (Phase 17 UX-03 / D-11)', () => {

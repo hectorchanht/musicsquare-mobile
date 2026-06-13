@@ -75,8 +75,17 @@ export async function fetchWithRetry(
 	throw lastErr instanceof Error ? lastErr : new Error('fetchWithRetry: request failed');
 }
 
+/**
+ * Native-Promise delay (RESEARCH "Don't Hand-Roll" — same setTimeout pattern as the private
+ * `backoff` below; deliberately NO AbortController). Callers that need cancellation check their
+ * own `signal.aborted` AFTER the await rather than racing an abort here.
+ */
+export function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function backoff(attempt: number): Promise<void> {
 	// 150ms, 300ms, ... (capped). Cheap; the edge waits on I/O, not CPU.
 	const ms = Math.min(150 * 2 ** attempt, 1000);
-	return new Promise((resolve) => setTimeout(resolve, ms));
+	return sleep(ms);
 }

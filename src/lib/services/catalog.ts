@@ -6,11 +6,23 @@
 import { SOURCES, getEnabledAdapters } from '$lib/sources/registry';
 import type { SourceId, Track, SettledSourceResult } from '$lib/sources/types';
 import type { DefaultQuality } from '$lib/stores/settings.svelte';
+import { sleep } from '$lib/proxy/http';
 import { cached, __clearSearchCache } from './ttl-cache';
 
 // Re-exported so tests (and any future cache-busting caller) can reset the search
 // cache between cases — the 3 existing fan-out spy tests rely on this in afterEach.
 export { __clearSearchCache };
+
+/**
+ * GAPLESS-PREFETCH: inter-source stagger (ms). The concurrent fan-out used to hit every proxy in
+ * the exact same instant — a burst that triggers rate-limits / transient 5xx on the slower sources.
+ * Adapter at index N now starts ~`SEARCH_STAGGER_MS * N` after the first (adapter 0 fires
+ * immediately). This is a STAGGERED START, not serialization: once launched the searches still
+ * overlap, so total added latency for K sources is only ~`SEARCH_STAGGER_MS * (K-1)` (a few hundred
+ * ms for the typical enabled count) and partial results keep streaming in via onPartial as each
+ * source lands — first-search feel is preserved. A small single value in the 150-300ms band.
+ */
+export const SEARCH_STAGGER_MS = 200;
 
 export interface SearchResult {
 	/** Per-source outcome (DATA-03): one failure is isolated, not fatal. */
@@ -116,11 +128,20 @@ async function searchAllUncached(
 	let pending = adapters.length;
 
 	await Promise.all(
-		adapters.map((a) =>
-			a
-				.search(keyword, page, sig)
-				.then((tracks) => {
-					acc.push({ source: a.id, status: 'ok', tracks });
+		adapters.map((a, idx) =>
+			// Staggered START (GAPLESS-PREFETCH): wait ~SEARCH_STAGGER_MS * idx before launching
+			// adapter idx so the proxies are not all hit in the same instant. `sleep` is the shared
+			// native-Promise delay (no hand-rolled AbortController). After the sleep we re-check
+			// `sig.aborted`: a query superseded DURING the stagger window must not keep launching
+			// later searches — we skip the `.search()` call entirely and just settle the accounting
+			// (decrement `pending`; the abort guard below suppresses the partial), so a superseded
+			// query stops firing new requests while `pending` still reaches 0.
+			sleep(SEARCH_STAGGER_MS * idx)
+				.then(() => {
+					if (sig.aborted) return; // aborted mid-stagger — do NOT launch this adapter
+					return a.search(keyword, page, sig).then((tracks) => {
+						acc.push({ source: a.id, status: 'ok', tracks });
+					});
 				})
 				.catch((reason) => {
 					acc.push({

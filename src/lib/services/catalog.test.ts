@@ -3,8 +3,10 @@ import {
 	searchAll,
 	ensureTrackDetails,
 	__clearSearchCache,
+	SEARCH_STAGGER_MS,
 	type PartialSearchResult
 } from './catalog';
+import { sleep } from '$lib/proxy/http';
 import { SOURCES } from '$lib/sources/registry';
 import { makeUid, type SourceId, type Track } from '$lib/sources/types';
 
@@ -251,6 +253,100 @@ describe('searchAll (D-06 progressive onPartial)', () => {
 		expect(partials.length).toBe(1);
 		expect(partials[0].pending).toBe(0);
 		expect(partials[0].interleaved.map((t) => t.uid)).toContain('netease:n1');
+	});
+});
+
+describe('searchAllUncached inter-source stagger (GAPLESS-PREFETCH)', () => {
+	it('sleep(ms) resolves after ~ms (native setTimeout pattern)', async () => {
+		vi.useFakeTimers();
+		try {
+			let settled = false;
+			const p = sleep(50).then(() => {
+				settled = true;
+			});
+			expect(settled).toBe(false);
+			await vi.advanceTimersByTimeAsync(50);
+			await p;
+			expect(settled).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('exports a small stagger constant in the 150-300ms band', () => {
+		expect(SEARCH_STAGGER_MS).toBeGreaterThanOrEqual(150);
+		expect(SEARCH_STAGGER_MS).toBeLessThanOrEqual(300);
+	});
+
+	it('staggers adapter launches — adapter[1] is not invoked until the timer advances', async () => {
+		vi.useFakeTimers();
+		try {
+			const n = vi.spyOn(SOURCES.netease, 'search').mockResolvedValue([mk('netease', 'n1')]);
+			const q = vi.spyOn(SOURCES.qq, 'search').mockResolvedValue([mk('qq', 'q1')]);
+			const k = vi.spyOn(SOURCES.kuwo, 'search').mockResolvedValue([mk('kuwo', 'k1')]);
+			const j = vi.spyOn(SOURCES.joox, 'search').mockResolvedValue([mk('joox', 'j1')]);
+
+			const done = searchAll('staggerkw', 1, ALL);
+			// Let the synchronous fan-out launch + adapter[0]'s 0ms sleep flush.
+			await vi.advanceTimersByTimeAsync(0);
+			expect(n).toHaveBeenCalledTimes(1);
+			// adapter[1] (qq) must still be waiting on its SEARCH_STAGGER_MS sleep.
+			expect(q).not.toHaveBeenCalled();
+
+			await vi.advanceTimersByTimeAsync(SEARCH_STAGGER_MS);
+			expect(q).toHaveBeenCalledTimes(1);
+			// kuwo at 2x, joox at 3x — still pending until their windows pass.
+			expect(k).not.toHaveBeenCalled();
+
+			await vi.advanceTimersByTimeAsync(SEARCH_STAGGER_MS * 2);
+			expect(k).toHaveBeenCalledTimes(1);
+			expect(j).toHaveBeenCalledTimes(1);
+
+			const { perSource, interleaved } = await done;
+			expect(perSource.map((p) => p.source).sort()).toEqual([
+				'joox',
+				'kuwo',
+				'netease',
+				'qq'
+			]);
+			// final membership matches the un-staggered registry-ordered interleave
+			expect(interleaved.map((t) => t.uid)).toEqual([
+				'netease:n1',
+				'qq:q1',
+				'kuwo:k1',
+				'joox:j1'
+			]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('aborting during the stagger window stops later adapters from being invoked', async () => {
+		vi.useFakeTimers();
+		try {
+			const n = vi.spyOn(SOURCES.netease, 'search').mockResolvedValue([mk('netease', 'n1')]);
+			const q = vi.spyOn(SOURCES.qq, 'search').mockResolvedValue([mk('qq', 'q1')]);
+			const k = vi.spyOn(SOURCES.kuwo, 'search').mockResolvedValue([mk('kuwo', 'k1')]);
+			const j = vi.spyOn(SOURCES.joox, 'search').mockResolvedValue([mk('joox', 'j1')]);
+
+			const ac = new AbortController();
+			const done = searchAll('abortstagger', 1, ALL, ac.signal);
+			// adapter[0] fires immediately; the rest are still in their sleep windows.
+			await vi.advanceTimersByTimeAsync(0);
+			expect(n).toHaveBeenCalledTimes(1);
+			expect(q).not.toHaveBeenCalled();
+
+			// Abort BEFORE the later windows elapse — they must be skipped.
+			ac.abort();
+			await vi.advanceTimersByTimeAsync(SEARCH_STAGGER_MS * 4);
+			await done;
+
+			expect(q).not.toHaveBeenCalled();
+			expect(k).not.toHaveBeenCalled();
+			expect(j).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
 

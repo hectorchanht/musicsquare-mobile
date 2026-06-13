@@ -1722,18 +1722,18 @@ class Player {
 	 * resolve-but-unplayable ping-pong backstop) can trip the guard directly. Always sets the inline
 	 * error key too (WR-07).
 	 */
-	private tripLoopGuard() {
-		this.consecutiveFailures = Player.FAILURE_CAP; // pin at the cap (idempotent across callers)
-		this.error = 'toast.playbackStopped';
-		this.audio?.pause();
-		this.clearMedia();
-		this.notice = {
-			kind: 'stopped',
-			reason: 'loop-guard',
-			msg: 'toast.playbackStopped',
-			action: () => this.recoverFromStop()
-		};
-	}
+	// private tripLoopGuard() {
+	// 	this.consecutiveFailures = Player.FAILURE_CAP; // pin at the cap (idempotent across callers)
+	// 	this.error = 'toast.playbackStopped';
+	// 	this.audio?.pause();
+	// 	this.clearMedia();
+	// 	this.notice = {
+	// 		kind: 'stopped',
+	// 		reason: 'loop-guard',
+	// 		msg: 'toast.playbackStopped',
+	// 		action: () => this.recoverFromStop()
+	// 	};
+	// }
 
 	/**
 	 * Recovery from the loop-guard stopped state (D-05). Bound to the sticky notice's Retry action

@@ -172,6 +172,8 @@ function installAssetPreloadMocks() {
 const Player_FAILURE_CAP = 5;
 /** Mirror of Player.STALL_TIMEOUT_MS (private static = 15000) for the stall-watchdog tests. */
 const Player_STALL_TIMEOUT_MS = 15000;
+/** Mirror of Player.PREFETCH_MAX_CANDIDATES (private static = 4) for the forward-resolve cap test. */
+const Player_PREFETCH_MAX_CANDIDATES = 4;
 
 /**
  * Minimal fake <audio> for attach(): records addEventListener handlers so a test can `.fire()`
@@ -545,6 +547,112 @@ describe('player.prefetchNext — pre-resolve next track for gapless-ish play', 
 		expect(player.queue[1].audioUrl).toBe('https://cdn/next.mp3');
 		expect(assets.audios[0].src).toBe('https://cdn/next.mp3');
 		expect(assets.images[0].src).toBe('https://img/prime.jpg');
+	});
+
+	// GAPLESS-PREFETCH: forward-resolve loop — survive a single-source transient hiccup by
+	// advancing through bounded candidates until one is actually playable.
+	it('skips a candidate whose resolve REJECTS and lands the next playable one', async () => {
+		const assets = installAssetPreloadMocks();
+		const cur = mk('netease', '0', 'A', 'Now');
+		const bad = stub('qq', '1', 'B', 'Bad'); // resolve rejects (transient proxy failure)
+		const good = stub('kuwo', '2', 'C', 'Good'); // resolves with a real audioUrl
+		player.queue = [cur, bad, good];
+		player.current = cur;
+
+		const resolvedGood: Track = {
+			...good,
+			detailsLoaded: true,
+			audioUrl: 'https://cdn/good.mp3',
+			cover: 'https://img/good.jpg'
+		};
+		mockEnsure.mockImplementation(async (t: Track) => {
+			if (t.uid === bad.uid) throw new Error('qq upstream 503');
+			if (t.uid === good.uid) return resolvedGood;
+			return t;
+		});
+
+		await prefetch();
+		await flush();
+
+		// Both candidates attempted; bad slot untouched (still the unresolved stub).
+		expect(mockEnsure).toHaveBeenCalledWith(bad, expect.any(AbortSignal));
+		expect(mockEnsure).toHaveBeenCalledWith(good, expect.any(AbortSignal));
+		expect(player.queue[1]).toBe(bad);
+		expect(player.queue[1].audioUrl).toBeNull();
+		// good landed: its slot now holds the resolved track + assets warmed for it.
+		expect(player.queue[2].detailsLoaded).toBe(true);
+		expect(player.queue[2].audioUrl).toBe('https://cdn/good.mp3');
+		expect(assets.audios[0].src).toBe('https://cdn/good.mp3');
+		expect(assets.images.some((i) => i.src === 'https://img/good.jpg')).toBe(true);
+	});
+
+	it('skips a candidate that resolves WITHOUT an audioUrl and lands the next playable one', async () => {
+		const cur = mk('netease', '0', 'A', 'Now');
+		const bad = stub('qq', '1', 'B', 'NoUrl');
+		const good = stub('kuwo', '2', 'C', 'Good');
+		player.queue = [cur, bad, good];
+		player.current = cur;
+
+		mockEnsure.mockImplementation(async (t: Track) => {
+			if (t.uid === bad.uid) return { ...bad, detailsLoaded: true, audioUrl: null }; // resolved but unplayable
+			if (t.uid === good.uid) return { ...good, detailsLoaded: true, audioUrl: 'https://cdn/good.mp3' };
+			return t;
+		});
+
+		await prefetch();
+		await flush();
+
+		// bad slot stays the unplayable stub (never written back); good landed.
+		expect(player.queue[1]).toBe(bad);
+		expect(player.queue[1].audioUrl).toBeNull();
+		expect(player.queue[2].audioUrl).toBe('https://cdn/good.mp3');
+	});
+
+	it('respects PREFETCH_MAX_CANDIDATES — tries at most N candidates then stops', async () => {
+		const cur = mk('netease', '0', 'A', 'Now');
+		// N+2 all-rejecting stubs after current.
+		const stubs = Array.from({ length: Player_PREFETCH_MAX_CANDIDATES + 2 }, (_, i) =>
+			stub('qq', String(i + 1), 'B', `Stub ${i + 1}`)
+		);
+		player.queue = [cur, ...stubs];
+		player.current = cur;
+
+		mockEnsure.mockRejectedValue(new Error('every source down'));
+
+		await prefetch();
+		await flush();
+
+		// At most N resolve attempts, never the full window.
+		expect(mockEnsure.mock.calls.length).toBeLessThanOrEqual(Player_PREFETCH_MAX_CANDIDATES);
+		// Queue unchanged — nothing resolved, so no slot was written back.
+		expect(player.queue.slice(1).every((t) => t.audioUrl === null)).toBe(true);
+	});
+
+	it('aborts the forward-resolve loop and writes nothing when current changes mid-loop', async () => {
+		const cur = mk('netease', '0', 'A', 'Now');
+		const bad = stub('qq', '1', 'B', 'Bad');
+		const good = stub('kuwo', '2', 'C', 'Good');
+		player.queue = [cur, bad, good];
+		player.current = cur;
+
+		const dBad = deferred<Track>();
+		mockEnsure.mockImplementation((t: Track) => {
+			if (t.uid === bad.uid) return dBad.promise;
+			return Promise.resolve({ ...good, detailsLoaded: true, audioUrl: 'https://cdn/good.mp3' });
+		});
+
+		void prefetch(); // seedUid = cur.uid; first candidate (bad) is in flight
+
+		// Current changes away mid-loop → remaining work must be discarded.
+		player.current = mk('joox', '9', 'Z', 'Unrelated');
+		dBad.reject(new Error('bad failed')); // bad's resolve rejects; loop would advance to good
+		await flush();
+
+		// Neither slot was written — the stale-guard broke out after the await.
+		expect(player.queue[1]).toBe(bad);
+		expect(player.queue[2]).toBe(good);
+		expect(player.queue[1].audioUrl).toBeNull();
+		expect(player.queue[2].audioUrl).toBeNull();
 	});
 });
 

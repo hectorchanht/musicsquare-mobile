@@ -131,6 +131,10 @@ class Player {
 	/** Loop-guard cap: after this many consecutive failures with zero successful plays, STOP and
 	 *  surface a sticky Retry notice instead of auto-advancing again (D-04). */
 	private static FAILURE_CAP = 5;
+	/** GAPLESS-PREFETCH: max queue candidates prefetchNext's forward-resolve loop will try per
+	 *  invocation before stopping — bounds the loop so a stretch of failing sources never spins
+	 *  forever and never blocks play(). */
+	private static PREFETCH_MAX_CANDIDATES = 4;
 	/**
 	 * Audio-element error burst counter (CR-03). The dominant region-lock failure mode is "detail
 	 * fetch resolves a URL fine, the <audio> byte fetch 403s" — i.e. the `error` event fires while
@@ -1113,52 +1117,98 @@ class Player {
 	 * warms the next audio URL through a muted offscreen Audio element and preloads the cover image,
 	 * so the later main-audio src swap and cover repaint can reuse browser cache when supported.
 	 *
-	 * Target = queue[indexOf(current)+1] — EXACTLY what next() selects (no play-mode branching).
-	 * Guards: silent no-op at end of queue / no current; skip an already-complete target;
-	 * dedupe a second prefetch of the same uid in flight; abort + discard a stale resolve if
-	 * `current` changes mid-resolve (so a stale result never clobbers the queue).
+	 * GAPLESS-PREFETCH: this is a BOUNDED FORWARD-RESOLVE loop. The first candidate is
+	 * queue[indexOf(current)+1] — EXACTLY what next() selects (no play-mode branching) — but instead
+	 * of giving up when that one source hiccups, it advances through up to PREFETCH_MAX_CANDIDATES
+	 * queue entries until it lands one that is actually PLAYABLE (resolves with an audioUrl). A
+	 * candidate whose resolve REJECTS (transient proxy/rate-limit failure) or resolves WITHOUT an
+	 * audioUrl is skipped; cover is best-effort and never disqualifies a candidate.
+	 *
+	 * Guards (all preserved from the single-candidate version):
+	 *  - silent no-op at end of queue / no current;
+	 *  - already-complete immediate-next short-circuit (warm assets, skip resolve);
+	 *  - in-flight dedupe keyed to the immediate-next uid (no duplicate concurrent loop);
+	 *  - single shared prefetchController — a superseding prefetch aborts the in-flight loop;
+	 *  - seedUid stale-guard checked AFTER every await — a `current` change mid-loop discards all
+	 *    remaining work and never clobbers the queue;
+	 *  - write-back locates the slot FRESHLY by uid (never a closed-over index) and only writes a
+	 *    slot still AHEAD of the recomputed current.
+	 * It never throws, never bumps playGen, never calls next()/runFallback — a pure pre-resolve
+	 * optimization that composes with the never-stop chain.
 	 */
 	private async prefetchNext() {
 		const i = this.indexOf(this.current);
 		if (i < 0) return; // no current track in the queue — nothing to prefetch from
-		const nextIndex = i + 1;
-		if (nextIndex >= this.queue.length) return; // at end of queue — silent no-op (growth is ensureAhead's job)
-		const target = this.queue[nextIndex];
-		this.preloadNextCover(target);
+		const firstIndex = i + 1;
+		if (firstIndex >= this.queue.length) return; // at end of queue — silent no-op (growth is ensureAhead's job)
+
+		// Always warm the cover of the immediate-next (preserve today's cover-warm behavior).
+		const immediateNext = this.queue[firstIndex];
+		this.preloadNextCover(immediateNext);
+
 		// Already complete? The readiness guard would no-op anyway — warm bytes/art and skip resolve.
-		if (target.detailsLoaded && target.audioUrl && (target.lrc || !target.lrcUrl)) {
-			this.prewarmNextAssets(target);
+		if (
+			immediateNext.detailsLoaded &&
+			immediateNext.audioUrl &&
+			(immediateNext.lrc || !immediateNext.lrcUrl)
+		) {
+			this.prewarmNextAssets(immediateNext);
 			return;
 		}
-		// In-flight dedupe: already prefetching this exact track — do not start a second resolve.
-		if (this.prefetchingUid === target.uid) return;
+		// In-flight dedupe: already prefetching from this exact immediate-next — no second loop.
+		if (this.prefetchingUid === immediateNext.uid) return;
 
-		// Supersede any prior in-flight prefetch (different target) before claiming this one.
+		// Supersede any prior in-flight prefetch (different target) before claiming this one. The
+		// loop is keyed to the immediate-next uid (same as today) for dedupe + finally cleanup.
 		this.prefetchController?.abort();
-		this.prefetchingUid = target.uid;
+		const claimedUid = immediateNext.uid;
+		this.prefetchingUid = claimedUid;
 		this.prefetchController = new AbortController();
 		const sig = this.prefetchController.signal;
 		const seedUid = this.current?.uid; // stale-guard: current must not change away
 
 		try {
-			const resolved = await ensureTrackDetails(target, sig);
-			// Stale-guard: only write back when `current` hasn't changed AND the queue still
-			// holds this target at the slot right after the (recomputed) current position.
-			// Otherwise discard silently — never clobber a newer prefetch / moved queue.
-			if (this.current?.uid === seedUid) {
-				const j = this.indexOf(this.current);
-				const slot = j + 1;
-				if (j >= 0 && this.queue[slot]?.uid === target.uid) {
-					this.queue[slot] = resolved; // same in-place sync play() does — later play() no-ops
+			// Bounded candidate window: indices firstIndex .. min(i+MAX, length-1), in queue order.
+			const lastIndex = Math.min(i + Player.PREFETCH_MAX_CANDIDATES, this.queue.length - 1);
+			for (let idx = firstIndex; idx <= lastIndex; idx++) {
+				if (sig.aborted) break; // superseded — discard remaining work
+				const target = this.queue[idx];
+				if (!target) continue;
+
+				// Already-complete candidate is itself the landing slot: warm + done (no write needed).
+				if (target.detailsLoaded && target.audioUrl && (target.lrc || !target.lrcUrl)) {
+					this.prewarmNextAssets(target);
+					break;
+				}
+
+				let resolved: Track;
+				try {
+					resolved = await ensureTrackDetails(target, sig);
+				} catch {
+					continue; // transient reject — skip this candidate, try the next
+				}
+
+				// Stale-guard AFTER the await: current changed away → discard all remaining work.
+				if (this.current?.uid !== seedUid) break;
+				// Resolved but unplayable (no audioUrl) → try the next candidate.
+				if (!resolved.audioUrl) continue;
+
+				// LANDED. Locate the slot FRESHLY by uid (never a closed-over index, Pitfall 1) and
+				// write back only if it is still AHEAD of the recomputed current — same in-place sync
+				// play() does, so the later play() no-ops.
+				const writeIdx = this.queue.findIndex((t) => t.uid === target.uid);
+				if (writeIdx >= 0 && writeIdx > this.indexOf(this.current)) {
+					this.queue[writeIdx] = resolved;
 					this.prewarmNextAssets(resolved);
 				}
+				break;
 			}
 		} catch {
-			/* best-effort — abort or proxy failure leaves the queue as-is */
+			/* best-effort — abort or unexpected failure leaves the queue as-is */
 		} finally {
-			// Clear the in-flight guard only if it still points at THIS target (a superseding
-			// prefetch may have already claimed a newer uid).
-			if (this.prefetchingUid === target.uid) {
+			// Clear the in-flight guard only if it still points at the uid claimed in step 6 (a
+			// superseding prefetch may have already claimed a newer uid).
+			if (this.prefetchingUid === claimedUid) {
 				this.prefetchingUid = null;
 				this.prefetchController = null;
 			}

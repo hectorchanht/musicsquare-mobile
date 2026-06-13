@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.2
-milestone_name: Resilient Playback & UX Polish
-status: milestone_complete
-stopped_at: Milestone complete (Phase 999.1 was final phase)
-last_updated: 2026-06-12T04:44:06.203Z
-last_activity: 2026-06-12 -- Phase 23 execution started
+milestone_name: Resilient Playback & UX Polish` below). The Last.fm write-side
+status: completed
+stopped_at: Phase 23 UI-SPEC approved
+last_updated: "2026-06-13T03:23:57.690Z"
+last_activity: 2026-06-13 -- Phase 21 marked complete
 progress:
-  total_phases: 10
-  completed_phases: 6
-  total_plans: 38
-  completed_plans: 49
-  percent: 60
+  total_phases: 24
+  completed_phases: 13
+  total_plans: 51
+  completed_plans: 50
+  percent: 54
 ---
 
 # Project State
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-10)
 
 ## Current Position
 
-Phase: 999.1
+Phase: 21 — COMPLETE
 Plan: Not started
-Status: Milestone complete
-Last activity: 2026-06-13 - Completed quick task 260613-fhw: gapless prefetch (inter-source search stagger + bounded forward-resolve prefetchNext)
+Status: Phase 21 complete
+Last activity: 2026-06-13 -- Phase 21 marked complete
 Next: /gsd:verify-work phase 19 (device-pass the two non-node-testable contracts — MENU-02 marquee re-measure + MENU-03 stuck-state — before sign-off)
 
 ## Performance Metrics

@@ -355,7 +355,7 @@ Music never stops + offline downloads + a broad UX polish pass. This is a polish
 - [x] **Phase 18: Sleep Timer** - Sleep timer (5/10/15/30/45/60 min or end-of-track) from the track menu with active indicator + cancel/change (completed 2026-06-11)
 - [x] **Phase 19: Track Menu Rework** - Instant buttons + background resolve-then-act, 2-row marquee header, top-right like/close, Remix (seed genre queue), long-press focus-state fix (completed 2026-06-11)
 - [x] **Phase 20: Now-Playing Surface & Gestures** - Cover swipe prev/next (axis-locked), half-open scroll containment, tap-cover-closes-subnav, top running-line loader, nowbar horizontal swipe (completed 2026-06-11)
-- [ ] **Phase 21: Search & Cover Pipeline Polish** - Search scoring tune (short-title / artist-frequency boost, <60s 試聽 penalty), result cover fallback, empty-query autofocus, playing-track cover guarantee, scroll-into-view uid/name-keyed cache
+- [x] **Phase 21: Search & Cover Pipeline Polish** - Search scoring tune (short-title / artist-frequency boost, <60s 試聽 penalty), result cover fallback, empty-query autofocus, playing-track cover guarantee, scroll-into-view uid/name-keyed cache (completed 2026-06-13)
 - [ ] **Phase 22: Lyrics Polish** - Tap-line-to-seek, touch-suspended auto-scroll (verify live), end-spacer centering, CN translation-line ordering fix, robust bracket hiding
 - [x] **Phase 23: UX Audit & Homepage/Artist Polish** - Shape-matched skeletons everywhere, button toast + double-click guard, row swipe-actions, haptics, a11y pass, compact rows-of-4 homepage mode + section grid/library nav, hide trackless albums (completed 2026-06-12)
 - [ ] **Phase 24: Offline App-Shell & Sharing/SEO** - Service-worker app-shell (never caches /api or audio), downloaded-track offline playback, graceful offline degradation; per-entity SSR OG + readable slugs + per-page SEO
@@ -521,9 +521,9 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 21-03-PLAN.md — Player resolvedCover field (sync from cache + async tier chain, generation-guarded MediaSession re-fire) + NowPlaying/Nowbar repoint (checkpoint: human-verify) (COVER-01) — depends on 21-02
-- [ ] 21-04-PLAN.md — Search page wiring: score+sort per partial inside race guards, use:lazyCover on result rows, autofocus verify-and-harden (checkpoint: human-verify) (SRCH-01/02/03, COVER-02) — depends on 21-01, 21-02
-- [ ] 21-05-PLAN.md — lazyCover wired into library/album/artist track lists (checkpoint: human-verify) (COVER-02) — depends on 21-02
+- [x] 21-03-PLAN.md — Player resolvedCover field (sync from cache + async tier chain, generation-guarded MediaSession re-fire) + NowPlaying/Nowbar repoint (checkpoint: human-verify) (COVER-01) — depends on 21-02
+- [x] 21-04-PLAN.md — Search page wiring: score+sort per partial inside race guards, use:lazyCover on result rows, autofocus verify-and-harden (checkpoint: human-verify) (SRCH-01/02/03, COVER-02) — depends on 21-01, 21-02
+- [x] 21-05-PLAN.md — lazyCover wired into library/album/artist track lists (checkpoint: human-verify) (COVER-02) — depends on 21-02
 
 **UI hint**: yes
 **Research flag**: LOW — `IntersectionObserver` cover-in-view + name-key cache (key by `uid` first to avoid collisions) are documented; scoring is pure logic.
@@ -628,7 +628,7 @@ Last.fm write-side dependency chain (deferred → v1.3): 11 (auth) before 12 & 1
 | 18. Sleep Timer | 3/3 | Complete    | 2026-06-11 |
 | 19. Track Menu Rework | 3/3 | Complete    | 2026-06-11 |
 | 20. Now-Playing Surface & Gestures | 4/4 | Complete    | 2026-06-11 |
-| 21. Search & Cover Pipeline Polish | 2/5 | In Progress|  |
+| 21. Search & Cover Pipeline Polish | 5/5 | Complete   | 2026-06-13 |
 | 22. Lyrics Polish | 1/2 | In Progress|  |
 | 23. UX Audit & Homepage/Artist Polish | 8/8 | Complete    | 2026-06-12 |
 | 24. Offline App-Shell & Sharing/SEO | 0/TBD | Not started | - |

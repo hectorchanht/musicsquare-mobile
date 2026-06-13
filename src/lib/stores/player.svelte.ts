@@ -906,19 +906,19 @@ class Player {
 			// runFallback (which already collapses the 2-source loop); the burst cap is the
 			// generic backstop for 3+ resolve-but-unplayable sources.
 			this.errorBurst++;
-			if (this.errorBurst >= Player.FAILURE_CAP) {
-				// FAILURE_CAP raw audio errors on the current song without ever reaching `playing` —
-				// the resolve-but-unplayable ping-pong. Break a failing repeat-one loop first (D-12),
-				// then trip the loop-guard STOP directly so the never-stop chain engages even though
-				// tryFallback kept 'succeeding' and handleTotalFailure never ran.
-				this.errorBurst = 0;
-				if (this.repeatMode === 'one') {
-					this.repeatMode = 'off';
-					this.persist();
-				}
-				this.tripLoopGuard();
-				return;
-			}
+			// if (this.errorBurst >= Player.FAILURE_CAP) {
+			// 	// FAILURE_CAP raw audio errors on the current song without ever reaching `playing` —
+			// 	// the resolve-but-unplayable ping-pong. Break a failing repeat-one loop first (D-12),
+			// 	// then trip the loop-guard STOP directly so the never-stop chain engages even though
+			// 	// tryFallback kept 'succeeding' and handleTotalFailure never ran.
+			// 	this.errorBurst = 0;
+			// 	if (this.repeatMode === 'one') {
+			// 		this.repeatMode = 'off';
+			// 		this.persist();
+			// 	}
+			// 	this.tripLoopGuard();
+			// 	return;
+			// }
 			void this.runFallback(failed);
 		});
 
